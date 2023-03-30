@@ -14,7 +14,6 @@ int main()
 {
     int ex;
     int ey;
-    int nx,ny;
     int order;
     float lx;
     float ly;
@@ -30,7 +29,7 @@ int main()
     int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
     // iniatialize source term
-    float f0=4.;
+    float f0=15.;
     int sourceOrder=1;
     vector<float>sourceTerm=utils.computeSourceTerm(nSamples, timeStep, f0,sourceOrder );
     for ( int i=0; i<nSamples;i++)
@@ -41,7 +40,7 @@ int main()
     int numberOfRHS=1;
     vector<vector<float>>rhsLocation(numberOfRHS,vector<float>(2));
     vector<vector<float>>rhsTerm(numberOfRHS,vector<float>(nSamples,0));
-    rhsLocation[0][0]=101;
+    rhsLocation[0][0]=501;
     rhsLocation[0][1]=501;
     cout << "source location "<<rhsLocation[0][0]<<", "<<rhsLocation[0][1]<<endl;
     // get element number of source term
@@ -54,14 +53,15 @@ int main()
         rhsTerm[0][j]=sourceTerm[j];
     }
 
-    //open ascii file for debugging
-    ofstream fichier("test.txt", ios::out | ios::trunc);
 
     // loop over time
     int i1=0;
     int i2=1;
+    int i,j;
     int numberOfNodes=mesh.getNumberOfNodes();
     int numberOfElements=mesh.getNumberOfElements();
+    int nx=mesh.getNx();
+    int ny=mesh.getNy();
     vector<vector<int>> nodeList=mesh.globalNodesList(numberOfElements);
     vector<vector<float>> pnGlobal(numberOfNodes,vector<float> (2));
     for (int indexTimeStep=0; indexTimeStep<nSamples;indexTimeStep++)
@@ -69,15 +69,11 @@ int main()
         solve.addRightAndSides(indexTimeStep,numberOfRHS,i2,timeStep,pnGlobal,rhsTerm,rhsLocation,mesh);
         solve.computeOneStep(timeStep,order,i1,i2,pnGlobal,mesh,Qk);
         //writes debugging ascii file.
-        int elementReceiver=mesh.getElementNumberFromPoints(501,201);
-        int elementReceiver1=mesh.getElementNumberFromPoints(601,201);
-        fichier<<pnGlobal[nodeList[elementReceiver][0]][i2]<<" "<<pnGlobal[nodeList[elementReceiver1][0]][i2]<<endl;
-        if (indexTimeStep%10==0)
-        {
+        if (indexTimeStep%80==0)
+        {  
            cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
            cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
-           cout<<"pnGlobal @ elementReceiver location "<<elementReceiver<<" after computeOneStep ="<<pnGlobal[nodeList[elementReceiver][0]][i2]<<" "
-                                                                                                   <<pnGlobal[nodeList[elementReceiver1][0]][i2]<<endl;
+           utils.saveSnapShot(indexTimeStep,i1,pnGlobal,mesh);
         }
         int tmp;
         tmp=i1;
