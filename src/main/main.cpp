@@ -20,11 +20,11 @@ int main()
     float hx,hy;
     
     QkGL Qk;
-    simpleMesh mesh {ex=100,ey=100,lx=2000,ly=2000,order=2};
+    simpleMesh mesh {ex=200,ey=200,lx=2000,ly=2000,order=1};
     solver solve; 
     solverUtils utils;
 
-    float timeMax=1;
+    float timeMax=1.5;
     float timeStep=0.001;
     int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
@@ -69,7 +69,7 @@ int main()
         solve.addRightAndSides(indexTimeStep,numberOfRHS,i2,timeStep,pnGlobal,rhsTerm,rhsLocation,mesh);
         solve.computeOneStep(timeStep,order,i1,i2,pnGlobal,mesh,Qk);
         //writes debugging ascii file.
-        if (indexTimeStep%40==0)
+        if (indexTimeStep%100==0)
         {  
            cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
            cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
