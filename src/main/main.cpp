@@ -22,21 +22,11 @@ int main()
     
     SEM_CALIPER_MARK_BEGIN("generate mesh");
     QkGL Qk;
-<<<<<<< HEAD
     simpleMesh mesh {ex=200,ey=200,lx=2000,ly=2000,order=1};
     solver solve; 
     solverUtils utils;
 
     float timeMax=1.5;
-=======
-    simpleMesh mesh {ex=100,ey=100,lx=2000,ly=2000,order=2};
-    SEM_CALIPER_MARK_END("generate mesh");
-
-    solver solve; 
-    solverUtils utils;
-
-    float timeMax=0.1;
->>>>>>> feature/jmeng/addcaliper
     float timeStep=0.001;
     int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
@@ -97,12 +87,8 @@ int main()
 
 
         //writes debugging ascii file.
-<<<<<<< HEAD
-        if (indexTimeStep%100==0)
-=======
         SEM_CALIPER_MARK_BEGIN("utils.saveSnapShot");
-        if (indexTimeStep%40==0)
->>>>>>> feature/jmeng/addcaliper
+        if (indexTimeStep%100==0)
         {  
            cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
            cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
