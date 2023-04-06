@@ -22,7 +22,7 @@ int main()
     
     QkGL Qk;
     SEM_CALIPER_MARK_BEGIN("generate mesh");
-    simpleMesh mesh {ex=200,ey=200,lx=2000,ly=2000,order=1};
+    simpleMesh mesh {ex=100,ey=100,lx=3000,ly=3000,order=2};
     SEM_CALIPER_MARK_END("generate mesh");
     solver solve; 
     solverUtils utils;
@@ -32,7 +32,7 @@ int main()
     int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
     // iniatialize source term
-    float f0=15.;
+    float f0=8.;
     int sourceOrder=1;
 
     SEM_CALIPER_MARK_BEGIN("compute sourceTerm");
@@ -49,8 +49,8 @@ int main()
     int numberOfRHS=1;
     vector<vector<float>>rhsLocation(numberOfRHS,vector<float>(2));
     vector<vector<float>>rhsTerm(numberOfRHS,vector<float>(nSamples,0));
-    rhsLocation[0][0]=501;
-    rhsLocation[0][1]=501;
+    rhsLocation[0][0]=1501;
+    rhsLocation[0][1]=21;
     cout << "source location "<<rhsLocation[0][0]<<", "<<rhsLocation[0][1]<<endl;
 
     // get element number of source term
