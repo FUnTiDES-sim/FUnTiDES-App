@@ -27,7 +27,8 @@ int main()
     solver solve; 
     solverUtils utils;
 
-    float timeMax=1;
+    //float timeMax=1;
+    float timeMax=0.01;
     float timeStep=0.001;
     int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
