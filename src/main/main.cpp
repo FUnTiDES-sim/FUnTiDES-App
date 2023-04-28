@@ -22,7 +22,7 @@ int main()
     
     QkGL Qk;
     SEM_CALIPER_MARK_BEGIN("generate mesh");
-    simpleMesh mesh {ex=3,ey=3,lx=3000,ly=3000,order=1};
+    simpleMesh mesh {ex=3,ey=3,lx=2000,ly=2000,order=2};
     SEM_CALIPER_MARK_END("generate mesh");
     solver solve; 
     solverUtils utils;
