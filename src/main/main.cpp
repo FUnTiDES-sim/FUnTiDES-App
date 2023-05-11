@@ -32,7 +32,7 @@ int main()
     int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
     // iniatialize source term
-    float f0=8.;
+    float f0=15.;
     int sourceOrder=1;
 
     SEM_CALIPER_MARK_BEGIN("compute sourceTerm");
@@ -50,7 +50,7 @@ int main()
     vector<vector<float>>rhsLocation(numberOfRHS,vector<float>(2));
     vector<vector<float>>rhsTerm(numberOfRHS,vector<float>(nSamples,0));
     rhsLocation[0][0]=501;
-    rhsLocation[0][1]=201;
+    rhsLocation[0][1]=101;
     cout << "source location "<<rhsLocation[0][0]<<", "<<rhsLocation[0][1]<<endl;
 
     // get element number of source term
