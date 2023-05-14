@@ -20,9 +20,9 @@ int main()
     float ly;
     float hx,hy;
     
-    QkGL Qk;
+    QkGL const Qk;
     SEM_CALIPER_MARK_BEGIN("generate mesh");
-    simpleMesh mesh {ex=100,ey=100,lx=1000,ly=1000,order=1};
+    simpleMesh const mesh {ex=100,ey=100,lx=1000,ly=1000,order=1};
     SEM_CALIPER_MARK_END("generate mesh");
     solver solve; 
     solverUtils utils;
