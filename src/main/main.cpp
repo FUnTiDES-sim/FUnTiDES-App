@@ -22,14 +22,14 @@ int main()
     
     QkGL Qk;
     SEM_CALIPER_MARK_BEGIN("generate mesh");
-    simpleMesh const mesh {ex=100,ey=100,lx=1000,ly=1000,order=1};
+    simpleMesh const mesh {ex=3,ey=3,lx=3000,ly=3000,order=1};
     SEM_CALIPER_MARK_END("generate mesh");
     solver solve; 
     solverUtils utils;
 
     float timeMax=1;
     float timeStep=0.001;
-    int nSamples=timeMax/timeStep;
+    int nSamples=1;//timeMax/timeStep;
     int indexTimeStepSource=nSamples;
     // iniatialize source term
     float f0=15.;
