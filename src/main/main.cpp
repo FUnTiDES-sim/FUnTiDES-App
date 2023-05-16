@@ -29,7 +29,7 @@ int main()
 
     float timeMax=1;
     float timeStep=0.001;
-    int nSamples=700;timeMax/timeStep;
+    int nSamples=timeMax/timeStep;
     int indexTimeStepSource=nSamples;
     // iniatialize source term
     float f0=15.;
