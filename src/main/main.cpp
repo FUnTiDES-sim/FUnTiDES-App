@@ -81,12 +81,9 @@ int main()
         SEM_CALIPER_MARK_BEGIN("solve.addRightAndSides");
         solve.addRightAndSides(indexTimeStep,numberOfRHS,i2,timeStep,pnGlobal,rhsTerm,rhsLocation,mesh);
         SEM_CALIPER_MARK_END("solve.addRightAndSides");
-
         SEM_CALIPER_MARK_BEGIN("solve.computeOneStep");
         solve.computeOneStep(timeStep,order,i1,i2,pnGlobal,mesh,Qk);
         SEM_CALIPER_MARK_END("solve.computeOneStep");
-
-
         //writes debugging ascii file.
         SEM_CALIPER_MARK_BEGIN("utils.saveSnapShot");
         if (indexTimeStep%50==0)
@@ -96,7 +93,6 @@ int main()
            utils.saveSnapShot(indexTimeStep,i1,pnGlobal,mesh);
         }
         SEM_CALIPER_MARK_END("utils.saveSnapShot");
-
         int tmp;
         tmp=i1;
         i1=i2;
