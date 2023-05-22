@@ -92,7 +92,7 @@ int main()
     {
       cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
       cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
-      utils.saveSnapShot( indexTimeStep, i1, pnGlobal, mesh );
+      //utils.saveSnapShot( indexTimeStep, i1, pnGlobal, mesh );
     }
     SEM_CALIPER_MARK_END( "utils.saveSnapShot" );
     int tmp;
