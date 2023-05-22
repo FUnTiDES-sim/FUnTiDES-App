@@ -22,7 +22,7 @@ int main()
     
     QkGL Qk;
     SEM_CALIPER_MARK_BEGIN("generate mesh");
-    simpleMesh const mesh {ex=50,ey=50,lx=1000,ly=1000,order=2};
+    simpleMesh const mesh {ex=100,ey=100,lx=2000,ly=2000,order=2};
     SEM_CALIPER_MARK_END("generate mesh");
     solver solve; 
     solverUtils utils;
@@ -49,8 +49,8 @@ int main()
     int numberOfRHS=1;
     vector<vector<float>>rhsLocation(numberOfRHS,vector<float>(2));
     vector<vector<float>>rhsTerm(numberOfRHS,vector<float>(nSamples,0));
-    rhsLocation[0][0]=501;
-    rhsLocation[0][1]=501;
+    rhsLocation[0][0]=1001;
+    rhsLocation[0][1]=101;
     cout << "source location "<<rhsLocation[0][0]<<", "<<rhsLocation[0][1]<<endl;
 
     // get element number of source term
@@ -86,7 +86,7 @@ int main()
         SEM_CALIPER_MARK_END("solve.computeOneStep");
         //writes debugging ascii file.
         SEM_CALIPER_MARK_BEGIN("utils.saveSnapShot");
-        if (indexTimeStep%50==0)
+        if (indexTimeStep%100==0)
         {  
            cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
            cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
