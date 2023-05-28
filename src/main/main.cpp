@@ -6,6 +6,7 @@
 #include "QkGL.hpp"
 #include "simpleMesh.hpp"
 #include "utils.hpp"
+#include "dataType.hpp"
 #include "solver.hpp"
 
 #include "commonMacro.hpp"
@@ -23,7 +24,7 @@ int main()
 
   QkGL Qk;
   SEM_CALIPER_MARK_BEGIN( "generate mesh" );
-  simpleMesh const mesh {ex=50, ey=50, lx=1000, ly=1000, order=2};
+  simpleMesh const mesh {ex=100, ey=100, lx=1000, ly=1000, order=1};
   SEM_CALIPER_MARK_END( "generate mesh" );
   solver solve;
   solverUtils utils;
@@ -49,8 +50,8 @@ int main()
   SEM_CALIPER_MARK_BEGIN( "set location" );
   // set number of rhs and location
   int numberOfRHS=1;
-  vector< vector< float > >rhsLocation( numberOfRHS, vector< float >( 2 ));
-  vector< vector< float > >rhsTerm( numberOfRHS, vector< float >( nSamples, 0 ));
+  arrayReal rhsLocation( numberOfRHS,2);
+  arrayReal rhsTerm( numberOfRHS,nSamples);
   rhsLocation[0][0]=501;
   rhsLocation[0][1]=501;
   cout << "source location "<<rhsLocation[0][0]<<", "<<rhsLocation[0][1]<<endl;
@@ -75,9 +76,9 @@ int main()
   int numberOfElements=mesh.getNumberOfElements();
   int nx=mesh.getNx();
   int ny=mesh.getNy();
-  vector< vector< int > > nodeList=mesh.globalNodesList( numberOfElements );
-  vector< vector< float > > pnGlobal( numberOfNodes, vector< float >( 2 ));
-
+  arrayInt nodeList=mesh.globalNodesList( numberOfElements );
+  arrayReal pnGlobal( numberOfNodes, 2 );
+  cout<<"before loop over time\n";
   for( int indexTimeStep=0; indexTimeStep<nSamples; indexTimeStep++ )
   {
     SEM_CALIPER_MARK_BEGIN( "solve.addRightAndSides" );
@@ -92,7 +93,7 @@ int main()
     {
       cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
       cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
-      //utils.saveSnapShot( indexTimeStep, i1, pnGlobal, mesh );
+      utils.saveSnapShot( indexTimeStep, i1, pnGlobal, mesh );
     }
     SEM_CALIPER_MARK_END( "utils.saveSnapShot" );
     int tmp;
