@@ -24,7 +24,7 @@ int main()
 
   QkGL Qk;
   SEM_CALIPER_MARK_BEGIN( "generate mesh" );
-  simpleMesh const mesh {ex=100, ey=100, lx=1000, ly=1000, order=1};
+  simpleMesh const mesh {ex=50, ey=50, lx=1000, ly=1000, order=1};
   SEM_CALIPER_MARK_END( "generate mesh" );
   solver solve;
   solverUtils utils;
