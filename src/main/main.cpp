@@ -24,7 +24,7 @@ int main()
 
   QkGL Qk;
   SEM_CALIPER_MARK_BEGIN( "generate mesh" );
-  simpleMesh const mesh {ex=100, ey=100, lx=1000, ly=1000, order=1};
+  simpleMesh const mesh {ex=100, ey=100, lx=2000, ly=2000, order=2};
   SEM_CALIPER_MARK_END( "generate mesh" );
   solver solve;
   solverUtils utils;
@@ -79,6 +79,10 @@ int main()
   arrayInt nodeList=mesh.globalNodesList( numberOfElements );
   arrayReal pnGlobal( numberOfNodes, 2 );
   cout<<"before loop over time\n";
+
+  // int FE components
+  solve. computeFEInit(order,mesh,Qk);
+
   for( int indexTimeStep=0; indexTimeStep<nSamples; indexTimeStep++ )
   {
     SEM_CALIPER_MARK_BEGIN( "solve.addRightAndSides" );
@@ -89,7 +93,7 @@ int main()
     SEM_CALIPER_MARK_END( "solve.computeOneStep" );
     //writes debugging ascii file.
     SEM_CALIPER_MARK_BEGIN( "utils.saveSnapShot" );
-    if( indexTimeStep%50==0 )
+    if( indexTimeStep%200==0 )
     {
       cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
       cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
