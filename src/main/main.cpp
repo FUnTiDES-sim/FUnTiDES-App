@@ -24,7 +24,8 @@ int main()
 
   QkGL Qk;
   SEM_CALIPER_MARK_BEGIN( "generate mesh" );
-  simpleMesh const mesh {ex=100, ey=100, lx=2000, ly=2000, order=2};
+  //simpleMesh const mesh {ex=100, ey=100, lx=2000, ly=2000, order=2};
+  simpleMesh const mesh {ex=50, ey=50, lx=1000, ly=1000, order=2};
   SEM_CALIPER_MARK_END( "generate mesh" );
   solver solve;
   solverUtils utils;
@@ -97,7 +98,7 @@ int main()
     {
       cout<<indexTimeStep<<" i1="<<i1<<" i2="<<i2<<endl;
       cout<<"pnGlobal @ elementSource location "<<elementSource<<" after computeOneStep ="<<pnGlobal[nodeList[elementSource][0]][i2]<<endl;
-      utils.saveSnapShot( indexTimeStep, i1, pnGlobal, mesh );
+      //utils.saveSnapShot( indexTimeStep, i1, pnGlobal, mesh );
     }
     SEM_CALIPER_MARK_END( "utils.saveSnapShot" );
     int tmp;
