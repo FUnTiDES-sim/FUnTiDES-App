@@ -9,7 +9,10 @@
 
 int main( int argc, char *argv[] )
 {
+  #ifdef SEM_USE_KOKKOS
   Kokkos::initialize();
+  #endif
+  
   SEM_CALIPER_MARK_BEGIN( "TotalTime" );
 
   chrono::time_point< chrono::system_clock > startTime = chrono::system_clock::now();
@@ -32,5 +35,8 @@ int main( int argc, char *argv[] )
 
   cout << "Elapsed Time : "<<chrono::duration_cast< chrono::milliseconds >( chrono::system_clock::now() - startTime ).count() / 1000.0 <<" seconds.\n"<<endl;
   SEM_CALIPER_MARK_END( "TotalTime" );
+
+  #ifdef SEM_USE_KOKKOS
   Kokkos::finalize();
+  #endif
 }
