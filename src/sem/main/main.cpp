@@ -11,6 +11,7 @@ int main( int argc, char *argv[] )
 {
   #ifdef SEM_USE_KOKKOS
   Kokkos::initialize();
+  { 
   #endif
   SEM_CALIPER_MARK_BEGIN( "TotalTime" );
 
@@ -33,6 +34,7 @@ int main( int argc, char *argv[] )
   cout << "+================================= \n"<<endl;
 
   #ifdef SEM_USE_KOKKOS
+  }
   Kokkos::finalize();
   #endif
 }
