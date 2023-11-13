@@ -9,7 +9,7 @@
 
 int main( int argc, char *argv[] )
 {
-  #ifdef _USE_KOKKOS
+  #ifdef USE_KOKKOS
   Kokkos::initialize();
   { 
   #endif
@@ -33,7 +33,7 @@ int main( int argc, char *argv[] )
   cout << "| SEM Application Finished.       "<<endl;
   cout << "+================================= \n"<<endl;
 
-  #ifdef _USE_KOKKOS
+  #ifdef USE_KOKKOS
   }
   Kokkos::finalize();
   #endif
