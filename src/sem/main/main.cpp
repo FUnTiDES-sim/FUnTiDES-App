@@ -33,6 +33,8 @@ int main( int argc, char *argv[] )
   cout << "| SEM Application Finished.       "<<endl;
   cout << "+================================= \n"<<endl;
 
+  cout << "Elapsed Time : "<<chrono::duration_cast< chrono::milliseconds >( chrono::system_clock::now() - startTime ).count() / 1000.0 <<" seconds.\n"<<endl;
+
   #ifdef USE_KOKKOS
   }
   Kokkos::finalize();
