@@ -5,7 +5,6 @@
 //************************************************************************
 
 #include "semproxy.hpp"
-#include <chrono>
 
 int main( int argc, char *argv[] )
 {
@@ -13,9 +12,6 @@ int main( int argc, char *argv[] )
   Kokkos::initialize();
   { 
   #endif
-  _CALIPER_MARK_BEGIN( "TotalTime" );
-
-  chrono::time_point< chrono::system_clock > startTime = chrono::system_clock::now();
 
   SEMProxy semsim;
 
@@ -27,13 +23,18 @@ int main( int argc, char *argv[] )
   cout << "\n+================================= "<<endl;
   cout << "| Running SEM Application ...      "<<endl;
   cout << "+================================= "<<endl;
+
+  // start timer
+  time_point< system_clock > startTime = system_clock::now();
+
   semsim.run();
 
   cout << "\n+================================= "<<endl;
   cout << "| SEM Application Finished.       "<<endl;
   cout << "+================================= \n"<<endl;
 
-  cout << "Elapsed Time : "<<chrono::duration_cast< chrono::milliseconds >( chrono::system_clock::now() - startTime ).count() / 1000.0 <<" seconds.\n"<<endl;
+  // print timing information
+  cout << "Elapsed Time : "<<( system_clock::now()-startTime ).count()/1E9 <<" seconds.\n"<<endl;
 
   #ifdef USE_KOKKOS
   }
