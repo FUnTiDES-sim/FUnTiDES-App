@@ -9,7 +9,7 @@
 int main( int argc, char *argv[] )
 {
   #ifdef USE_KOKKOS
-  Kokkos::initialize();
+  Kokkos::initialize( argc, argv );
   { 
   #endif
 
@@ -40,4 +40,5 @@ int main( int argc, char *argv[] )
   }
   Kokkos::finalize();
   #endif
+  return (0);
 }
