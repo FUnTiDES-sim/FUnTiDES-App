@@ -48,19 +48,14 @@ public:
   // allocate arrays and vectors
   void init_arrays();
 
-  // initialize models
-  //void init_models();
-
   // get information from mesh
   void getMeshInfo();
 
-  // get elements and nodes information
-  //void getElements();
 
-  // get basis function and corresponding derivatives
-  //void getBasisDeriv();
+private:
 
-protected:
+  SEMsolver mySolver;
+  SolverUtils myUtils;
 
   int i1=0;
   int i2=1;
@@ -84,9 +79,6 @@ protected:
   arrayIntView nodeList;
   arrayRealView pnGlobal;
   vectorIntView rhsElement;
-
-  SEMsolver mySolver;
-  SolverUtils myUtils;
 
 };
 
