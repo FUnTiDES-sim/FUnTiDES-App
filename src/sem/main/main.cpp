@@ -4,7 +4,7 @@
 //  main.cpp: this main file is simply a driver
 //************************************************************************
 
-#include "semproxy.hpp"
+#include "SEMproxy.hpp"
 
 int main( int argc, char *argv[] )
 {
@@ -13,12 +13,12 @@ int main( int argc, char *argv[] )
   { 
   #endif
 
-  SEMProxy semsim;
+  SEMproxy semsim;
 
   cout << "\n+================================= "<<endl;
   cout << "| Initializing SEM Application ... "<<endl;
   cout << "+================================= "<<endl;
-  semsim.init();
+  semsim.initFiniteElem();
 
   cout << "\n+================================= "<<endl;
   cout << "| Running SEM Application ...      "<<endl;
