@@ -8,7 +8,7 @@
 #ifndef SEMPROXY_HPP_
 #define SEMPROXY_HPP_
 
-#include "solver.hpp"
+#include "SEMsolver.hpp"
 #include "utils.hpp"
 
 /**
@@ -90,9 +90,8 @@ protected:
   arrayRealView pnGlobal;
   vectorIntView rhsElement;
 
-  SEMQkGL myQk;
+  SEMsolver mySolver;
   SolverUtils myUtils;
-  SOLVER mySolver;
 
 };
 

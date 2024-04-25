@@ -22,7 +22,7 @@ void SEMproxy::initFiniteElem()
 // Run the simulation.
 void SEMproxy::run()
 {
-  mySolver.computeFEInit( myOrderNumber,myMesh, myQk);
+  mySolver.computeFEInit( myOrderNumber,myMesh );
 
   for( int indexTimeStep=0; indexTimeStep<myNumSamples; indexTimeStep++ )
   {
