@@ -22,24 +22,15 @@ void SEMproxy::initFiniteElem()
 // Run the simulation.
 void SEMproxy::run()
 {
-  mySolver.computeFEInit( myOrderNumber,myMesh );
+  mySolver.computeFEInit( myMeshinfo, myMesh );
 
   for( int indexTimeStep=0; indexTimeStep<myNumSamples; indexTimeStep++ )
   {
-      mySolver.computeOneStep( indexTimeStep, myTimeStep, myOrderNumber, i1, i2, myNumberOfRHS, rhsElement, myRHSTerm, pnGlobal);
+      mySolver.computeOneStep( indexTimeStep, myMeshinfo, i1, i2, rhsElement, myRHSTerm, pnGlobal);
 
-    //writes debugging ascii file.
-    if( indexTimeStep%50==0 )
-    {
-      cout<<"TimeStep="<<indexTimeStep<<endl;
-    }
-    if( indexTimeStep%100==0 )
-    {
-      cout<<" pnGlobal @ elementSource location "<<myElementSource
-          <<" after computeOneStep = "<< pnGlobal(nodeList(myElementSource,0),i1)<<endl;
-      //myUtils.saveSnapShot( indexTimeStep, i1, pnGlobal, myMesh );
-    }
-    swap( i1, i2 );
+      mySolver.outputPnValues(indexTimeStep, i1,  myElementSource, nodeList, pnGlobal);
+
+      swap( i1, i2 );
   }
 }
 
@@ -47,23 +38,27 @@ void SEMproxy::run()
 void SEMproxy::getMeshInfo()
 {
   // get information from mesh
-  numberOfNodes=myMesh.getNumberOfNodes();
-  numberOfElements=myMesh.getNumberOfElements();
-  numberOfPointsPerElement=myMesh.getNumberOfPointsPerElement();
+  myMeshinfo.numberOfNodes=myMesh.getNumberOfNodes();
+  myMeshinfo.numberOfElements=myMesh.getNumberOfElements();
+  myMeshinfo.numberOfPointsPerElement=myMesh.getNumberOfPointsPerElement();
+  myMeshinfo.numberOfInteriorNodes=myMesh.getNumberOfInteriorNodes();
+  myMeshinfo.numberOfPointsPerElement=myMesh.getNumberOfPointsPerElement();
+  myMeshinfo.numberOfBoundaryNodes=myMesh.getNumberOfBoundaryNodes();
+  myMeshinfo.numberOfBoundaryFaces=myMesh.getNumberOfBoundaryFaces();
 }
 
 // Initialize arrays 
 void SEMproxy::init_arrays()
 {
   // allocate arrays and vectors
-  myRHSLocation=allocateArray2D<arrayRealView>( myNumberOfRHS, 3 );
-  myRHSTerm=allocateArray2D<arrayRealView>( myNumberOfRHS, myNumSamples );
-  nodeList=allocateArray2D<arrayIntView>(numberOfElements,numberOfPointsPerElement);
-  pnGlobal=allocateArray2D<arrayRealView>( numberOfNodes, 2 );
-  rhsElement=allocateVector<vectorIntView>(myNumberOfRHS);
+  myRHSLocation=allocateArray2D<arrayRealView>( myMeshinfo.myNumberOfRHS, 3 );
+  myRHSTerm=allocateArray2D<arrayRealView>( myMeshinfo.myNumberOfRHS, myNumSamples );
+  nodeList=allocateArray2D<arrayIntView>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement);
+  pnGlobal=allocateArray2D<arrayRealView>( myMeshinfo.numberOfNodes, 2 );
+  rhsElement=allocateVector<vectorIntView>(myMeshinfo.myNumberOfRHS);
 
   // get nodelist 
-  myMesh.globalNodesList( numberOfElements, nodeList );
+  myMesh.globalNodesList( myMeshinfo.numberOfElements, nodeList );
 }
 
 // Initialize sources
@@ -74,7 +69,7 @@ void SEMproxy::init_source()
   myRHSLocation(0,1)=0;//1001;
   myRHSLocation(0,2)=1001;
   cout << "Source location: "<<myRHSLocation(0,0)<<", "<<myRHSLocation(0,1)<<", "<<myRHSLocation(0,2)<<endl;
-  for( int i=0; i<myNumberOfRHS; i++ )
+  for( int i=0; i<myMeshinfo.myNumberOfRHS; i++ )
   {
     //extract element number for current rhs
     float x=myRHSLocation(i,0);
@@ -86,7 +81,7 @@ void SEMproxy::init_source()
   }
 
   // initialize source term
-  vector< float > sourceTerm=myUtils.computeSourceTerm( myNumSamples, myTimeStep, f0, sourceOrder );
+  vector< float > sourceTerm=myUtils.computeSourceTerm( myNumSamples, myMeshinfo.myTimeStep, f0, sourceOrder );
   for( int j=0; j<myNumSamples; j++ )
   {
     myRHSTerm(0,j)=sourceTerm[j];

@@ -14,6 +14,7 @@
 /**
  * @class SEMproxy
  */
+
 class SEMproxy
 {
 public:
@@ -60,28 +61,22 @@ public:
   //void getBasisDeriv();
 
 protected:
+
   int i1=0;
   int i2=1;
 
   const float f0=10.;
   const float myTimeMax=1.;
-  const float myTimeStep=0.001;
-
   const int sourceOrder=1;
-  const int myOrderNumber=3;
-  const int myNumberOfRHS=1;
-  const int myNumSamples=myTimeMax/myTimeStep;
 
-
-  int numberOfNodes;
-  int numberOfElements;
-  int numberOfPointsPerElement;
+  SEMmeshinfo myMeshinfo;
+  int myNumSamples=myTimeMax/myMeshinfo.myTimeStep;
   int myElementSource;
 
-   // initialize mesh
+
 //  SEMmesh  myMesh {50, 50 ,50, 2000, 2000, 2000, myOrderNumber};
 //  SEMmesh  myMesh {65, 65 ,65, 1950, 1950, 1950, myOrderNumber};
-  SEMmesh  myMesh {65, 0 ,65, 1950, 0, 1950, myOrderNumber};
+  SEMmesh myMesh {65, 0 ,65, 1950, 0, 1950, myMeshinfo.myOrderNumber};
  
    // arrays
   arrayRealView myRHSLocation;
