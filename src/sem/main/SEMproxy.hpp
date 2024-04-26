@@ -69,9 +69,9 @@ private:
   int myElementSource;
 
 
-//  SEMmesh  myMesh {50, 50 ,50, 2000, 2000, 2000, myOrderNumber};
-//  SEMmesh  myMesh {65, 65 ,65, 1950, 1950, 1950, myOrderNumber};
-  SEMmesh myMesh {65, 0 ,65, 1950, 0, 1950, myMeshinfo.myOrderNumber};
+//  SEMmesh  myMesh {50, 50 ,50, 2000, 2000, 2000, myMeshinfo.myOrderNumber};
+  SEMmesh  myMesh {65, 65 ,65, 1950, 1950, 1950, myMeshinfo.myOrderNumber};
+//  SEMmesh myMesh {65, 0 ,65, 1950, 0, 1950, myMeshinfo.myOrderNumber};
  
    // arrays
   arrayRealView myRHSLocation;
