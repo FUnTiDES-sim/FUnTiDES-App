@@ -50,12 +50,28 @@ void SEMproxy::getMeshInfo()
 // Initialize arrays 
 void SEMproxy::init_arrays()
 {
+  #ifdef USE_RAJA
+  // allocate arrays and vectors
+  h_myRHSLocation=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, 3 );
+  h_myRHSTerm=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, myNumSamples );
+  h_nodeList=allocateArray2D<arrayInt>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement);
+  h_pnGlobal=allocateArray2D<arrayReal>( myMeshinfo.numberOfNodes, 2 );
+  h_rhsElement=allocateVector<vectorInt>(myMeshinfo.myNumberOfRHS);
+
+  // allocate arrays and vectors
+  myRHSLocation=h_myRHSLocation.toView();
+  myRHSTerm=h_myRHSTerm.toView();    
+  nodeList=h_nodeList.toView();     
+  pnGlobal=h_pnGlobal.toView();     
+  rhsElement=h_rhsElement.toView();   
+  #else
   // allocate arrays and vectors
   myRHSLocation=allocateArray2D<arrayRealView>( myMeshinfo.myNumberOfRHS, 3 );
   myRHSTerm=allocateArray2D<arrayRealView>( myMeshinfo.myNumberOfRHS, myNumSamples );
   nodeList=allocateArray2D<arrayIntView>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement);
   pnGlobal=allocateArray2D<arrayRealView>( myMeshinfo.numberOfNodes, 2 );
   rhsElement=allocateVector<vectorIntView>(myMeshinfo.myNumberOfRHS);
+  #endif
 
   // get nodelist 
   myMesh.globalNodesList( myMeshinfo.numberOfElements, nodeList );

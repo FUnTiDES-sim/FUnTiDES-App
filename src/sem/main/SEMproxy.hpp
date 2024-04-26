@@ -80,6 +80,14 @@ private:
   arrayRealView pnGlobal;
   vectorIntView rhsElement;
 
+  #ifdef USE_RAJA
+  arrayReal h_myRHSLocation;
+  arrayReal h_myRHSTerm;
+  arrayInt h_nodeList;
+  arrayReal h_pnGlobal;
+  vectorInt h_rhsElement;
+  #endif
+
 };
 
 #endif /* SEMPROXY_HPP_ */
