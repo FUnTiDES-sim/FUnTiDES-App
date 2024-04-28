@@ -52,11 +52,11 @@ void SEMproxy::init_arrays()
 {
   #ifdef USE_RAJA
   // allocate arrays and vectors
-  h_myRHSLocation=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, 3 );
-  h_myRHSTerm=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, myNumSamples );
-  h_nodeList=allocateArray2D<arrayInt>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement);
-  h_pnGlobal=allocateArray2D<arrayReal>( myMeshinfo.numberOfNodes, 2 );
-  h_rhsElement=allocateVector<vectorInt>(myMeshinfo.myNumberOfRHS);
+  h_myRHSLocation=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, 3, "RHSLocation" );
+  h_myRHSTerm=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, myNumSamples , "RHSTerm");
+  h_nodeList=allocateArray2D<arrayInt>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement, "nodeList");
+  h_pnGlobal=allocateArray2D<arrayReal>( myMeshinfo.numberOfNodes, 2 , "pnGlobal");
+  h_rhsElement=allocateVector<vectorInt>(myMeshinfo.myNumberOfRHS, "rhsElement");
 
   // allocate arrays and vectors
   myRHSLocation=h_myRHSLocation.toView();
