@@ -28,7 +28,7 @@ void SEMproxy::run()
   {
       mySolver.computeOneStep( indexTimeStep, myMeshinfo, i1, i2, rhsElement, myRHSTerm, pnGlobal);
 
-      mySolver.outputPnValues(indexTimeStep, i1,  myElementSource, nodeList, pnGlobal);
+      mySolver.outputPnValues(myMesh, indexTimeStep, i1,  myElementSource, nodeList, pnGlobal);
 
       swap( i1, i2 );
   }
