@@ -82,7 +82,7 @@ void SEMproxy::init_source()
 {
   // set number of rhs and location
   myRHSLocation(0,0)=1001;
-  myRHSLocation(0,1)=0;//1001;
+  myRHSLocation(0,1)=1001;
   myRHSLocation(0,2)=1001;
   cout << "Source location: "<<myRHSLocation(0,0)<<", "<<myRHSLocation(0,1)<<", "<<myRHSLocation(0,2)<<endl;
   for( int i=0; i<myMeshinfo.myNumberOfRHS; i++ )
