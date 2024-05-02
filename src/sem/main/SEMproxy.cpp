@@ -26,9 +26,9 @@ void SEMproxy::run()
 
   for( int indexTimeStep=0; indexTimeStep<myNumSamples; indexTimeStep++ )
   {
-      mySolver.computeOneStep( indexTimeStep, myMeshinfo, i1, i2, rhsElement, myRHSTerm, pnGlobal);
+      mySolver.computeOneStep( indexTimeStep, myMeshinfo, i1, i2, myRHSTerm, pnGlobal, rhsElement);
 
-      mySolver.outputPnValues(myMesh, indexTimeStep, i1,  myElementSource, nodeList, pnGlobal);
+      mySolver.outputPnValues(myMesh, indexTimeStep, i1,  myElementSource, pnGlobal);
 
       swap( i1, i2 );
   }
@@ -50,36 +50,15 @@ void SEMproxy::getMeshInfo()
 // Initialize arrays 
 void SEMproxy::init_arrays()
 {
-  #ifdef USE_RAJA
-  // allocate arrays and vectors
-  h_myRHSLocation=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, 3, "RHSLocation" );
-  h_myRHSTerm=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, myNumSamples , "RHSTerm");
-  h_nodeList=allocateArray2D<arrayInt>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement, "nodeList");
-  h_pnGlobal=allocateArray2D<arrayReal>( myMeshinfo.numberOfNodes, 2 , "pnGlobal");
-  h_rhsElement=allocateVector<vectorInt>(myMeshinfo.myNumberOfRHS, "rhsElement");
-
-  // allocate arrays and vectors
-  myRHSLocation=h_myRHSLocation.toView();
-  myRHSTerm=h_myRHSTerm.toView();    
-  nodeList=h_nodeList.toView();     
-  pnGlobal=h_pnGlobal.toView();     
-  rhsElement=h_rhsElement.toView();   
-  #else
-  // allocate arrays and vectors
-  myRHSLocation=allocateArray2D<arrayRealView>( myMeshinfo.myNumberOfRHS, 3 );
-  myRHSTerm=allocateArray2D<arrayRealView>( myMeshinfo.myNumberOfRHS, myNumSamples );
-  nodeList=allocateArray2D<arrayIntView>(myMeshinfo.numberOfElements,myMeshinfo.numberOfPointsPerElement);
-  pnGlobal=allocateArray2D<arrayRealView>( myMeshinfo.numberOfNodes, 2 );
-  rhsElement=allocateVector<vectorIntView>(myMeshinfo.myNumberOfRHS);
-  #endif
-
-  // get nodelist 
-  myMesh.globalNodesList( myMeshinfo.numberOfElements, nodeList );
+  myRHSTerm=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, myNumSamples , "RHSTerm");
+  pnGlobal=allocateArray2D<arrayReal>( myMeshinfo.numberOfNodes, 2 , "pnGlobal");
+  rhsElement=allocateVector<vectorInt>(myMeshinfo.myNumberOfRHS, "rhsElement");
 }
 
 // Initialize sources
 void SEMproxy::init_source()
 {
+  arrayReal myRHSLocation=allocateArray2D<arrayReal>( myMeshinfo.myNumberOfRHS, 3, "RHSLocation" ); 
   // set number of rhs and location
   myRHSLocation(0,0)=1001;
   myRHSLocation(0,1)=1001;

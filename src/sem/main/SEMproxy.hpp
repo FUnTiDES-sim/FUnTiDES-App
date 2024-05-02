@@ -69,24 +69,12 @@ private:
   int myElementSource;
 
 
-//  SEMmesh  myMesh {50, 50 ,50, 2000, 2000, 2000, myMeshinfo.myOrderNumber};
   SEMmesh  myMesh {65, 65 ,65, 1950, 1950, 1950, myMeshinfo.myOrderNumber};
-//  SEMmesh myMesh {65, 0 ,65, 1950, 0, 1950, myMeshinfo.myOrderNumber};
  
    // arrays
-  arrayRealView myRHSLocation;
-  arrayRealView myRHSTerm;
-  arrayIntView nodeList;
-  arrayRealView pnGlobal;
-  vectorIntView rhsElement;
-
-  #ifdef USE_RAJA
-  arrayReal h_myRHSLocation;
-  arrayReal h_myRHSTerm;
-  arrayInt h_nodeList;
-  arrayReal h_pnGlobal;
-  vectorInt h_rhsElement;
-  #endif
+  arrayReal myRHSTerm;
+  arrayReal pnGlobal;
+  vectorInt rhsElement;
 
 };
 
