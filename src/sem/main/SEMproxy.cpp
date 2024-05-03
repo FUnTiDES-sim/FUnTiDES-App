@@ -67,11 +67,7 @@ void SEMproxy::init_source()
   for( int i=0; i<myMeshinfo.myNumberOfRHS; i++ )
   {
     //extract element number for current rhs
-    float x=myRHSLocation(i,0);
-    float y=myRHSLocation(i,1);
-    float z=myRHSLocation(i,2);
-    int rhsE=myMesh.getElementNumberFromPoints( x, y,z );
-    rhsElement[i]=rhsE;
+    rhsElement[i]=myMesh.getElementNumberFromPoints( myRHSLocation(i,0), myRHSLocation(i,1), myRHSLocation(i,2) );
     printf(" rhsElement=%d\n",rhsElement[i]);
   }
 
