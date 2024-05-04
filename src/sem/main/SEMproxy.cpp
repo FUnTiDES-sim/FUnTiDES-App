@@ -38,11 +38,11 @@ void SEMproxy::run()
       swap( i1, i2 );
       totalOutputTime += system_clock::now() - startOutputTime;
   }
-  long kerneltime_ms = duration_cast<milliseconds>(time_point_cast<milliseconds>(totalComputeTime).time_since_epoch()).count();
-  long outputtime_ms = duration_cast<milliseconds>(time_point_cast<milliseconds>(totalOutputTime).time_since_epoch()).count();
+  float kerneltime_ms = time_point_cast<microseconds>(totalComputeTime).time_since_epoch().count();
+  float outputtime_ms = time_point_cast<microseconds>(totalOutputTime).time_since_epoch().count();
 
-  cout << "\n---- Elapsed Kernel Compute  Time : "<< kerneltime_ms<<" milliseconds."<<endl;
-  cout << "---- Elapsed Output Snapshot Time : "<< outputtime_ms<<" milliseconds."<<endl;
+  cout << "\n---- Elapsed Kernel Compute  Time : "<< kerneltime_ms/1E6<<" seconds."<<endl;
+  cout << "---- Elapsed Output Snapshot Time : "<< outputtime_ms/1E6<<" seconds."<<endl;
 
 }
 

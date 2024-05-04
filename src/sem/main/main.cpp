@@ -37,8 +37,8 @@ int main( int argc, char *argv[] )
   cout << "+================================= \n"<<endl;
 
   // print timing information
-  cout << "Elapsed Initialization Time  : "<<( startRunTime - startInitTime ).count()/1E9 <<" seconds."<<endl;
-  cout << "Elapsed Compute Loop RunTime : "<<( system_clock::now()-startRunTime ).count()/1E9 <<" seconds."<<endl;
+  cout << "Elapsed Initialization Time : "<<( startRunTime - startInitTime ).count()/1E9 <<" seconds."<<endl;
+  cout << "Elapsed ComputeLoop RunTime : "<<( system_clock::now()-startRunTime ).count()/1E9 <<" seconds."<<endl;
 
   #ifdef USE_KOKKOS
   }
