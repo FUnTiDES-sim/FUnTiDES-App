@@ -41,8 +41,10 @@ void SEMproxy::run()
   float kerneltime_ms = time_point_cast<microseconds>(totalComputeTime).time_since_epoch().count();
   float outputtime_ms = time_point_cast<microseconds>(totalOutputTime).time_since_epoch().count();
 
-  cout << "\n---- Elapsed Kernel Compute  Time : "<< kerneltime_ms/1E6<<" seconds."<<endl;
-  cout << "---- Elapsed Output Snapshot Time : "<< outputtime_ms/1E6<<" seconds."<<endl;
+  cout << "------------------------------------------------ "<<endl;
+  cout << "\n---- Elapsed Kernel Time : "<< kerneltime_ms/1E6<<" seconds."<<endl;
+  cout << "---- Elapsed Output Time : "<< outputtime_ms/1E6<<" seconds."<<endl;
+  cout << "------------------------------------------------ "<<endl;
 
 }
 
