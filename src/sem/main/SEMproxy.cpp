@@ -30,8 +30,7 @@ void SEMproxy::run()
   for( int indexTimeSample=0; indexTimeSample<myNumSamples; indexTimeSample++ )
   {
     startComputeTime = system_clock::now();
-    mySolver.computeOneStep( indexTimeSample, myMeshinfo.myOrderNumber, myMeshinfo.nPointsPerElement, i1, i2, 
-                             myMeshinfo, myRHSTerm, pnGlobal, rhsElement );
+    mySolver.computeOneStep( indexTimeSample, myMeshinfo.myOrderNumber, myMeshinfo.nPointsPerElement, i1, i2, myMeshinfo, myRHSTerm, pnGlobal, rhsElement );
     totalComputeTime += system_clock::now() - startComputeTime;
 
     startOutputTime = system_clock::now();
