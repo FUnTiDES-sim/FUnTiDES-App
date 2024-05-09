@@ -44,7 +44,7 @@ public:
 
   // initialize source and RHS
   void init_source();
- 
+
   // allocate arrays and vectors
   void init_arrays();
 
@@ -69,9 +69,9 @@ private:
   int myElementSource;
 
 
-  SEMmesh  myMesh {65, 65 ,65, 1950, 1950, 1950, myMeshinfo.myOrderNumber};
- 
-   // arrays
+  SEMmesh myMesh {65, 65, 65, 1950, 1950, 1950, myMeshinfo.myOrderNumber};
+
+  // arrays
   arrayReal myRHSTerm;
   arrayReal pnGlobal;
   vectorInt rhsElement;
