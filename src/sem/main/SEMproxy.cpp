@@ -64,7 +64,7 @@ void SEMproxy::getMeshInfo()
 // Initialize arrays
 void SEMproxy::init_arrays()
 {
-  cout<<"Allocate host memory for source and pressure values:"<< endl;
+  cout<<"Allocate host memory for source and pressure values ..."<< endl;
   myRHSTerm=allocateArray2D< arrayReal >( myMeshinfo.myNumberOfRHS, myNumSamples, "RHSTerm" );
   rhsElement=allocateVector< vectorInt >( myMeshinfo.myNumberOfRHS, "rhsElement" );
   pnGlobal=allocateArray2D< arrayReal >( myMeshinfo.numberOfNodes, 2, "pnGlobal" );
