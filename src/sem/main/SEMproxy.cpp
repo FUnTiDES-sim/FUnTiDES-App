@@ -27,14 +27,15 @@ void SEMproxy::run()
 {
   time_point< system_clock > startComputeTime, startOutputTime, totalComputeTime, totalOutputTime;
 
-  for( int indexTimeStep=0; indexTimeStep<myNumSamples; indexTimeStep++ )
+  for( int indexTimeSample=0; indexTimeSample<myNumSamples; indexTimeSample++ )
   {
     startComputeTime = system_clock::now();
-    mySolver.computeOneStep( indexTimeStep, myMeshinfo, i1, i2, myRHSTerm, pnGlobal, rhsElement );
+    mySolver.computeOneStep( indexTimeSample, myMeshinfo.myOrderNumber, myMeshinfo.nPointsPerElement, i1, i2, 
+                             myMeshinfo, myRHSTerm, pnGlobal, rhsElement );
     totalComputeTime += system_clock::now() - startComputeTime;
 
     startOutputTime = system_clock::now();
-    mySolver.outputPnValues( myMesh, indexTimeStep, i1, myElementSource, pnGlobal );
+    mySolver.outputPnValues( myMesh, indexTimeSample, i1, myElementSource, pnGlobal );
     swap( i1, i2 );
     totalOutputTime += system_clock::now() - startOutputTime;
   }
