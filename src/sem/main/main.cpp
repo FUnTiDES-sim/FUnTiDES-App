@@ -16,7 +16,7 @@ int main( int argc, char *argv[] )
   {
   #endif
 
-  SEMproxy semsim;
+  SEMproxy semsim( argc, argv );
 
   cout << "\n+================================= "<< endl;
   cout << "| Initializing SEM Application ... "<< endl;

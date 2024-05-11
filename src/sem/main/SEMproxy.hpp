@@ -24,6 +24,8 @@ public:
    */
   SEMproxy(){};
 
+  SEMproxy(int argc, char *argv[]);
+
   /**
    * @brief Destructor of the SEMproxy class
    */
@@ -69,7 +71,7 @@ private:
   int myElementSource;
 
 
-  SEMmesh myMesh {65, 65, 65, 1950, 1950, 1950, myMeshinfo.myOrderNumber};
+  SEMmesh myMesh;
 
   // arrays
   arrayReal myRHSTerm;

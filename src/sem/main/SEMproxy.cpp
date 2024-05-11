@@ -6,6 +6,21 @@
 //************************************************************************
 
 #include "SEMproxy.hpp"
+
+SEMproxy::SEMproxy(int argc, char *argv[])
+{
+  int ex = (argc > 1)? std::stoi(argv[1]) : 65; 
+  int ey = ex;
+  int ez = ex;
+
+  float lx = (argc > 2)? std::stof(argv[2]) : 1950; 
+  float ly = lx;
+  float lz = lx;
+
+  SEMmesh myNewMesh {ex, ey, ez, lx, ly, lz, myMeshinfo.myOrderNumber};
+  myMesh = myNewMesh;
+}
+
 // Initialize the simulation.
 void SEMproxy::initFiniteElem()
 {
