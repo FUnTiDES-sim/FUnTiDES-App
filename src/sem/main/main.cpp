@@ -16,11 +16,11 @@ int main( int argc, char *argv[] )
   {
   #endif
 
-  SEMproxy semsim( argc, argv );
-
   cout << "\n+================================= "<< endl;
   cout << "| Initializing SEM Application ... "<< endl;
   cout << "+================================= \n"<< endl;
+
+  SEMproxy semsim( argc, argv );
 
   semsim.initFiniteElem();
 
@@ -37,14 +37,14 @@ int main( int argc, char *argv[] )
   cout << "+================================= \n"<< endl;
 
   // print timing information
-  cout << "Elapsed Initialization Time : "<<( startRunTime - startInitTime ).count()/1E9 <<" seconds."<< endl;
-  cout << "Elapsed ComputeLoop RunTime : "<<( system_clock::now()-startRunTime ).count()/1E9 <<" seconds."<< endl;
+  cout << "Elapsed Initial Time : "<<( startRunTime - startInitTime ).count()/1E9 <<" seconds."<< endl;
+  cout << "Elapsed Compute Time : "<<( system_clock::now()-startRunTime ).count()/1E9 <<" seconds."<< endl;
 
   #ifdef USE_KOKKOS
   }
   Kokkos::finalize();
   #endif
 
-  cout << "Elapsed TotalExecution Time : "<<( system_clock::now()-startInitTime).count()/1E9 <<" seconds.\n"<< endl;
+  cout << "Elapsed TotalExe Time : "<<( system_clock::now()-startInitTime).count()/1E9 <<" seconds.\n"<< endl;
   return (0);
 }

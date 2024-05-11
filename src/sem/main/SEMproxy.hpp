@@ -22,8 +22,6 @@ public:
   /**
    * @brief Constructor of the SEMproxy class
    */
-  SEMproxy(){};
-
   SEMproxy(int argc, char *argv[]);
 
   /**
@@ -56,22 +54,14 @@ public:
 
 private:
 
-  SEMsolver mySolver;
-  SolverUtils myUtils;
-
   int i1=0;
   int i2=1;
 
-  const float f0=10.;
-  const float myTimeMax=1.;
-  const int sourceOrder=1;
-
-  SEMmeshinfo myMeshinfo;
-  int myNumSamples=myTimeMax/myMeshinfo.myTimeStep;
-  int myElementSource;
-
-
+  SEMinfo myInfo;
   SEMmesh myMesh;
+
+  SEMsolver mySolver;
+  SolverUtils myUtils;
 
   // arrays
   arrayReal myRHSTerm;
