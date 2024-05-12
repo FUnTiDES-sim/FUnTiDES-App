@@ -74,7 +74,9 @@ void SEMproxy::getMeshInfo()
   myInfo.numberOfPointsPerElement=myMesh.getNumberOfPointsPerElement();
   myInfo.numberOfBoundaryNodes=myMesh.getNumberOfBoundaryNodes();
   myInfo.numberOfBoundaryFaces=myMesh.getNumberOfBoundaryFaces();
+  #ifdef SEM_MESHCOLOR
   myInfo.numberMaxOfElementsByColor=myMesh.getNumberOfElementsByColor();
+  #endif
   
 }
 
