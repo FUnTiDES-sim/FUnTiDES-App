@@ -1,29 +1,27 @@
 Solver application
 ###################
 
-The repository currently have 4 GEOS solvers wrapped:
+:program:`makutu` wraps the **FUnTiDES** spectral-element wave solvers (from
+proxy-FUn's :code:`FUn-Libs`, via :code:`pyfuntides`) behind simplified Python
+classes:
 
-    - :code:`AcousticSolver`
-    - :code:`ElasticSolver`
-    - :code:`ReservoirSolver`
-    - :code:`GeoMechanicsSolver`
+    - :code:`AcousticSolver` — acoustic wave equation (SEM), scalar pressure
+    - :code:`ElasticSolver`  — elastic wave equation (SEM), 3-component displacement
 
-These classes gives simplified access to :program:`GEOS` fields of interest. As GEOS has deployed a generic :code:`PySolver` interface, this list can be extended to other :program:`GEOS` solvers easily.
+Both build on a common :code:`WaveSolver` base and inject Kokkos views zero-copy
+into the FUnTiDES :code:`SEMsolver`. Mesh building, source/receiver placement,
+the explicit time loop and seismogram extraction are driven from Python.
 
 +--------------------------------+------------------------------------------------+---------------------------+
-|:program:`Makutu` solver name   |  Currently wrapped solvers in :program:`GEOS`  | Comment                   |
-|                                |                                                |                           |
+| :program:`makutu` solver       | FUnTiDES kernel                                | Comment                   |
 +================================+================================================+===========================+
-|       AcousticSolver           |  - AcousticFirstOrderWaveEquationSEM           | First and second order    |
-|                                |  - AcousticWaveEquationSEM                     |                           |
+|       AcousticSolver           |  SEM acoustic (leapfrog)                        | 2-D/3-D, orders 1..3      |
 +--------------------------------+------------------------------------------------+---------------------------+
-|       ElasticSolver            |  - ElasticFirstOrderWaveEquationSEM            |                           |
-|                                |  - ElasticWaveEquationSEM                      |                           |
-+--------------------------------+------------------------------------------------+---------------------------+
-|       ReservoirSolver          |  - CompositionalMultiphaseFVM                  |                           |
-+--------------------------------+------------------------------------------------+---------------------------+
-|       GeoMechanicsSolver       |  - SinglePhasePoromechanics                    |                           |
+|       ElasticSolver            |  SEM elastic (leapfrog)                         | VTI-parameterised         |
 +--------------------------------+------------------------------------------------+---------------------------+
 
 .. autoclass:: utilities.solvers.AcousticSolver.AcousticSolver
+    :members:
+
+.. autoclass:: utilities.solvers.ElasticSolver.ElasticSolver
     :members:

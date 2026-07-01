@@ -2,85 +2,65 @@ Quickstart
 ############
 Requirements
 ==============
-Python 3.8 or above is suggested for a correct use of the codes.
-
-The first step is to install :program:`Python`. Please download the package source from the official website, then you can configure and install it with the following command lines:
+Python 3.10 or above, with:
 
 .. code-block:: bash
 
-    cd Python3.8.13/
-    ./configure --enable-shared --prefix=/your/desired/path/for/this/python/install
-    make
-    make install
+    python3 -m pip install numpy scipy matplotlib mpi4py h5py segyio
 
-**Note :** You need to adapt the paths to your own device.
+(a few workflows additionally use :code:`vtk` / :code:`pyevtk` / :code:`numba`).
 
-Then you can install the required packages:
-
-.. code-block:: bash
-    
-    cd /your/desired/path/for/this/python/install
-    ./bin/python3 -m pip install scipy numpy mpi4py setuptools segyio virtualenv xmltodict numba pyevtk matplotlib
-
-Some of the codes are using the proprietary :code:`sabl` module (client-server scripts, decision files reader).
+:program:`makutu` drives the **FUnTiDES** solvers provided by proxy-FUn's
+:code:`FUn-Libs`, imported as :code:`pyfuntides`. These — and the :code:`kokkos`
+runtime — are **not** pip packages: they come from the FUn-Libs build and the
+FUn-TPL prefix.
 
 
-Installing the PyGEOSX environment
-===================================
-The use of this repository's modules requires the :code:`PyGEOSX` environment to be build beforehand.
+Building FUnTiDES (FUn-Libs)
+=============================
+Clone :code:`proxy-FUn` as a **sibling** of this repository and build
+:code:`FUn-Libs` with the :code:`pyfuntides` wrappers::
 
-You should follow the steps of GEOS installation from the main code `documentation <https://geosx-geosx.readthedocs-hosted.com/en/latest/docs/sphinx/QuickStart.html>`_ 
-
-
-**The following lines should be added to the host config file in order to activate the build of PyGEOSX enviromnent**
-
-::
-
-    set(ENABLE_PYGEOSX ON CACHE BOOL "")
-    set(Python3_EXECUTABLE "/path/to/your/python/bin/python3.8" CACHE PATH "")
-
-    set(ENABLE_VTK ON CACHE BOOL "")
-
-
-Once that :program:`GEOS` has been build, make the :code:`PYGEOSX` environment (adapt the number of parallel processes with :code:`-j N` to speed up the build according to your machine's resources):
+    numpex/
+    ├── proxy-FUn/     # FUnTiDES: FUn-TPL + FUn-Libs (+ pyfuntides)
+    └── makutu-lib/    # this repository
 
 .. code-block:: bash
 
-    make -j 4 pygeosx
+    cd ../proxy-FUn
+    FUN_BACKEND=cuda FUN_CUDA_ARCH=<your-arch> ./bootstrap.sh   # SEM (GPU)
+    # ./bootstrap.sh                                            # serial CPU (FD only)
 
-.. IMPORTANT:: The makutu codes rely on :code:`PYGEOSX` environment, you have to activate it every time you want to use it with the following command:
-
-    .. code-block:: bash
-
-        source /path/to/geos/build/dir/lib/PYGEOSX/bin/activate
+.. IMPORTANT:: The spectral-element (SEM) acoustic/elastic solvers require the
+    **CUDA** FUn-Libs build (the mesh builder allocates CudaUVMSpace views).
 
 
-Installing the module
-=========================
-Installing the :code:`utilities` module is done by executing the following command line
+Environment
+=============
+Source :file:`env.sh` — it wires :code:`pyfuntides` + :code:`kokkos` and puts
+this repository on :code:`PYTHONPATH` so :code:`import utilities` /
+:code:`import workflows` resolve:
 
 .. code-block:: bash
 
-    cd makutu
-    python3 -m pip install -e .
+    source env.sh
+    # target a specific FUn-Libs build (the CUDA build for SEM):
+    FUN_LIBS_BUILD=../proxy-FUn/FUn-Libs/build-cuda source env.sh
 
+There is no :code:`pip install` / :code:`setup.py` — :code:`env.sh` alone makes
+the package importable.
 
-You are now ready to use our modules for your application !
-
-Tutorials and examples are availables in the `next section <../example/example.html>`_ to help you start.
-
+Tutorials and examples are available in the `next section
+<../example/example.html>`_ to help you start.
 
 
 Building the documentation
 ============================
+Install Sphinx, then build the HTML docs:
 
-In order to build the sphinx documentation, the following modules are required in your :program:`Python` enviromnent:
-
-.. code:: bash
+.. code-block:: bash
 
     python3 -m pip install sphinx sphinx_rtd_theme sphinx_prompt
+    make -C docs html
 
-
-Then **activate** the :code:`PYGEOSX` enviromnent, and execute the command :code:`make docs` in :file:`makutu` repository.
-
-Open the file :file:`makutu/docs/build/index.html` and navigate through the documentation.
+Open :file:`docs/build/html/index.html` and navigate through the documentation.

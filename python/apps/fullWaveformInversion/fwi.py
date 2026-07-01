@@ -286,8 +286,7 @@ if __name__ == "__main__":
     #                         dtSeismo,
     #                         dtWaveField,
     #                         sourceType,
-    #                         sourceFreq,
-    #                         geosx_argv=["-t", "runtime-report,mpi.message.size,max_column_width=400"])
+    #                         sourceFreq)
    
     minimizer = Minimizer(func,
                           method=method,

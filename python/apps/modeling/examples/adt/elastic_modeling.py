@@ -1,7 +1,7 @@
 """
 Elastic seismic modeling workflow with FUnTiDES SEM.
 
-Reads acquisition geometry from a decision file (requires pysabl),
+Reads acquisition geometry from a native decision file,
 runs one forward shot per source, and exports three-component (X, Y, Z)
 displacement seismograms in SEP format (requires mpi4py) or HDF5 as fallback.
 
@@ -36,9 +36,9 @@ from utilities.solvers import ElasticSolver
 
 try:
     from utilities.acquisition.decision_reader import read_decision_file
-    _HAS_PYSABL = True
+    _HAS_DECISION_READER = True
 except ImportError:
-    _HAS_PYSABL = False
+    _HAS_DECISION_READER = False
 
 try:
     from utilities.output import SeismicTraceOutput
@@ -85,10 +85,10 @@ def read_acquisition(args):
     -------
         shots : list of dict with keys 'id', 'src_coords', 'rcv_coords'
     """
-    if not _HAS_PYSABL:
+    if not _HAS_DECISION_READER:
         raise RuntimeError(
-            "pysabl is required to read decision files. "
-            "Install pysabl or provide coordinates via another means."
+            "utilities.acquisition.decision_reader could not be imported "
+            "(check that makutu 'utilities' is on PYTHONPATH, e.g. via env.sh)."
         )
 
     print(f"Reading decision file: {args.decision}")
@@ -223,7 +223,7 @@ def parse_args():
 
     # Acquisition
     p.add_argument("--decision",  type=str, required=True,
-                   help="Decision file (pysabl)")
+                   help="Decision file")
     p.add_argument("--database",  type=str, default="identity",
                    help="Database file for coordinate conversion (default: identity)")
     p.add_argument("--scalco",    type=int, default=1,

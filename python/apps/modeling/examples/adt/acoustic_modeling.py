@@ -1,7 +1,7 @@
 """
 Acoustic seismic modeling workflow with FUnTiDES SEM.
 
-Reads acquisition geometry from a decision file (requires pysabl),
+Reads acquisition geometry from a native decision file,
 runs one forward shot per source, and exports seismograms as SEG-Y
 (requires segyio) or HDF5 as fallback.
 
@@ -159,7 +159,7 @@ def parse_args():
 
     # Acquisition
     p.add_argument("--decision",  type=str, required=True,
-                   help="Decision file (pysabl)")
+                   help="Decision file")
     p.add_argument("--database",  type=str, default="identity",
                    help="Database file for coordinate conversion (default: identity)")
     p.add_argument("--scalco",    type=int, default=1,

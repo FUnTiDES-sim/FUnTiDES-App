@@ -1,4 +1,4 @@
-source /home/henri/src/proxyApp/envpython.sh && python workflows/modeling/acoustic_modeling.py \
+FUN_LIBS_BUILD=../proxy-FUn/FUn-Libs/build-cuda source env.sh && python3 workflows/modeling/examples/adt/acoustic_modeling.py \
     --decision workflows/modeling/examples/inputfiles/acquisition/decision \
     --database identity \
     --lx 1500 --ly 1500 --lz 1500 \
