@@ -1,0 +1,120 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <Solvers>
+    <AcousticSEM
+      name="acousticSolver"
+      cflFactor="0.25"
+      discretization="FE1"
+      targetRegions="{ Region }"
+      sourceCoordinates="{ { 1005.0, 1005.0, 1005.0 } }"
+      timeSourceFrequency="2.0"
+      receiverCoordinates="{ { 1105,1005, 1005 } }"
+      outputSeismoTrace="0"
+      dtSeismoTrace="0.1"/>
+
+  </Solvers>
+
+  <!-- hexahedral mesh generated internally by GEOSX -->
+  <Mesh>
+    <InternalMesh
+      name="mesh"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0, 2000 }"
+      yCoords="{ 0, 2000 }"
+      zCoords="{ 0, 2000 }"
+      nx="{ 200 }"
+      ny="{ 200 }"
+      nz="{ 200 }"
+      cellBlockNames="{ cb }"/>
+  </Mesh>
+
+  <Geometry>
+    <Box
+      name="zneg"
+      xMin="{-0.01, -0.01, -0.01}"
+      xMax="{2000.01, 2000.01, 0.01}"/>
+
+  </Geometry>
+
+
+  <Events
+    maxTime="2">
+    <PeriodicEvent
+      name="solverApplications"
+      forceDt="0.5"
+      targetExactStartStop="0"
+      targetExactTimestep="0"
+      target="/Solvers/acousticSolver"/>
+
+  </Events>
+  <NumericalMethods>
+    <FiniteElements>
+      <FiniteElementSpace
+        name="FE1"
+        order="1"
+        formulation="SEM"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="Region"
+      cellBlocks="{ cb }"
+      materialList="{ nullModel }"/>
+ </ElementRegions>
+
+  <Constitutive>
+    <NullModel
+      name="nullModel"/>
+  </Constitutive>
+
+ <FieldSpecifications>
+
+    <FieldSpecification
+      name="initialPressure"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="pressure_n"
+      scale="0.0"/>
+
+    <FieldSpecification
+      name="initialPressure1"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="pressure_nm1"
+      scale="0.0"/>
+
+
+    <FieldSpecification
+      name="cellVelocity"
+      initialCondition="1"
+      objectPath="ElementRegions/Region/cb"
+      fieldName="acousticVelocity"
+      scale="1500"
+      setNames="{ all }"/>
+
+
+    <FieldSpecification
+      name="density"
+      initialCondition="1"
+      objectPath="ElementRegions/Region/cb"
+      fieldName="acousticDensity"
+      scale="1"
+      setNames="{ all }"/>
+
+    <FieldSpecification
+      name="zposFreeSurface"
+      objectPath="faceManager"
+      fieldName="FreeSurface"
+      scale="0.0"
+      setNames="{ zneg }"/>
+
+
+  </FieldSpecifications>
+
+    <!-- collect the pressure values at the nodes -->
+
+</Problem>

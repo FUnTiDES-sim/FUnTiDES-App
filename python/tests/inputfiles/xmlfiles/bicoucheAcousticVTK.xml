@@ -1,0 +1,116 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <Solvers>
+    <!-- define the solver -->
+    <!-- we'll have to discuss the cflFactor with Randy -->
+    <!-- define the source coordinates -->
+    <!-- define the time source frequency -->
+    <!-- define the receiver coordinates -->
+    <AcousticSEM
+      name="acousticSolver"
+      cflFactor="0.25"
+      discretization="FE1"
+      targetRegions="{ Region }"
+      sourceCoordinates="{ { 1005.0, 1005.0, 1005.0 } }"
+      timeSourceFrequency="2.0"
+      receiverCoordinates="{ { 1105,1005, 1005 } }"
+      outputSeismoTrace="0"
+      dtSeismoTrace="0.005"/>
+
+  </Solvers>
+
+  <Mesh>
+    <VTKMesh
+      name="mesh"
+      fieldsToImport="{ mediumVelocity }"
+      fieldNamesInGEOSX="{ acousticVelocity }"
+      file="../models/bicouche50x50x50.vtu"/>
+  </Mesh>
+
+  <Geometry>
+    <Box
+      name="zpos"
+      xMin="{-0.01, -0.01, 499.99}"
+      xMax="{500.01, 500.01, 500.01}"/>
+  </Geometry>
+
+
+  <Events
+    maxTime="1.0">
+    <!-- trigger the application of the solver -->
+    <!-- control the timestepping here with forceDt -->
+    <!-- (there are other ways to control the time step size) -->
+
+    <PeriodicEvent
+      name="solverApplications"
+      forceDt="0.001"
+      targetExactStartStop="0"
+      targetExactTimestep="0"
+      target="/Solvers/acousticSolver"/>
+  </Events>
+
+  <NumericalMethods>
+    <FiniteElements>
+      <FiniteElementSpace
+        name="FE1"
+        order="1"
+        formulation="SEM"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="Region"
+      cellBlocks="{ hexahedra }"
+      materialList="{ nullModel }"/>
+  </ElementRegions>
+
+  <Constitutive>
+
+    <!-- add something here if needed -->
+    <NullModel
+      name="nullModel"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+
+    <!-- here use FieldSpecification to define: -->
+
+
+    <!-- 2) The initial pressure field -->
+    <FieldSpecification
+      name="initialPressureN"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="pressure_n"
+      scale="0.0"/>
+
+    <FieldSpecification
+      name="initialPressureNm1"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="pressure_nm1"
+      scale="0.0"/>
+
+    <FieldSpecification
+      name="density"
+      initialCondition="1"
+      objectPath="ElementRegions/Region/hexahedra"
+      fieldName="acousticDensity"
+      scale="1"
+      setNames="{ all }"/>
+
+    <!-- 4) The free surface condition the domain -->
+    <FieldSpecification
+      name="zposFreeSurface"
+      objectPath="faceManager"
+      fieldName="FreeSurface"
+      scale="0.0"
+      setNames="{ zpos }"/>
+
+  </FieldSpecifications>
+</Problem>
+

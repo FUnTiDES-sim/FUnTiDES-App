@@ -1,0 +1,9 @@
+#Command line : /data/gpfs/Users/j0320996/DG/Python-Scripts/./.prg2035/decision_create_light_mpi file=SEAM_Foothills.segy out=SEAM_Foothills.decision mapped_words=22,23,14,24,25,13 mapped_words_sort=22,23,14 index_words=22,23,14 place=false
+n_index_file=1
+index_file_1=/data/gpfs/Users/j0320996/DG/Python-Scripts/SEAM_Foothills.decision.index
+database=identity
+word_sx=22
+word_sy=23
+word_rx=24
+word_ry=25
+decision_scale=1.00000000000000

@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+import Job
+
+# TODO VMG: standalone process needs -wrap flag when using slurm. client-server works already.
+
+class Launcher():
+    """
+    Job launcher class
+    
+    Attributes
+    ----------
+        setup : dict
+            Dict containing relevant job options
+        parser : ArgumentParser
+            Launcher parser
+        options : Namespace
+            options parsed 
+        args : list
+            Argument unknown to the parser
+        server : JobServer (optional)
+            Defined when a server job is requested
+        client : JobClient (optional)
+            Defined when a client job is requested
+        job : Job (optional)
+            Defined when a standalone job requested
+    """
+
+    def __init__(self, setup = {}):
+        """
+        Initialize the job launcher options. Gather all the options required.
+            
+        Parameters
+        ----------
+            setup : dict
+                Dict containing relevant job options
+        """
+        self.setup = setup
+        self.set_launch_options()
+        
+         
+    def set_launch_options(self):
+        """Define the launcher setup options from the parsed arguments."""
+        self.option_list()
+        (self.options,self.args) = self.parser.parse_known_args()
+
+        self.setup["JobScheduler"] = self.options.jobscheduler.lower()
+        
+        if "None" == self.options.jobname:
+           self.setup["jobname"] = None
+        else:
+           self.setup["jobname"] = f"{self.options.jobname}"
+
+        if ( len(self.args)>0 ):             # len(args)=1 ERROR will be caught later.
+            self.setup["binary_args"] = f"{' '.join(self.args)}"
+        if self.options.serverbinary != None:
+             self.setup["server_binary_args"] = self.options.serverbinary
+        else:
+             self.setup["server_binary_args"] = self.setup["binary_args"]
+
+    #------------- client server ---------------------#
+        self.setup["CSserveronly"] = self.options.CSserveronly
+        self.setup["CSclientonly"] = self.options.CSclientonly
+        self.setup["launchtype"] = "standalone"
+        self.setup["runServer"] = False
+        self.setup["runClient"] = False
+        
+        if self.options.flagcliser:
+            self.setup["flag_cliser"] = True
+            self.setup["runServer"] = True
+            self.setup["runClient"] = True
+            self.setup["launchtype"] = "CS"
+
+        if self.setup["CSserveronly"]:
+            self.setup["flag_cliser" ]=True
+            self.setup["runServer"   ]=True
+            self.setup["runClient"   ]=False
+            self.setup["launchtype"] = "CS"
+
+        if ( self.setup["CSclientonly"] ):
+            if self.options.nbclients == 0:
+                self.printerror("Client/server with 0 clients is not a valid option.")
+            self.setup["flag_cliser" ]=True
+            self.setup["runServer"   ]=False
+            self.setup["runClient"   ]=True
+            self.setup["launchtype"] = "CS"
+            self.setup["CSserverjobid"] = self.options.CSserverjobid
+        
+            if self.options.CSkey == None:
+                self.printerror("CSkey file required to use RPC library")
+            else:
+                self.setup["CSkey"] = self.options.CSkey
+
+    #---------------------------------- prepare jobs ------------------------------------#
+        if self.setup["runClient"]:
+            self.prepare_client_run()
+        
+        if self.setup["runServer"]:
+            self.prepare_server_run() 
+
+        if self.setup["launchtype"] == "standalone":
+            self.prepare_standalone_run()
+
+
+    def prepare_standalone_run(self):
+        """Initialize a standalone job"""
+        param = {
+                 "mpi_exe"     : self.options.mpi_exe,
+                 "max_time"    : self.options.max_time,
+                 "np"          : self.options.np,
+                 "ppn"         : self.options.ppn,
+                 "queue"       : self.options.queue,
+                 "sub_options" : self.options.bsuboptions,
+                 "gpn"         : self.options.gpn,
+                 "merge_logs"  : self.options.merge_logs,
+                 "binary_args" : self.setup["binary_args"],
+                 "jobname"     : self.setup["jobname"],
+                 }
+        self.job = Job.Job(jobscheduler=self.setup["JobScheduler"], param=param)
+
+    def prepare_server_run(self):
+        """Initialize a server job"""
+        param_server = {
+                        "mpi_exe"     : self.options.mpi_exe,
+                        "max_time"    : self.options.max_time,
+                        "np"          : self.options.server_np,
+                        "ppn"         : self.options.server_ppn,
+                        "queue"       : self.options.server_queue,
+                        "sub_options" : self.options.serverbsuboptions,
+                        "gpn"         : self.options.server_gpn,
+                        "merge_logs"  : self.options.merge_logs,
+                        "binary_args" : self.setup["server_binary_args"],
+                        "serveronly"  : self.setup["CSserveronly"],
+                        "jobname"     : self.setup["jobname"],
+                        }
+        self.server = Job.JobServer(jobscheduler=self.setup["JobScheduler"], param = param_server)
+        
+
+    def prepare_client_run(self):
+        """Initialize client(s) job."""
+        param_client = {
+                        "mpi_exe"     : self.options.mpi_exe,
+                        "max_time"    : self.options.max_time,
+                        "np"          : self.options.np,
+                        "ppn"         : self.options.ppn,
+                        "queue"       : self.options.queue,
+                        "sub_options" : self.options.bsuboptions,
+                        "gpn"         : self.options.gpn,
+                        "merge_logs"  : self.options.merge_logs,
+                        "binary_args" : self.setup["binary_args"],
+                        "nb_clients"  : self.options.nbclients,
+                        "clientonly"  : self.setup["CSclientonly"],
+                        "jobname"     : self.setup["jobname"],
+                        }
+        self.client = Job.JobClient(jobscheduler=self.setup["JobScheduler"],
+                                param = param_client)
+
+    def launch(self):
+        """Launch the job(s)."""
+        if self.setup["launchtype"] == "CS":
+            if self.setup["runServer"]:
+                self.server.createsubcmd()
+                self.server.runJob()
+                if self.setup["CSserveronly"]:
+                    sys.exit(0)
+            if self.setup["runClient"]:
+                if self.setup["CSclientonly"]:
+                    self.client.associated_server = self.setup["CSserverjobid"]
+                    if "CSkey" in self.setup:
+                        self.client.param["CSkey"] = self.setup["CSkey"]
+                else:
+                    self.client.associated_server = self.server.jobID
+                self.client.createsubcmd()
+                self.client.runJob()
+    
+        elif self.setup["launchtype"] == "standalone":
+            self.job.createsubcmd()
+            self.job.runJob()
+
+    def option_list(self):
+        """Parser for the launcher options"""
+        usage = f"Launcher.py [launcher options] [binary and binary args]"
+        desc = "Job launcher for standalone and client/server(CS) configurations.\n"
+        desc += "CS optimized for RPC library\n"
+        self.parser = argparse.ArgumentParser("Job Launcher", usage=usage, description=desc)
+        l_parser = self.parser.add_argument_group("Launcher options", description="Generic launching options.")
+        l_parser.add_argument("--jobname", 
+            dest="jobname", default="None", type=str,
+            help="LSF/SLURM to specify a LSF/SLURM job name.")
+        l_parser.add_argument("--jobscheduler", "--jscheduler", 
+            dest="jobscheduler", default="lsf", type=str,
+            help= "Job scheduler: LSF (default), Slurm implemented."
+                     +"For other JS, the submission line is considered as [sub_options]+[binary+binary_args].")
+        l_parser.add_argument("--flag_cliser","--CS", 
+            dest="flagcliser", action="store_true", default=False,
+            help="Activate Client/Server mode. Default is NO Client/Server")
+
+        CS_only = l_parser.add_mutually_exclusive_group()
+        CS_only.add_argument("--CS_server_only_job","--CS-server-only-job", 
+            dest="CSserveronly", action="store_true", default=False,
+            help="Run the server job only without any client. This option implies --flag_cliser.")
+        CS_only.add_argument("--CS_client_only_job","--CS-client-only-job", 
+            dest="CSclientonly", action="store_true", default=False,
+            help="Run the client job only. To be used by adding clients into existing CS job. This option implies --flag_cliser.")
+
+    #----------------------------------Standalone/Client parser-------------------------------------------------------------------------#
+        c_parser = self.parser.add_argument_group("Client/standalone options",
+             description="Options specific to client or standalone configuration")
+        c_parser.add_argument("--mpi_exe", 
+            dest="mpi_exe", default="mpirun", type=str,
+            help="MPI command or binary.")
+        c_parser.add_argument("--max_time", 
+            dest="max_time", default=None, type=str,
+            help="Maximum job run time.")
+        c_parser.add_argument("--np", 
+            dest="np", default=0, type=int,
+            help="Number of (MPI) processes.")
+        c_parser.add_argument("--ppn","--nb_mpi_per_node", 
+            dest="ppn", default=None, type=int,
+            help="Number of (MPI) processes to be run per compute node")
+        c_parser.add_argument("--queue","--q","--cq", 
+            dest="queue", default=None, type=str,
+            help="LSF/SLURM Queue to run the job")
+        c_parser.add_argument("--gpn","--nb_gpu_per_node", 
+            dest="gpn", default=None, type=int,
+            help="Number of GPUs to be used per compute node")
+        c_parser.add_argument("--merge_logs",
+            dest="merge_logs", action="store_true", default=False,
+            help="Merge out and err logs")
+        c_parser.add_argument("--bsub_options","--bsub-options", 
+            dest="bsuboptions", default="", type=str,
+            help="LSF/SLURM to pass an additional bsub/sbatch options.")
+## not required since CSkey parameter is required in CS mode with RPC         
+#        c_parser.add_argument("--CS_port","--port",
+#            dest="CSport",default=0,type=int,
+#            help="Use with CS_client_only_job. For C/S client job to pass the server socket port info.")
+#        c_parser.add_argument("--CS_server","--server",
+#            dest="CSserver", default="None",type=str,
+#            help="Use with CS_client_only_job. For C/S client job to pass the server hostname info to client.")
+ 
+        c_parser.add_argument("--CS_server_jobid", 
+            dest="CSserverjobid", default=0, type=int,
+            help="Use with CS_client_only_job. For C/S client job to set job dependency")
+        c_parser.add_argument("--CS_key", 
+            dest="CSkey", default=None, type=str,
+            help="Key file generated by RPC containing the server name and ports.")
+        c_parser.add_argument("--nb_clients", 
+            dest="nbclients", default=1, type=int,
+            help="Number of lsf clients. Default is 1 client")
+
+    #-----------------------------------------Server options-------------------
+        s_parser = self.parser.add_argument_group("Server options",
+           description="Options specific to the server in the case of client/server configuration.")
+        s_parser.add_argument("--CS_server_np", "--CS_servernp","--server_np", 
+            dest="server_np", default=1, type=int,
+            help="Number of (MPI) processes, applies to server.")
+        s_parser.add_argument("--CS_server_ppn","--CS_serverppn","--server_ppn","--serverppn", 
+            dest="server_ppn", default=None, type=int,
+            help="Number of (MPI) processes to be run per compute node. Applies to the server in the C/S run.")
+        s_parser.add_argument("--CS_server_gpn","--CS_server_nb_gpu_per_node","--server_gpn", 
+            dest="server_gpn", default=None, type=int,
+            help="Number of GPUs, applies to server.")
+        s_parser.add_argument("--CS_server_queue","--server_queue","--sq", 
+            dest="server_queue", default=None, type=str,
+            help="LSF/SLURM Queue to run the server other than the default queue for server. ")
+        s_parser.add_argument("--CS_server_binary","--CS-server-binary", 
+            dest="serverbinary", default=None, type=str,
+            help="LSF/SLURM to specify the binary for server if it is different from the binary used by clients.")
+        s_parser.add_argument("--CS_server_bsub_options","--CS-server-bsub-options", 
+            dest="serverbsuboptions", default="", type=str,
+            help="LSF/SLURM to pass a bsub options to CS server.")
+
+
+    def printerror(self, msg):
+        print("ERROR : ")
+        print(msg)
+        sys.exit(-1)
+
+    
+if __name__ == "__main__":
+    mylaunch = Launcher()
+    mylaunch.launch()

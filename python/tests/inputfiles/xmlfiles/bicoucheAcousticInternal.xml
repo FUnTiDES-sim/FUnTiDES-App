@@ -1,0 +1,161 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <Solvers>
+    <!-- define the solver -->
+    <!-- we'll have to discuss the cflFactor with Randy -->
+    <!-- define the source coordinates -->
+    <!-- define the time source frequency -->
+    <!-- define the receiver coordinates -->
+    <AcousticSEM
+      name="acousticSolver"
+      cflFactor="0.25"
+      discretization="FE1"
+      targetRegions="{ Region1, Region2 }"
+      sourceCoordinates="{ { 1005.0, 1005.0, 1005.0 } }"
+      timeSourceFrequency="2.0"
+      receiverCoordinates="{ { 1105,1005, 1005 } }"
+      outputSeismoTrace="0"
+      dtSeismoTrace="0.1"/>
+
+  </Solvers>
+
+  <!-- hexahedral mesh generated internally by GEOSX -->
+  <!-- there is also an option to import external meshes -->
+  <Mesh>
+    <InternalMesh
+      name="mesh"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0, 2000 }"
+      yCoords="{ 0, 2000 }"
+      zCoords="{ 0, 1000, 2000 }"
+      nx="{ 50 }"
+      ny="{ 50 }"
+      nz="{ 25, 25 }"
+      cellBlockNames="{ cb1, cb2 }"/>
+  </Mesh>
+
+  <Geometry>
+    <Box
+      name="zpos"
+      xMin="{-0.01, -0.01, 1999.99}"
+      xMax="{2000.01, 2000.01, 2000.01}"/>
+
+  </Geometry>
+
+
+  <Events
+    maxTime="2">
+    <!-- trigger the application of the solver -->
+    <!-- control the timestepping here with forceDt -->
+    <!-- (there are other ways to control the time step size) -->
+
+    <PeriodicEvent
+      name="solverApplications"
+      forceDt="0.01"
+      targetExactStartStop="0"
+      targetExactTimestep="0"
+      target="/Solvers/acousticSolver"/>
+
+
+  </Events>
+
+  <NumericalMethods>
+    <FiniteElements>
+      <FiniteElementSpace
+        name="FE1"
+        order="1"
+        formulation="SEM"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="Region1"
+      cellBlocks="{ cb1 }"
+      materialList="{ nullModel }"/>
+
+    <CellElementRegion
+      name="Region2"
+      cellBlocks="{ cb2 }"
+      materialList="{ nullModel }"/>
+  </ElementRegions>
+
+  <Constitutive>
+
+    <!-- add something here if needed -->
+    <NullModel
+      name="nullModel"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+
+    <!-- here use FieldSpecification to define: -->
+
+
+    <!-- 2) The initial pressure field -->
+    <FieldSpecification
+      name="initialPressure"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="pressure_n"
+      scale="0.0"/>
+
+    <FieldSpecification
+      name="initialPressureNm1"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="pressure_nm1"
+      scale="0.0"/>
+
+    <!-- 3) The velocity in the domain -->
+
+    <FieldSpecification
+      name="cellVelocity1"
+      initialCondition="1"
+      objectPath="ElementRegions/Region1/cb1"
+      fieldName="acousticVelocity"
+      scale="2500"
+      setNames="{ all }"/>
+
+    <FieldSpecification
+      name="cellVelocity2"
+      initialCondition="1"
+      objectPath="ElementRegions/Region2/cb2"
+      fieldName="acousticVelocity"
+      scale="4500"
+      setNames="{ all }"/>
+
+      <FieldSpecification
+      name="density1"
+      initialCondition="1"
+      objectPath="ElementRegions/Region1/cb1"
+      fieldName="acousticDensity"
+      scale="1"
+      setNames="{ all }"/>
+
+    <FieldSpecification
+      name="density2"
+      initialCondition="1"
+      objectPath="ElementRegions/Region2/cb2"
+      fieldName="acousticDensity"
+      scale="1"
+      setNames="{ all }"/>
+
+    <!-- 4) The free surface condition the domain -->
+    <FieldSpecification
+      name="zposFreeSurface"
+      objectPath="faceManager"
+      fieldName="FreeSurface"
+      scale="0.0"
+      setNames="{ zpos }"/>
+
+
+  </FieldSpecifications>
+
+    <!-- collect the pressure values at the nodes -->
+
+
+</Problem>
