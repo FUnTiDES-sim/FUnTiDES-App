@@ -218,9 +218,8 @@ void print_results(const ComparisonResult& result, double tolerance) {
  * Workflow:
  * 1. Parse command line arguments
  * 2. Run FUnTiDES solver with specified parameters
- * 3. Post-process results to extract receiver data
- * 4. Compare with analytical reference solution
- * 5. Report validation results
+ * 3. Compare the receiver trace it writes with the analytical reference solution
+ * 4. Report validation results
  *
  * @param argc Number of command line arguments
  * @param argv Array of command line argument strings
@@ -234,10 +233,6 @@ int main(int argc, char* argv[]) {
 #ifndef FUNTIDES_EXECUTABLE
 // Fallback if not defined by CMake (for manual compilation)
 #define FUNTIDES_EXECUTABLE "./bin/funtides-sem"
-#endif
-
-#ifndef EXTRACT_RECEIVERS_SCRIPT
-#define EXTRACT_RECEIVERS_SCRIPT "../scripts/adios/adios_single_receiver_viz.py"
 #endif
 
 #ifndef VALIDATION_REFERENCE_ACOUSTIC
@@ -255,16 +250,12 @@ int main(int argc, char* argv[]) {
   // solver_command will be built after parsing command line arguments
   std::string solver_command;
 
-  // Set MPLBACKEND=Agg to prevent matplotlib from showing plots
-  // (non-interactive mode)
-  std::string postprocess_command = std::string("MPLBACKEND=Agg python3 ") + EXTRACT_RECEIVERS_SCRIPT;
-
   // Files to compare
-  std::string numerical_file = "seismogram_output.txt";  // FUnTiDES output
-  std::string analytical_file;                           // Will be set based on test type
+  std::string numerical_file = "receiver_trace.txt";  // FUnTiDES output
+  std::string analytical_file;                        // Will be set based on test type
 
   // Column indices for comparison (0-based indexing)
-  int numerical_column = 0;   // For FUnTiDES output, solution is in 1st column
+  int numerical_column = 1;   // FUnTiDES trace: time, then pressure (acoustic) or ux (elastic)
   int analytical_column = 1;  // For reference files, solution is in 2nd column
 
   // Validation tolerance (relative L2 error threshold)
@@ -355,21 +346,14 @@ int main(int argc, char* argv[]) {
 
   try {
     // Step 1: Run the solver
-    std::cout << "\n[1/3] Running FUnTiDES solver..." << std::endl;
+    std::cout << "\n[1/2] Running FUnTiDES solver..." << std::endl;
     if (!execute_command(solver_command)) {
       std::cerr << "Solver execution failed!" << std::endl;
       return 1;
     }
 
-    // Step 2: Post-process results to generate receiver file
-    std::cout << "\n[2/3] Post-processing results..." << std::endl;
-    if (!execute_command(postprocess_command)) {
-      std::cerr << "Post-processing failed!" << std::endl;
-      return 1;
-    }
-
-    // Step 3: Compare results
-    std::cout << "\n[3/3] Comparing solutions..." << std::endl;
+    // Step 2: Compare results
+    std::cout << "\n[2/2] Comparing solutions..." << std::endl;
 
     // Read numerical solution
     std::vector<double> numerical = read_column(numerical_file, numerical_column);

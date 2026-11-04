@@ -1,0 +1,37 @@
+# funtides-dg-sem configuration: acoustic run, DG below the interface, SEM above, single process.
+# Run with: python python/run_funtides.py examples/dg_sem/dg_sem_acoustic.yaml
+# All leaf keys except method map to funtides-dg-sem CLI flags (see funtides-dg-sem --help).
+
+domain:
+  method: dg-sem     # selects the executable funtides-<method>; not passed to it
+  order: 2
+  ex: 50
+  ey: 50
+  ez: 50
+  lx: 2000.0
+  ly: 2000.0
+  lz: 2000.0
+  mesh: cartesian    # cartesian | ucartesian
+  dg-sem-boundary-z: 1000.0  # height of the DG/SEM interface (m), default lz/2
+
+acquisition:
+  srcx: 1010.0       # in the SEM part (z >= interface)
+  srcy: 1010.0
+  srcz: 1010.0
+  f0: 5.0
+  tpeak: 0.2
+  ricker-order: 2
+  rcvx: 1310.0
+  rcvy: 1310.0
+  rcvz: 690.0        # in the DG part: the wave crosses the interface
+
+time:
+  dt: 0.001
+  timemax: 1.0
+
+boundaries:
+  boundaries-size: 0.0
+
+output:
+  snapshots: false
+  snap-interval: 50

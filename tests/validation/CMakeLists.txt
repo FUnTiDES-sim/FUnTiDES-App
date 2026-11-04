@@ -11,7 +11,6 @@ add_executable(validate_solution
 # Reference files are stored in tests/analyticalsolution/
 target_compile_definitions(validate_solution PRIVATE
     FUNTIDES_EXECUTABLE="${CMAKE_BINARY_DIR}/bin/funtides-sem"
-    EXTRACT_RECEIVERS_SCRIPT="${CMAKE_SOURCE_DIR}/scripts/adios/adios_single_receiver_viz.py"
     VALIDATION_REFERENCE_ACOUSTIC="${CMAKE_SOURCE_DIR}/tests/validation/analyticalsolution/P.dat"
     VALIDATION_REFERENCE_ELASTIC="${CMAKE_SOURCE_DIR}/tests/validation/analyticalsolution/Ux.dat"
 )
@@ -83,7 +82,7 @@ add_custom_target(validate_no_model_on_nodes
 
 # Cleanup target: make clean_validation
 add_custom_target(clean_validation
-    COMMAND ${CMAKE_COMMAND} -E remove receivers_numerical.txt
+    COMMAND ${CMAKE_COMMAND} -E remove receiver_trace.txt
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Cleaning validation output files"
 )
