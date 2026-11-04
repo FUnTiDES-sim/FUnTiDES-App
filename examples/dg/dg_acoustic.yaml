@@ -1,0 +1,36 @@
+# funtides-dg configuration: acoustic DG run, single process.
+# Run with: python python/run_funtides.py examples/dg/dg_acoustic.yaml
+# All leaf keys except method map to funtides-dg CLI flags (see funtides-dg --help).
+
+domain:
+  method: dg         # selects the executable funtides-<method>; not passed to it
+  order: 2
+  ex: 50
+  ey: 50
+  ez: 50
+  lx: 2000.0
+  ly: 2000.0
+  lz: 2000.0
+  mesh: cartesian    # cartesian | ucartesian
+
+acquisition:
+  srcx: 1010.0
+  srcy: 1010.0
+  srcz: 1010.0
+  f0: 5.0
+  tpeak: 0.2
+  ricker-order: 2
+  rcvx: 1310.0
+  rcvy: 1310.0
+  rcvz: 1310.0
+
+time:
+  dt: 0.001
+  timemax: 1.0
+
+boundaries:
+  boundaries-size: 0.0
+
+output:
+  snapshots: false
+  snap-interval: 50

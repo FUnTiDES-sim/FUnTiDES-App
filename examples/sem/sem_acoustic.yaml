@@ -1,4 +1,5 @@
-# funtides-sem configuration file
+# funtides-sem configuration: acoustic SEM run, every SEM option listed.
+# Run with: python python/run_funtides.py examples/sem/sem_acoustic.yaml
 # Section names are for readability only — all leaf keys map directly to
 # funtides-sem CLI flags. Dashes and underscores are interchangeable.
 # Boolean false values can be omitted (binary defaults apply).
@@ -31,7 +32,7 @@ domain:
   lz: 2000.0     # domain size along Z (meters)
   mesh:   cartesian  # cartesian | ucartesian (unstructured cartesian)
   implem: makutu     # implementation backend (only makutu for now)
-  method: sem        # numerical method: sem (spectral element method)
+  method: sem        # selects the executable funtides-<method>; not passed to it
 
 # ---------------------------------------------------------------------------
 # Acquisition — source and receivers

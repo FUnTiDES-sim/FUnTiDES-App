@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-run_funtides.py — Wrapper script to launch funtides-sem from a YAML config file.
+run_funtides.py — Wrapper script to launch a FUnTiDES example from a YAML config file.
 
 Usage:
     python run_funtides.py config.yaml [extra CLI args passed to the binary]
     python run_funtides.py --help
 
-YAML keys map 1-to-1 to the CLI flags of funtides-sem (dashes and underscores
-are treated identically). CLI arguments provided after the config file override
+The reserved key ``method`` (sem | dg | dg-sem | dg-padaptive, default sem)
+selects the executable ``funtides-<method>``. The other YAML keys map 1-to-1 to
+the CLI flags of that executable (dashes and underscores are treated identically). CLI arguments provided after the config file override
 the corresponding YAML values.
 
 The reserved key ``mpi-np`` (integer) is not passed to the binary — it controls
@@ -27,34 +28,36 @@ import yaml
 # Executable auto-detection
 # ---------------------------------------------------------------------------
 
-BINARY_NAME = "funtides-sem"
+DEFAULT_METHOD = "sem"
+METHODS = ("sem", "dg", "dg-sem", "dg-padaptive")
 
 # The script lives in <project_root>/python/, so go one level up.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def find_executable(root: Path) -> Path:
-    """Search for funtides-sem in build*/bin/ directories under *root*.
+def find_executable(root: Path, binary_name: str) -> Path:
+    """Search for *binary_name* in build*/bin/ directories under *root*.
 
     If several copies are found, returns the most recently modified one.
 
     Args:
         root: Project root directory.
+        binary_name: Executable name, e.g. funtides-sem.
 
     Returns:
-        Path to the funtides-sem binary.
+        Path to the binary.
 
     Raises:
         FileNotFoundError: If no binary is found.
     """
     candidates = sorted(
-        root.glob(f"build*/bin/{BINARY_NAME}"),
+        root.glob(f"build*/bin/{binary_name}"),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
     if not candidates:
         raise FileNotFoundError(
-            f"No '{BINARY_NAME}' found in any build*/bin/ directory under {root}.\n"
+            f"No '{binary_name}' found in any build*/bin/ directory under {root}.\n"
             "Build the project first (cmake + make)."
         )
     if len(candidates) > 1:
@@ -71,7 +74,7 @@ def find_executable(root: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 # Keys consumed by this script — never forwarded to the binary.
-_SCRIPT_KEYS = {"mpi-np", "mpi-launcher", "launcher"}
+_SCRIPT_KEYS = {"mpi-np", "mpi-launcher", "launcher", "method"}
 
 # Flag used by each supported launcher to set the number of processes.
 _NP_FLAG: dict[str, str] = {
@@ -191,6 +194,18 @@ def _normalize_key(key: str) -> str:
     return key.replace("_", "-")
 
 
+def _find_key(config: dict, name: str):
+    """Value of the leaf *name* anywhere in the (possibly sectioned) config, or None."""
+    for raw_key, value in config.items():
+        if _normalize_key(raw_key) == name and not isinstance(value, dict):
+            return value
+        if isinstance(value, dict):
+            found = _find_key(value, name)
+            if found is not None:
+                return found
+    return None
+
+
 def yaml_to_cli_args(config: dict) -> list[str]:
     """Convert a YAML config dict to a list of CLI arguments.
 
@@ -242,14 +257,15 @@ Usage:
 
 Arguments:
   config.yaml   Path to a YAML configuration file. Keys match the CLI flags
-                of {BINARY_NAME} (dashes and underscores interchangeable).
+                of the executable (dashes and underscores interchangeable).
   extra args    Any additional arguments are appended as-is to the command
                 line, overriding the YAML values where applicable.
 
 Binary selection:
+  method: M          Numerical method: {' | '.join(METHODS)} (default: {DEFAULT_METHOD}).
   If the environment variable FUNTIDES_BIN is set, it is used directly.
-  Otherwise the script searches for '{BINARY_NAME}' in build*/bin/ under the
-  project root, and picks the most recently modified binary if several exist.
+  Otherwise the script searches for 'funtides-<method>' in build*/bin/ under
+  the project root, and picks the most recently modified binary if several exist.
 
 MPI:
   mpi-np: N          Number of MPI processes (default: 1 = direct launch).
@@ -286,6 +302,12 @@ def main() -> int:
         print(f"[run_funtides] Error parsing {config_path}: {exc}", file=sys.stderr)
         return 1
 
+    method = str(_find_key(config, "method") or DEFAULT_METHOD)
+    if method not in METHODS:
+        print(f"[run_funtides] Error: unknown method '{method}', expected one of {', '.join(METHODS)}",
+              file=sys.stderr)
+        return 1
+
     # Locate executable — honour FUNTIDES_BIN if set, otherwise auto-detect
     env_bin = os.environ.get("FUNTIDES_BIN")
     if env_bin:
@@ -296,7 +318,7 @@ def main() -> int:
         print(f"[run_funtides] Binary (FUNTIDES_BIN): {binary}\n")
     else:
         try:
-            binary = find_executable(PROJECT_ROOT)
+            binary = find_executable(PROJECT_ROOT, f"funtides-{method}")
         except FileNotFoundError as exc:
             print(f"[run_funtides] {exc}", file=sys.stderr)
             return 1

@@ -5,7 +5,7 @@ set -euo pipefail
 EXS="100"
 EYS="100"
 EZS="100"
-IMPLEMS="makutu shiva"
+IMPLEMS="makutu"
 MESHES="cartesian ucartesian"
 ORDERS="1 2 3"
 FUNTIDESSEM_BIN="bin/funtides-sem"
@@ -20,7 +20,7 @@ Options (space-separated lists allowed; quoted):
   --ex        "100"            # values for --ex
   --ey        "100"            # values for --ey
   --ez        "100"            # values for --ez
-  --implem    "makutu"        # {classic, optim, makutu, shiva}
+  --implem    "makutu"         # {makutu}
   --mesh      "cartesian"      # {cartesian, ucartesian}
   -o|--order  "1 2 3"          # polynomial orders
   --bin       PATH             # path to funtides-sem (default: bin/funtides-sem)
@@ -29,7 +29,7 @@ Options (space-separated lists allowed; quoted):
   -h|--help                    # show this help
 
 Example:
-  $0 --ex "100" --ey "100" --ez "100" --implem "shiva" --mesh "cartesian" -o "2 3"
+  $0 --ex "100" --ey "100" --ez "100" --mesh "cartesian" -o "2 3"
 EOF
 }
 
@@ -88,9 +88,9 @@ for order in $ORDERS; do
               continue
             fi
 
-            # Run and capture the “Elapsed Kernel Time” (number only)
-            # Expected line: "---- Elapsed Kernel Time : 2.87449 seconds."
-            output="$("${cmd[@]}" | sed -nE 's/.*Elapsed Kernel Time *: *([0-9.]+) seconds\..*/\1/p' | tail -n1)"
+            # Run and capture the solver time (number only)
+            # Expected line: "  Solver:             2.8745 s ( 80.1 %)"
+            output="$("${cmd[@]}" | sed -nE 's/^ *Solver: *([0-9.]+) s.*/\1/p' | tail -n1)"
 
             if [[ -z "$output" ]]; then
               echo "Warning: could not parse time for config ex=$ex ey=$ey ez=$ez implem=$implem mesh=$mesh o=$order" >&2
