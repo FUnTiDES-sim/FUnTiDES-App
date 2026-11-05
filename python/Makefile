@@ -9,7 +9,7 @@ integratedTests:
 		source ${VIRTUAL_ENV}/bin/activate; \
 	fi
 	@which python3;
-	@cd tests/integratedTests && mpirun -np ${n} python3 -m pytest -s -rA -vvv
+	@cd tests/integratedTests && python3 -m pytest -rA -v   # the MPI tests launch mpirun themselves
 
 unitTests:
 	@if [ ! -z ${venv} ] ; then \
