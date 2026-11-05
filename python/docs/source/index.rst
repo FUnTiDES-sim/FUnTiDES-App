@@ -8,8 +8,7 @@ MAKUTU repository documentation
 
 The :code:`makutu` code is a library focused on seismic applications (forward
 modelling, imaging and full-waveform inversion). It drives the **FUnTiDES**
-spectral-element solvers — provided by proxy-FUn's :code:`FUn-Libs` — through the
-:code:`pyfuntides` Python bindings. You will find a variety of functions and
+spectral-element solvers through their :code:`pyfuntides` Python bindings. You will find a variety of functions and
 classes to build your own applications.
 
 

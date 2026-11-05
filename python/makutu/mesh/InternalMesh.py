@@ -36,13 +36,12 @@ def _plot_field(ax, data2d, extent, xlabel, ylabel, title, cmap, vmin, vmax):
     return im
 
 # Structured builder map: order → class.
-# The FUn-Libs pyfuntides.model exposes only the unstructured builder, so the
-# per-order CartesianStructBuilder classes may be absent; guard each lookup so
-# importing this module (and using the ModelUnstruct/heterogeneous path) works
-# without them. StructuredMesh's homogeneous path raises clearly if used.
+# FUnTiDES provides CartesianStructBuilder_f32_i32_O1..O9 (the solvers may be
+# compiled for fewer orders, see MAX_SOLVER_ORDER); guard each lookup so that
+# importing this module works with any pyfuntides build.
 _STRUCT_BUILDERS = {}
 if _HAS_PYFUNTIDES:
-    for _o in (1, 2, 3):
+    for _o in range(1, 10):
         _cls = getattr(FTModel, f"CartesianStructBuilder_f32_i32_O{_o}", None)
         if _cls is not None:
             _STRUCT_BUILDERS[_o] = _cls
@@ -180,18 +179,27 @@ class StructuredMesh:
         self.kk_model_rho = None
         self.heterogeneous = False   # True when ModelUnstruct backend is used
 
-        if vp_file is not None:
+        # With MPI, the structured builder cannot be given the global domain
+        # (pyfuntides passes the local size only): every rank would treat its
+        # x faces as domain boundaries. The ModelUnstruct backend is used then.
+        partitioned = comm is not None and comm.Get_size() > 1
+
+        if vp_file is not None or partitioned:
             # --- Heterogeneous model: build ModelUnstruct from SEP data ----
             from utilities.input.SEPReader import read_sep, sample_on_elements
             from utilities.mesh.CartesianUnstructModel import (
                 build_cartesian_unstruct_model,
             )
 
-            sep_vp = read_sep(vp_file)
-            vp_elem = sample_on_elements(
-                sep_vp, local_ex, self.ey, self.ez,
-                hx, self.hy, self.hz, self.origin_x,
-            )
+            if vp_file is not None:
+                sep_vp = read_sep(vp_file)
+                vp_elem = sample_on_elements(
+                    sep_vp, local_ex, self.ey, self.ez,
+                    hx, self.hy, self.hz, self.origin_x,
+                )
+            else:
+                # Homogeneous: default Vp of the FUnTiDES structured builder
+                vp_elem = np.full((self.ez, self.ey, local_ex), 1500.0, dtype=np.float32)
 
             rho_elem = None
             if rho_file is not None:

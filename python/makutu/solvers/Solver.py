@@ -145,3 +145,7 @@ class Solver:
         if hasattr(self, 'boundary_comm') and self.boundary_comm is not None:
             mass = self.solver.get_mass_matrix()
             self.boundary_comm.sync_accumulate(mass)
+            # The absorbing-boundary damping is assembled like the mass: the
+            # nodes shared by two ranks hold one part from each side
+            for c in range(self._numComponents()):
+                self.boundary_comm.sync_accumulate(self.solver.get_damping_matrix(c))

@@ -1,4 +1,4 @@
-source ~/.local/venv/proxy/bin/activate && source /home/henri/src/proxyApp/FUnTiDES/envpython.sh && python3 -c "
+source env.sh && python3 -c "
 import kokkos; kokkos.initialize()
 import pyfuntides.solver as FTSolver
 import pyfuntides.model as M

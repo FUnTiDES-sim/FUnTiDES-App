@@ -7,6 +7,7 @@ import kokkos
 import pyfuntides.solver as FTSolver
 
 from .WaveSolver import WaveSolver
+from ..tools.kokkosarrays import funtides_array
 from .ModelManagement import geos_params_from_model, grad_to_model
 
 
@@ -39,8 +40,8 @@ class AcousticSolver(WaveSolver):
         kwargs.setdefault("physic_type", FTSolver.PhysicType.ACOUSTIC)
         super().__init__(**kwargs)
 
-        self.kk_pn_prev = None   # pressure at t-1  [n_dof], CudaUVMSpace LayoutLeft
-        self.kk_pn_curr = None   # pressure at t     [n_dof], CudaUVMSpace LayoutLeft
+        self.kk_pn_prev = None   # pressure at t-1  [n_dof], see funtides_array()
+        self.kk_pn_curr = None   # pressure at t     [n_dof], see funtides_array()
         self._seismogram = None
         self._seismo_step = 1
         self.gradient_param = None
@@ -60,16 +61,8 @@ class AcousticSolver(WaveSolver):
 
     def _allocateWavefield(self):
         n = self.n_dof
-        self.kk_pn_prev = kokkos.array(
-            [n], dtype=kokkos.float32,
-            space=kokkos.CudaUVMSpace, layout=kokkos.LayoutRight,
-        )
-        self.kk_pn_curr = kokkos.array(
-            [n], dtype=kokkos.float32,
-            space=kokkos.CudaUVMSpace, layout=kokkos.LayoutRight,
-        )
-        np.array(self.kk_pn_prev, copy=False)[:] = 0.0
-        np.array(self.kk_pn_curr, copy=False)[:] = 0.0
+        self.kk_pn_prev = funtides_array([n])
+        self.kk_pn_curr = funtides_array([n])
 
         if self.receiverNodeIndices is not None:
             self._allocateSeismogram()
@@ -94,6 +87,12 @@ class AcousticSolver(WaveSolver):
                          dtype=np.float32))
             self._rcv_valid_nodes    = None   # not used in this mode
             self._rcv_batch_api      = hasattr(self.solver, "get_wavefield_at_receivers")
+            self._rcv_sample_api     = hasattr(self.solver, "sample_field_at")
+            # Without a sampling API in the solver (FUnTiDES): interpolate in
+            # Python from the element nodes, in the weight layout ix*n²+iy*n+iz
+            self._rcv_elem_nodes = None
+            if not (self._rcv_batch_api or self._rcv_sample_api):
+                self._rcv_elem_nodes = self._receiverElementNodes(self._rcv_elem_arr)
         else:
             # Fallback: nearest-node read from kk_pn_curr
             rcv = np.asarray(self.receiverNodeIndices, dtype=np.int64)
@@ -152,6 +151,13 @@ class AcousticSolver(WaveSolver):
                 vals = self.solver.get_wavefield_at_receivers(
                     data, 0, self._rcv_elem_arr, self._rcv_weights_arr)
                 self._seismogram[idx, self._rcv_valid_pos] = vals
+            elif self._rcv_elem_nodes is not None:
+                # Python path: weighted sum over the receiver element nodes.
+                # Current field of the data (time t, as sample_field_at): the
+                # buffers alternate at each swap, kk_pn_curr is not always it.
+                pn = np.array(data.get_current_field(0), copy=False)
+                self._seismogram[idx, self._rcv_valid_pos] = np.sum(
+                    pn[self._rcv_elem_nodes] * self._rcv_weights_arr, axis=1)
             else:
                 # Per-receiver fallback using sample_field_at
                 for col, elem, w in zip(self._rcv_valid_pos,
@@ -160,8 +166,9 @@ class AcousticSolver(WaveSolver):
                     self._seismogram[idx, col] = self.solver.sample_field_at(
                         data, 0, int(elem), w)
         else:
-            # Nearest-node fallback: direct read from kk_pn_curr
-            pn = np.array(self.kk_pn_curr, copy=False)
+            # Nearest-node fallback: direct read of the current field (the
+            # buffers alternate at each swap, kk_pn_curr is not always it)
+            pn = np.array(data.get_current_field(0), copy=False)
             self._seismogram[idx, self._rcv_valid_pos] = pn[self._rcv_valid_nodes]
         self._seismo_idx = idx + 1
 

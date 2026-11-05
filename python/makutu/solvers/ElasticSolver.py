@@ -4,23 +4,25 @@ import kokkos
 import pyfuntides.solver as FTSolver
 
 from .WaveSolver import WaveSolver
+from ..tools.kokkosarrays import funtides_array
 
 
 class ElasticSolver(WaveSolver):
     """
     ElasticSolver: FUnTiDES SEM elastic wave simulation.
 
-    Manages three displacement wavefield arrays [n_dof, 2] (Ux, Uy, Uz)
-    and accumulates per-component seismograms at receiver nodes.
+    Manages the displacement wavefields (Ux, Uy, Uz; previous and current
+    time step, one [n_dof] array each) and accumulates per-component
+    seismograms at receiver nodes.
 
     Attributes
     ----------
-        kk_wavefield_x : kokkos array
-            Displacement field in X [n_dof, 2]
-        kk_wavefield_y : kokkos array
-            Displacement field in Y [n_dof, 2]
-        kk_wavefield_z : kokkos array
-            Displacement field in Z [n_dof, 2]
+        kk_wavefield_x : tuple of kokkos arrays
+            Displacement in X, (previous, current), [n_dof] each
+        kk_wavefield_y : tuple of kokkos arrays
+            Displacement in Y, (previous, current)
+        kk_wavefield_z : tuple of kokkos arrays
+            Displacement in Z, (previous, current)
         kk_RHSTermx : kokkos array
             Source signal for X component [n_rhs, n_time_steps]
         kk_RHSTermy : kokkos array
@@ -73,6 +75,7 @@ class ElasticSolver(WaveSolver):
         self._seismogram_y = None
         self._seismogram_z = None
         self._seismo_step = 1
+        self._rcv_elem_nodes = None   # receiver element nodes (SEM interpolation)
 
         self.useDAS = False
 
@@ -91,12 +94,8 @@ class ElasticSolver(WaveSolver):
 
     def _allocateWavefield(self):
         for attr in ("kk_wavefield_x", "kk_wavefield_y", "kk_wavefield_z"):
-            kk = kokkos.array(
-                [self.n_dof, 2], dtype=kokkos.float32,
-                space=kokkos.HostSpace, layout=kokkos.LayoutRight,
-            )
-            np.array(kk, copy=False)[:] = 0.0
-            setattr(self, attr, kk)
+            setattr(self, attr, (funtides_array([self.n_dof]),
+                                 funtides_array([self.n_dof])))
 
         if self.receiverNodeIndices is not None:
             self._allocateSeismogram()
@@ -107,37 +106,55 @@ class ElasticSolver(WaveSolver):
         for attr in ("_seismogram_x", "_seismogram_y", "_seismogram_z"):
             setattr(self, attr, np.zeros((n_seismo, n_receivers), dtype=np.float64))
         self._seismo_step = max(1, int(round(self.dtSeismo / self.dt)))
+        self._rcv_elem_nodes = None   # receivers changed: recompute on next record
+
+    def updateSourceAndReceivers(self,
+                                  sourceElementIndices,
+                                  receiverNodeIndices,
+                                  sourceWeights=None):
+        """
+        Set source element indices and receiver node indices.
+
+        Same as :meth:`WaveSolver.updateSourceAndReceivers`; also (re)allocates
+        the seismograms when the solver is already initialized.
+        """
+        super().updateSourceAndReceivers(sourceElementIndices, receiverNodeIndices, sourceWeights)
+        if self.alreadyInitialized and self.kk_wavefield_x is not None:
+            self._allocateSeismogram()
+
+    def _copySourceToComponents(self):
+        """Copy kk_RHSTerm into the RHS of the source components (others: 0)."""
+        RHSTerm = np.array(self.kk_RHSTerm, copy=False)
+        for comp in ("x", "y", "z"):
+            dest = np.array(getattr(self, f"kk_RHSTerm{comp}"), copy=False)
+            dest[:, :] = RHSTerm[:, :] if comp in self.sourceComponents else 0.0
+
+    def updateSourceValue(self, value):
+        """
+        Set the source waveform (see :meth:`WaveSolver.updateSourceValue`)
+        and copy it into the RHS of the source components.
+        """
+        super().updateSourceValue(value)
+        if self.kk_RHSTerm is not None and self.kk_RHSTermx is not None:
+            self._copySourceToComponents()
 
     def _createSolverData(self):
         n_rhs = len(self.sourceElementIndices)
         n_steps = self.n_time_steps
 
         for attr in ("kk_RHSTermx", "kk_RHSTermy", "kk_RHSTermz"):
-            kk = kokkos.array(
-                [n_rhs, n_steps], dtype=kokkos.float32,
-                space=kokkos.HostSpace, layout=kokkos.LayoutRight,
-            )
-            np.array(kk, copy=False)[:] = 0.0
-            setattr(self, attr, kk)
+            setattr(self, attr, funtides_array([n_rhs, n_steps]))
 
         # Copy the evaluated source into the requested components
         if self.sourceValue is not None:
-            RHSTerm = np.array(self.kk_RHSTerm, copy=False)
-            for comp in self.sourceComponents:
-                dest = np.array(getattr(self, f"kk_RHSTerm{comp}"), copy=False)
-                dest[:, :] = RHSTerm[:, :]
+            self._copySourceToComponents()
 
-        self.data = FTSolver.SEMsolverDataElastic(
-            0, 1,
-            self.kk_RHSTermx,
-            self.kk_RHSTermy,
-            self.kk_RHSTermz,
-            self.kk_wavefield_x,
-            self.kk_wavefield_y,
-            self.kk_wavefield_z,
-            self.kk_RHSElement,
-            self.kk_RHSWeights,
-        )
+        wavefield = FTSolver.WavefieldElastic(
+            *self.kk_wavefield_x, *self.kk_wavefield_y, *self.kk_wavefield_z)
+        rhs = FTSolver.RhsElastic(
+            self.kk_RHSTermx, self.kk_RHSTermy, self.kk_RHSTermz,
+            self.kk_RHSElement, self.kk_RHSWeights)
+        self.data = FTSolver.SEMsolverDataElastic(wavefield, rhs)
 
     # ------------------------------------------------------------------
     # Source and receiver management
@@ -167,17 +184,34 @@ class ElasticSolver(WaveSolver):
     # Seismogram
     # ------------------------------------------------------------------
 
-    def _recordSeismogram(self, time_sample):
+    def _recordSeismogram(self, time_sample, data):
         if self._seismogram_x is None or self.receiverNodeIndices is None:
             return
         if time_sample % self._seismo_step == 0:
             idx = time_sample // self._seismo_step
             if idx < self._seismogram_x.shape[0]:
-                rcv = self.receiverNodeIndices
-                # Column 1 holds the current (np1) displacement after compute_one_step
-                self._seismogram_x[idx, :] = np.array(self.kk_wavefield_x, copy=False)[rcv, 1]
-                self._seismogram_y[idx, :] = np.array(self.kk_wavefield_y, copy=False)[rcv, 1]
-                self._seismogram_z[idx, :] = np.array(self.kk_wavefield_z, copy=False)[rcv, 1]
+                # Current field of the data (the buffers alternate at each swap)
+                fields = [np.array(data.get_current_field(c), copy=False) for c in range(3)]
+                seismos = (self._seismogram_x, self._seismogram_y, self._seismogram_z)
+                if self.receiverElementIndices is not None:
+                    # SEM interpolation over the receiver element nodes
+                    if self._rcv_elem_nodes is None:
+                        elems = np.asarray(self.receiverElementIndices)
+                        self._rcv_valid_pos = np.where(elems >= 0)[0]
+                        self._rcv_elem_nodes = self._receiverElementNodes(
+                            elems[self._rcv_valid_pos])
+                        self._rcv_weights_arr = np.array(
+                            [self.receiverWeights[j] for j in self._rcv_valid_pos],
+                            dtype=np.float32)
+                    for u, seismo in zip(fields, seismos):
+                        seismo[idx, self._rcv_valid_pos] = np.sum(
+                            u[self._rcv_elem_nodes] * self._rcv_weights_arr, axis=1)
+                else:
+                    # Nearest node; -1 flags a receiver on another rank
+                    rcv = np.asarray(self.receiverNodeIndices, dtype=np.int64)
+                    valid = np.where(rcv >= 0)[0]
+                    for u, seismo in zip(fields, seismos):
+                        seismo[idx, valid] = u[rcv[valid]]
 
     def getDisplacementAtReceivers(self, component="z"):
         """
@@ -214,9 +248,10 @@ class ElasticSolver(WaveSolver):
     def resetWaveField(self):
         """Reset displacement wavefields and seismograms to zero."""
         for attr in ("kk_wavefield_x", "kk_wavefield_y", "kk_wavefield_z"):
-            kk = getattr(self, attr)
-            if kk is not None:
-                np.array(kk, copy=False)[:] = 0.0
+            pair = getattr(self, attr)
+            if pair is not None:
+                for kk in pair:
+                    np.array(kk, copy=False)[:] = 0.0
         for attr in ("_seismogram_x", "_seismogram_y", "_seismogram_z"):
             arr = getattr(self, attr)
             if arr is not None:

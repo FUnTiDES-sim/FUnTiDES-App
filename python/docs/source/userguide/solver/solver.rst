@@ -1,8 +1,8 @@
 Solver application
 ###################
 
-:program:`makutu` wraps the **FUnTiDES** spectral-element wave solvers (from
-proxy-FUn's :code:`FUn-Libs`, via :code:`pyfuntides`) behind simplified Python
+:program:`makutu` wraps the **FUnTiDES** spectral-element wave solvers (via
+:code:`pyfuntides`) behind simplified Python
 classes:
 
     - :code:`AcousticSolver` — acoustic wave equation (SEM), scalar pressure

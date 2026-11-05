@@ -20,6 +20,8 @@ import numpy as np
 import kokkos
 import pyfuntides.model as FTModel
 
+from utilities.tools.kokkosarrays import funtides_array
+
 
 # ---------------------------------------------------------------------------
 # Gauss-Lobatto-Legendre quadrature points on [-1, 1] per order
@@ -34,19 +36,14 @@ _GLL = {
 
 
 def _kk(arr, dtype=kokkos.float32):
-    """Allocate a Kokkos array (CudaUVMSpace, LayoutLeft) and fill from numpy.
-
-    CudaUVMSpace + LayoutLeft is what ModelUnstructData_f32_i32 requires on
-    CUDA builds (confirmed from the pybind11 constructor signature).
+    """Allocate a Kokkos array for pyfuntides (see funtides_array) and fill it from numpy.
 
     For 2D arrays (e.g. global_node_index [n_elem, n_pts]) the numpy view of
-    a LayoutLeft Kokkos array uses Fortran (column-major) strides.  Numpy's
-    element-wise broadcast assignment correctly maps arr[i,j] → kk[i,j]
+    a LayoutLeft Kokkos array (CUDA build) uses Fortran (column-major) strides.
+    Numpy's element-wise broadcast assignment correctly maps arr[i,j] → kk[i,j]
     regardless of the stride difference between source and destination.
     """
-    kk = kokkos.array(list(arr.shape), dtype=dtype,
-                      space=kokkos.CudaUVMSpace,
-                      layout=kokkos.LayoutRight)
+    kk = funtides_array(arr.shape, dtype=dtype)
     np.array(kk, copy=False)[:] = arr
     return kk
 
@@ -162,7 +159,8 @@ def build_cartesian_unstruct_model(
     tol = min(hx, hy, hz) * 1e-4
     boundaries = np.zeros(n_nodes, dtype=np.int32)   # Interior by default
 
-    on_xmin = coords_x < (origin_x + tol)
+    # Global domain faces only: the x faces between MPI subdomains are interior
+    on_xmin = coords_x < tol
     on_xmax = coords_x > (global_x_max - tol)
     on_ymin = coords_y < tol
     on_ymax = coords_y > (ly - tol)
@@ -209,9 +207,8 @@ def build_cartesian_unstruct_model(
     kk_coords_y      = _kk(coords_y)
     kk_coords_z      = _kk(coords_z)
     kk_gni           = _kk(gni,  dtype=kokkos.int32)
-    # FUn-Libs ModelUnstructData stores boundaries_t as a real (float32) view and
-    # casts to BoundaryFlag in boundaryType(); allocate float32 to match.
-    kk_boundaries    = _kk(boundaries.astype(np.float32), dtype=kokkos.float32)
+    # FUnTiDES ModelUnstructData stores boundaries_t as an int view (BoundaryFlag values)
+    kk_boundaries    = _kk(boundaries.astype(np.int32), dtype=kokkos.int32)
 
     kk_vp_node       = _kk(vp_node_flat)
     kk_vp_element    = _kk(vp_flat)

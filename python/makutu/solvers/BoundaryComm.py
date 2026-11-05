@@ -48,11 +48,14 @@ class BoundaryComm:
 
         Parameters
         ----------
-        field_view : np.ndarray
-            1-D float32 array (a zero-copy view of a Kokkos array, e.g.
+        field_view : np.ndarray or kokkos array
+            1-D float32 array, or the Kokkos view itself (e.g.
             ``solver.get_force_vector(c)`` or ``solver.get_mass_matrix()``).
             Modified **in-place**.
         """
+        # Zero-copy numpy view (FUnTiDES returns Kokkos views, which do not
+        # support fancy indexing)
+        field_view = np.array(field_view, copy=False)
         # Right neighbour
         if self.rank < self.size - 1:
             recv = np.zeros(self.buf_size, dtype=np.float32)

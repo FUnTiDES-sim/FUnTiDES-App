@@ -6,6 +6,7 @@ import pyfuntides.solver as FTSolver
 
 from .Solver import Solver
 from .BoundaryComm import BoundaryComm
+from ..tools.kokkosarrays import funtides_array
 
 # ---------------------------------------------------------------------------
 # GLL Lagrange interpolation helpers
@@ -259,18 +260,9 @@ class WaveSolver(Solver):
         n_pts = self.model.get_number_of_points_per_element()
         n_steps = self.n_time_steps
 
-        self.kk_RHSTerm = kokkos.array(
-            [n_rhs, n_steps], dtype=kokkos.float32,
-            space=kokkos.CudaUVMSpace, layout=kokkos.LayoutRight,
-        )
-        self.kk_RHSElement = kokkos.array(
-            [n_rhs], dtype=kokkos.int32,
-            space=kokkos.CudaUVMSpace, layout=kokkos.LayoutRight,
-        )
-        self.kk_RHSWeights = kokkos.array(
-            [n_rhs, n_pts], dtype=kokkos.float32,
-            space=kokkos.CudaUVMSpace, layout=kokkos.LayoutRight,
-        )
+        self.kk_RHSTerm = funtides_array([n_rhs, n_steps])
+        self.kk_RHSElement = funtides_array([n_rhs], dtype=kokkos.int32)
+        self.kk_RHSWeights = funtides_array([n_rhs, n_pts])
 
         np.array(self.kk_RHSElement, copy=False)[:] = self.sourceElementIndices
 
@@ -715,7 +707,7 @@ class WaveSolver(Solver):
 
         1. ``compute_forces``  — compute local element contributions
         2. MPI boundary sync   — accumulate shared boundary nodes across ranks
-        3. ``update_solution`` — apply mass⁻¹ × assembled forces
+        3. ``update_solution_forward`` — apply mass⁻¹ × assembled forces
 
         Parameters
         ----------
@@ -725,16 +717,41 @@ class WaveSolver(Solver):
         if self.boundary_comm is not None:
             # Split time step for domain decomposition
             self.solver.compute_forces(self.dt, time_sample, self.data)
-            n_comp = self.solver.get_num_components()
-            for c in range(n_comp):
+            for c in range(self._numComponents()):
                 force_vec = self.solver.get_force_vector(c)
                 self.boundary_comm.sync_accumulate(force_vec)
-            self.solver.update_solution(self.dt, self.data)
+            self.solver.update_solution_forward(self.dt, self.data)
         else:
             self.solver.compute_one_step(self.dt, time_sample, self.data)
 
         self._recordSeismogram(time_sample, self.data)
         self.data.swap_wavefields()
+
+    def _receiverElementNodes(self, elements):
+        """
+        Global node indices of the receiver elements, shape (n_rcv, (order+1)^3),
+        in the layout of the receiver weights: ix*n² + iy*n + iz.
+        """
+        n = self.order + 1
+        nodes = np.empty((len(elements), n ** 3), dtype=np.int64)
+        for r, e in enumerate(elements):
+            for ix in range(n):
+                for iy in range(n):
+                    for iz in range(n):
+                        nodes[r, ix * n * n + iy * n + iz] = \
+                            self.model.global_node_index(int(e), ix, iy, iz)
+        return nodes
+
+    # Wavefield components per physics (FUnTiDES PhysicsInfo<...>::kNumFields)
+    _NUM_COMPONENTS = {
+        FTSolver.PhysicType.ACOUSTIC: 1,
+        FTSolver.PhysicType.ELASTIC: 3,
+        FTSolver.PhysicType.ACOUSTOELASTIC: 4,
+    }
+
+    def _numComponents(self):
+        """Number of wavefield components (force vectors) of the solver."""
+        return self._NUM_COMPONENTS[self.physic_type]
 
     def _recordSeismogram(self, time_sample, data):
         """Sample wavefield at receiver locations. Implemented by subclasses."""
