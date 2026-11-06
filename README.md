@@ -111,3 +111,9 @@ make unitTests integratedTests               # about 1 min on a GPU
 
 The applications import the library, never the reverse. Example data and models
 live in the sibling `FUn-examples/` directory.
+
+## License
+
+FUnTiDES-App, including the Python `makutu` library, is distributed under the
+CeCILL-C free software license, like FUnTiDES: see [`LICENCE.md`](LICENCE.md)
+(English) and [`LICENCE_fr.md`](LICENCE_fr.md) (French).

@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Seismic modelling, imaging and full-waveform inversion on the FUnTiDES solvers (pyfuntides)"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "CeCILL-C"}
 # pyfuntides and kokkos are not pip packages: they come from the FUnTiDES
 # installation (source <install>/funtides_env.sh before using makutu).
 dependencies = [
