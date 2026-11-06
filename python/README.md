@@ -16,7 +16,7 @@ before moving here; its history is kept.
 | Path | Contents |
 |---|---|
 | `makutu/` | the library (`import makutu…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
-| `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, `modelProcessing`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
+| `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
 | `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI, 2-D against the exact solution) |
 | `docs/` | `funtides_input_parameters.md` + Sphinx source |
 | `scripts/`, `validation/` | developer helper scripts, DAS validation scripts |
@@ -31,9 +31,8 @@ models (SEAM acquisition, Marmousi SEP/Cubit models, …) live in the sibling
   provides `pyfuntides` and, through FUnTiDES-TPL, the `kokkos` module and the
   Python virtual environment (`tpl-venv`). These are **not** pip packages; see
   the FUnTiDES README (Quick Start).
-- Python >= 3.10 with `numpy`, `scipy`, `matplotlib`, `mpi4py`, `h5py`, `segyio`,
-  `vtk`, `pyevtk`, `numba` (installed by `pip install` below) and `pytest` for
-  the tests.
+- Python >= 3.10 with `numpy`, `scipy`, `matplotlib`, `mpi4py`, `h5py`, `segyio`
+  (installed by `pip install` below) and `pytest` for the tests.
 
 > **GPU.** makutu allocates its Kokkos arrays in the memory space and layout of
 > the FUnTiDES build (`CudaUVMSpace` + `LayoutLeft` with CUDA, see

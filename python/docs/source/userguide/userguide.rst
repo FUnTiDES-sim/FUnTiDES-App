@@ -6,7 +6,6 @@ User Guide
    :caption: Contents:
 
    Input <input/input>
-   Model <models/modelProcessing>
    Solver <solver/solver>
    Display <display/display>
    

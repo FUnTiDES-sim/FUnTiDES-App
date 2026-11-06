@@ -32,6 +32,3 @@ The initial model is given to GEOS thanks to the **Mesh** field in the XML input
 
 
 .. Important:: GEOS only admit :code:`CellData` type for the VTK fields to import.
-
-
-.. Note:: The SEP model is a widely used format. As indicated above, GEOS cannot handle this type of model format. You will find in the next `section <../../models/modelProcessing.html>`_ methods to convert your SEP model to a VTK file.

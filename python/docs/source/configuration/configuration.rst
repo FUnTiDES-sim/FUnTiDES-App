@@ -6,9 +6,7 @@ Python 3.10 or above, with:
 
 .. code-block:: bash
 
-    python3 -m pip install numpy scipy matplotlib mpi4py h5py segyio vtk pyevtk numba
-
-(:code:`makutu.model` imports :code:`vtk` and :code:`numba`).
+    python3 -m pip install numpy scipy matplotlib mpi4py h5py segyio
 
 :program:`makutu` drives the **FUnTiDES** solvers, imported as
 :code:`pyfuntides`. These — and the :code:`kokkos` runtime — are **not** pip

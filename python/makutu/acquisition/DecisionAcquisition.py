@@ -13,7 +13,7 @@ class DecisionAcquisition(Acquisition):
     
     Attributes
     ---------
-        mesh : StructuredMesh, VTKMesh, or None
+        mesh : StructuredMesh, CartesianMesh2D, or None
             Mesh
         limited_aperture : bool
             Full or limited aperture flag
@@ -34,7 +34,7 @@ class DecisionAcquisition(Acquisition):
         """
         Parameters
         ----------
-            mesh : StructuredMesh, VTKMesh, or None
+            mesh : StructuredMesh, CartesianMesh2D, or None
                 Mesh of the problem (optional).
             dt : float
                 Timestep

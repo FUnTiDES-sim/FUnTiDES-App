@@ -18,9 +18,6 @@ dependencies = [
     "mpi4py",
     "h5py",
     "segyio",
-    "vtk",
-    "pyevtk",
-    "numba",
 ]
 
 [project.optional-dependencies]

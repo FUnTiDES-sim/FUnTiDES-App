@@ -10,14 +10,12 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
 | `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
 | `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces and gradients |
-| `modelProcessing/SepToVtk.py` | Converts SEP models to VTK (vtu / pvtu) |
 | `fullWaveformInversion/fwi.py` | Full-waveform inversion workflow; **not yet adapted** to the current solver API (see below) |
 
 ```bash
 python apps/run_funtides.py ../examples/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
 python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py --fix
 python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file ../../FUnTiDES-data/SEP/marmousi/Vp_xz.H --f0 8 --order 4 --plot
-cd apps/modelProcessing && python SepToVtk.py --infile=/path/to/model.H --out vtu --pn=mediumVelocity
 ```
 
 ## Status
