@@ -107,7 +107,7 @@ solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolv
                         dt=dt, maxTime=tmax, sourceType="ricker2", sourceFreq=f0, **mesh.solver_kwargs())
 ```
 
-See `apps/modeling/examples/acoustic_marmousi_2d.py`.
+See `apps/modeling/marmousi_2d/` (README: data preparation, mesh choice, modelling).
 
 MPI is supported in 3-D (1-D X-axis domain decomposition) via `mpi4py`; pass a
 communicator to the mesh/solver constructors. A partitioned `StructuredMesh`

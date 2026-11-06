@@ -12,7 +12,9 @@ Outputs: <output>.h5 (pressure at the receivers, receiver x, time step) and
 Usage
 -----
     source <FUnTiDES install>/funtides_env.sh
-    python apps/modeling/examples/acoustic_marmousi_2d.py [--order 4] [--f0 8] [--tmax 4]
+    python apps/modeling/marmousi_2d/run_marmousi_2d.py [--order 4] [--f0 8] [--tmax 4]
+
+See README.md in this directory for the whole case (data preparation, mesh choice).
 """
 
 import argparse
@@ -60,7 +62,9 @@ def parse_args():
 def main():
     args = parse_args()
     sep_dir = args.data_dir / "SEP" / "marmousi"
-    lx, lz = 500 * 20.0, 174 * 20.0
+    from makutu.input.SEPReader import read_sep
+    sep = read_sep(str(sep_dir / "Vp_xz.H"))   # axis 1 = x, axis 2 = depth
+    lx, lz = sep.n1 * sep.d1, sep.n2 * sep.d2
     ex, ez = int(round(lx / args.elem_size)), int(round(lz / args.elem_size))
 
     t0 = time.time()
@@ -93,6 +97,7 @@ def main():
     gather = solver.getPressureAtReceivers()
     print(f"Time loop {time.time() - t0:.1f} s; gather {gather.shape}")
 
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(args.output + ".h5", "w") as f:
         f.create_dataset("pressure", data=gather)
         f.create_dataset("receiver_x", data=rcv_x)

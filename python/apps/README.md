@@ -8,14 +8,16 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 | Path | Content |
 |---|---|
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
-| `modeling/examples/` | Forward modelling examples (3-D SEP models, multi-shot acquisition from a decision file, 2-D Marmousi); see its README |
+| `modeling/examples/` | Forward modelling examples (3-D SEP models, multi-shot acquisition from a decision file); see its README |
+| `modeling/marmousi_2d/` | 2-D Marmousi case, from the SEP data to the shot gather: `prepare_marmousi_2d.py` (checks/fixes the data, chooses the mesh), `run_marmousi_2d.py`; see its README |
 | `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces and gradients |
 | `modelProcessing/SepToVtk.py` | Converts SEP models to VTK (vtu / pvtu) |
 | `fullWaveformInversion/fwi.py` | Full-waveform inversion workflow; **not yet adapted** to the current solver API (see below) |
 
 ```bash
 python apps/run_funtides.py ../examples/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
-python apps/modeling/examples/acoustic_marmousi_2d.py
+python apps/modeling/marmousi_2d/prepare_marmousi_2d.py --fix
+python apps/modeling/marmousi_2d/run_marmousi_2d.py --output runs/marmousi_2d_shot
 cd apps/modelProcessing && python SepToVtk.py --infile=/path/to/model.H --out vtu --pn=mediumVelocity
 ```
 
