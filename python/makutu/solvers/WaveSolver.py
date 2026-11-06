@@ -489,13 +489,16 @@ class WaveSolver(Solver):
         Parameters
         ----------
             vel : np.ndarray
-                New velocity values. Only positions where vel > 0 are updated.
+                New velocity values, seismic order (first z layer at the
+                surface, see :meth:`getVelocityModel`). Only positions where
+                vel > 0 are updated.
         """
         assert self.kk_model_vp is not None, \
             "kk_model_vp must be provided at construction time to use updateVelocityModel"
         vp = np.array(self.kk_model_vp, copy=False)
-        mask = np.asarray(vel) > 0
-        vp[mask] = np.asarray(vel, dtype=np.float32)[mask]
+        vel = self._flip_z(np.asarray(vel, dtype=np.float32))
+        mask = vel > 0
+        vp[mask] = vel[mask]
         self.reinitSolver()
 
     def updateDensityModel(self, density):
@@ -506,13 +509,15 @@ class WaveSolver(Solver):
         Parameters
         ----------
             density : np.ndarray
-                New density values. Only positions where density > 0 are updated.
+                New density values, seismic order (first z layer at the
+                surface). Only positions where density > 0 are updated.
         """
         assert self.kk_model_rho is not None, \
             "kk_model_rho must be provided at construction time to use updateDensityModel"
         rho = np.array(self.kk_model_rho, copy=False)
-        mask = np.asarray(density) > 0
-        rho[mask] = np.asarray(density, dtype=np.float32)[mask]
+        density = self._flip_z(np.asarray(density, dtype=np.float32))
+        mask = density > 0
+        rho[mask] = density[mask]
         self.reinitSolver()
 
     def getVelocityModel(self):
@@ -522,9 +527,11 @@ class WaveSolver(Solver):
         Returns
         -------
             np.ndarray
+                Flat element (or node) values in seismic order: x fastest, then
+                y, then z from the surface downwards (reshape to (ez, [ey,] ex)).
         """
         assert self.kk_model_vp is not None
-        return np.array(self.kk_model_vp, copy=False).copy()
+        return self._flip_z(np.array(self.kk_model_vp, copy=True))
 
     def getDensityModel(self):
         """
@@ -533,9 +540,10 @@ class WaveSolver(Solver):
         Returns
         -------
             np.ndarray
+                Seismic order, as :meth:`getVelocityModel`.
         """
         assert self.kk_model_rho is not None
-        return np.array(self.kk_model_rho, copy=False).copy()
+        return self._flip_z(np.array(self.kk_model_rho, copy=True))
 
     # ------------------------------------------------------------------
     # Time stepping
@@ -560,16 +568,52 @@ class WaveSolver(Solver):
                 "coordinate-based source/receiver placement."
             )
 
+    # ------------------------------------------------------------------
+    # Seismic z (down) <-> FUnTiDES mesh (z up, free surface at z = lz)
+    # ------------------------------------------------------------------
+
+    def _height(self, z):
+        """Mesh height (z up) of a point at seismic z (positive down from the surface)."""
+        return self.lz - z
+
+    def _flip_z(self, values):
+        """
+        Reverse the z order of a model or field array (element or node values of
+        the Cartesian mesh): FUnTiDES order (iz = 0 at the bottom) <-> seismic
+        order (first layer at the surface). The operation is its own inverse.
+        """
+        values = np.asarray(values)
+        n_xy = self.ex * (1 if self.dim == 2 else self.ey)
+        if values.size == n_xy * self.ez:
+            layers = self.ez                               # element values
+        else:
+            layers = self.ez * self.order + 1              # node values
+        return values.reshape(layers, -1)[::-1].reshape(values.shape)
+
+    def _grid_field(self, component=0):
+        """
+        Current field (time t) on the mesh nodes as a grid, seismic order:
+        shape (nz, nx) in 2-D, (nz, ny, nx) in 3-D, index 0 at the surface.
+        In MPI mode, the local subdomain only.
+        """
+        assert self.data is not None, "the solver must be initialized"
+        nx, nz = self.ex * self.order + 1, self.ez * self.order + 1
+        shape = (nz, nx) if self.dim == 2 else (nz, self.ey * self.order + 1, nx)
+        field = np.array(self.data.get_current_field(component), copy=True)
+        return field.reshape(shape)[::-1]
+
     def coordToElementIndex(self, x, y, z):
         """
         Return the **local** flat element index containing (x, y, z).
 
         Accounts for ``origin_x`` so that coordinates are measured in the
         global frame while indices are local to this rank's subdomain.
+        The index is the FUnTiDES one (mesh z up, iz = 0 at the bottom).
 
         Parameters
         ----------
-            x, y, z : float  Physical coordinates [m] in the global frame.
+            x, y, z : float  Coordinates [m] in the global frame, z positive
+                downwards from the free surface (seismic convention).
 
         Returns
         -------
@@ -590,12 +634,13 @@ class WaveSolver(Solver):
                 f"[{self.origin_x}, {self.origin_x + self.lx})"
             )
         ix = min(ix, self.ex - 1)
+        h = self._height(z)
         if self.dim == 2:
             # 2-D (x, z) mesh: element ix + iz * ex, y ignored
-            iz = max(0, min(int(z / (self.lz / self.ez)), self.ez - 1))
+            iz = max(0, min(int(h / (self.lz / self.ez)), self.ez - 1))
             return ix + iz * self.ex
         iy = max(0, min(int(y / (self.ly / self.ey)), self.ey - 1))
-        iz = max(0, min(int(z / (self.lz / self.ez)), self.ez - 1))
+        iz = max(0, min(int(h / (self.lz / self.ez)), self.ez - 1))
         return ix + iy * self.ex + iz * self.ex * self.ey
 
     def coordToNodeIndex(self, x, y, z):
@@ -603,11 +648,13 @@ class WaveSolver(Solver):
         Return the **local** node index nearest to (x, y, z).
 
         Returns ``-1`` when the point falls outside this rank's X subdomain,
-        which allows callers to silently skip off-rank receivers.
+        which allows callers to silently skip off-rank receivers. The index is
+        the FUnTiDES one (mesh z up, iz = 0 at the bottom).
 
         Parameters
         ----------
-            x, y, z : float  Physical coordinates [m] in the global frame.
+            x, y, z : float  Coordinates [m] in the global frame, z positive
+                downwards from the free surface (seismic convention).
 
         Returns
         -------
@@ -623,6 +670,7 @@ class WaveSolver(Solver):
         ix = int(round(x_local / dx))
         if ix < 0 or ix >= nx:
             return -1   # receiver not on this rank
+        z = self._height(z)
         if self.dim == 2:
             # 2-D (x, z) mesh: node ix + iz * nx, y ignored (nearest grid line,
             # exact on the element edges; GLL interior nodes are not uniform)
@@ -643,7 +691,8 @@ class WaveSolver(Solver):
 
         Parameters
         ----------
-            x, y, z : float  Physical coordinates [m] in the global frame.
+            x, y, z : float  Coordinates [m] in the global frame, z positive
+                downwards from the free surface (seismic convention).
 
         Returns
         -------
@@ -659,6 +708,7 @@ class WaveSolver(Solver):
         if x_local < 0.0 or ix >= self.ex:
             return -1, None    # receiver is on another MPI rank
         ix = min(ix, self.ex - 1)
+        z = self._height(z)    # mesh height (z up) from here on
         if self.dim == 2:
             # 2-D (x, z) quadrilateral: element ix + iz * ex, weights ix + iz * n
             iz = max(0, min(int(z / hz), self.ez - 1))
@@ -681,11 +731,10 @@ class WaveSolver(Solver):
         """
         Set source and receiver positions from acquisition coordinates.
 
-        Acquisition coordinates are ``[x, y, depth]``: the depth is measured
-        downwards from the top face of the mesh (the free surface), as in the
-        SEG-Y headers and the SEP models. The mesh has z up, so the point is
-        placed at ``z = lz - depth``. In 2-D, y is ignored. The ``coordTo*``
-        helpers take mesh coordinates (z up).
+        Coordinates are ``[x, y, z]`` with z positive downwards from the free
+        surface (seismic convention, as in the SEG-Y headers and the SEP
+        models); the FUnTiDES mesh has z up, the point is placed at the mesh
+        height ``lz - z``. In 2-D, y is ignored.
 
         Sources not on this rank are given zero weights so they contribute
         nothing to the RHS.  Receivers not on this rank are stored as -1 and
@@ -694,17 +743,14 @@ class WaveSolver(Solver):
 
         Parameters
         ----------
-            source_coords : list of [x, y, depth]
-                Coordinates of each source (global frame, depth positive down).
-            receiver_coords : list of [x, y, depth]
-                Coordinates of each receiver (global frame, depth positive down).
+            source_coords : list of [x, y, z]
+                Coordinates of each source (global frame, z positive down).
+            receiver_coords : list of [x, y, z]
+                Coordinates of each receiver (global frame, z positive down).
             sourceWeights : array-like, optional
                 Interpolation weights per source.
         """
         self._check_mesh_params()
-        # depth (positive down from the top face) -> mesh z (up)
-        source_coords = [(x, y, self.lz - d) for x, y, d in source_coords]
-        receiver_coords = [(x, y, self.lz - d) for x, y, d in receiver_coords]
         src_elements = []
         src_active = []
         if self.dim == 2:

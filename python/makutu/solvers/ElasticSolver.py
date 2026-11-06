@@ -123,11 +123,16 @@ class ElasticSolver(WaveSolver):
             self._allocateSeismogram()
 
     def _copySourceToComponents(self):
-        """Copy kk_RHSTerm into the RHS of the source components (others: 0)."""
+        """
+        Copy kk_RHSTerm into the RHS of the source components (others: 0).
+        z is positive downwards (seismic convention) while the FUnTiDES mesh has
+        z up: the z force is applied with the opposite sign.
+        """
         RHSTerm = np.array(self.kk_RHSTerm, copy=False)
         for comp in ("x", "y", "z"):
             dest = np.array(getattr(self, f"kk_RHSTerm{comp}"), copy=False)
-            dest[:, :] = RHSTerm[:, :] if comp in self.sourceComponents else 0.0
+            sign = -1.0 if comp == "z" else 1.0
+            dest[:, :] = sign * RHSTerm[:, :] if comp in self.sourceComponents else 0.0
 
     def updateSourceValue(self, value):
         """
@@ -220,14 +225,16 @@ class ElasticSolver(WaveSolver):
         Parameters
         ----------
             component : str
-                'x', 'y' or 'z'
+                'x', 'y' or 'z' (z positive downwards)
 
         Returns
         -------
             np.ndarray, shape (n_seismo_steps, n_receivers)
         """
         assert component.lower() in ("x", "y", "z"), "component must be 'x', 'y' or 'z'"
-        return getattr(self, f"_seismogram_{component.lower()}")
+        u = getattr(self, f"_seismogram_{component.lower()}")
+        # FUnTiDES uz is positive upwards
+        return -u if component.lower() == "z" and u is not None else u
 
     def getAllDisplacementAtReceivers(self):
         """
@@ -235,9 +242,20 @@ class ElasticSolver(WaveSolver):
 
         Returns
         -------
-            tuple of np.ndarray : (displacementX, displacementY, displacementZ)
+            tuple of np.ndarray : (displacementX, displacementY, displacementZ),
+            z positive downwards
         """
-        return self._seismogram_x, self._seismogram_y, self._seismogram_z
+        return tuple(self.getDisplacementAtReceivers(c) for c in ("x", "y", "z"))
+
+    def getDisplacementField(self, component="z"):
+        """
+        Current displacement (time t) on the mesh nodes as a grid, seismic
+        convention: z positive downwards, shape (nz, nx) in 2-D or (nz, ny, nx)
+        in 3-D with index 0 at the surface.
+        """
+        c = "xyz".index(component.lower())
+        u = self._grid_field(c)
+        return -u if c == 2 else u
 
     def getWaveField(self):
         return self.getAllDisplacementAtReceivers()
@@ -277,8 +295,9 @@ class ElasticSolver(WaveSolver):
             assert self.kk_model_vs is not None, \
                 "kk_model_vs must be provided at construction time to update Vs"
             vs = np.array(self.kk_model_vs, copy=False)
-            mask = np.asarray(vel) > 0
-            vs[mask] = np.asarray(vel, dtype=np.float32)[mask]
+            vel = self._flip_z(np.asarray(vel, dtype=np.float32))   # seismic -> mesh order
+            mask = vel > 0
+            vs[mask] = vel[mask]
             self.reinitSolver()
         else:
             super().updateVelocityModel(vel)
@@ -295,7 +314,7 @@ class ElasticSolver(WaveSolver):
         assert component.lower() in ("vp", "vs"), "component must be 'vp' or 'vs'"
         if component.lower() == "vs":
             assert self.kk_model_vs is not None
-            return np.array(self.kk_model_vs, copy=False).copy()
+            return self._flip_z(np.array(self.kk_model_vs, copy=True))
         return super().getVelocityModel()
 
     def updateDensityModel(self, density, **kwargs):

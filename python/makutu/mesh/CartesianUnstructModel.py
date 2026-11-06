@@ -70,9 +70,10 @@ def build_cartesian_unstruct_model(
     order : int
         Polynomial order (1, 2 or 3).
     vp_elem : np.ndarray, shape (ez, ey, ex), float32
-        P-wave velocity at element centres [m/s].
+        P-wave velocity at element centres [m/s], layer 0 at the surface
+        (seismic z, positive downwards; reversed for the FUnTiDES mesh, z up).
     rho_elem : np.ndarray, shape (ez, ey, ex), float32, optional
-        Density at element centres.  Defaults to 1.0 everywhere.
+        Density at element centres, same order.  Defaults to 1.0 everywhere.
     on_nodes : bool
         Whether the model is defined on nodes (True) or elements (False).
     is_elastic : bool
@@ -175,12 +176,13 @@ def build_cartesian_unstruct_model(
     # ------------------------------------------------------------------
     # 4. Material property arrays
     # ------------------------------------------------------------------
-    vp_flat = vp_elem.ravel().astype(np.float32)     # (n_elem,)
+    # seismic layers (surface first) -> FUnTiDES layers (bottom first)
+    vp_flat = np.asarray(vp_elem)[::-1].ravel().astype(np.float32)     # (n_elem,)
 
     if rho_elem is None:
         rho_flat = np.ones(n_elem, dtype=np.float32)
     else:
-        rho_flat = rho_elem.ravel().astype(np.float32)
+        rho_flat = np.asarray(rho_elem)[::-1].ravel().astype(np.float32)
 
     # Node-based values: nearest-element lookup (used only when on_nodes=True)
     # Map each node to its "owning" element: e = ix_e + iy_e*ex + iz_e*ex*ey

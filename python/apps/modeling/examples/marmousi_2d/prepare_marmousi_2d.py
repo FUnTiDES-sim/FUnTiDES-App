@@ -10,13 +10,13 @@ files, then choose the mesh for a source frequency and a polynomial order.
 2. Mesh: element size h such that the shortest wavelength, vmin / (2.5 f0) for a Ricker
    wavelet of peak frequency f0, holds ``--ppw`` GLL points: h = order * lambda_min / ppw.
    The time step follows dt = cfl * (smallest GLL spacing) / vmax.
-3. Prints the summary and the matching run_marmousi_2d.py command; writes a QC figure
+3. Prints the summary and the matching modelling command (shot_modeling); writes a QC figure
    (model, element grid) unless --no-plot.
 
 Usage
 -----
     source <FUnTiDES install>/funtides_env.sh
-    python apps/modeling/marmousi_2d/prepare_marmousi_2d.py [--fix] [--f0 8] [--order 4] [--ppw 6]
+    python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py [--fix] [--f0 8] [--order 4] [--ppw 6]
 """
 
 import argparse
@@ -28,7 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
-DEFAULT_DATA = Path(os.environ.get("FUNTIDES_DATA", Path(__file__).resolve().parents[5] / "FUnTiDES-data"))
+DEFAULT_DATA = Path(os.environ.get("FUNTIDES_DATA", Path(__file__).resolve().parents[6] / "FUnTiDES-data"))
 REQUIRED = ("n1", "n2", "d1", "d2", "in")
 FORMATS = {"native_float": "<f4", "xdr_float": ">f4"}
 
@@ -183,10 +183,12 @@ def main():
         print(f"  elements smaller than the model sampling ({d1:g} m): the model is piecewise constant "
               f"per sample, which is fine")
     print(f"Time step (CFL {args.cfl:g}): {dt * 1e3:.3f} ms -> {steps} steps for {args.tmax:g} s")
-    # run_marmousi_2d.py uses ex = round(lx / elem_size), ez = round(lz / elem_size)
+    # run_shot_modeling.py uses ex = round(lx / elem_size), ez = round(lz / elem_size)
     elem_size = max(lx / ex, lz / ez)
-    print("\nRun:\n  python apps/modeling/marmousi_2d/run_marmousi_2d.py "
-          f"--order {args.order} --f0 {args.f0:g} --elem-size {elem_size:.2f} --cfl {args.cfl:g} --tmax {args.tmax:g}")
+    rho = f" --rho-file {rho_h}" if rho_h.exists() else ""
+    print("\nRun:\n  python apps/modeling/shot_modeling/run_shot_modeling.py "
+          f"--vp-file {vp_h}{rho} --order {args.order} --f0 {args.f0:g} --elem-size {elem_size:.2f} "
+          f"--cfl {args.cfl:g} --tmax {args.tmax:g} --plot")
 
     if not args.no_plot:
         import matplotlib

@@ -250,13 +250,21 @@ class StructuredMesh:
         ]
         self.isSet = True
 
+    dim = 3
+
+    def solver_kwargs(self):
+        """Mesh keyword arguments of the makutu solvers (model, geometry, model arrays)."""
+        return dict(model=self.model, order=self.order,
+                    lx=self.lx, ly=self.ly, lz=self.lz, ex=self.ex, ey=self.ey, ez=self.ez,
+                    origin_x=self.origin_x,
+                    kk_model_vp=self.kk_model_vp, kk_model_rho=self.kk_model_rho)
+
     def plot_model(self, ix=None, iy=None, iz=None, figsize=None, show=True):
         """Display Vp (and rho) cross-sections after heterogeneous model build.
 
         Three orthogonal slices are shown for each available field:
         XZ (depth section at given *iy*), YZ (at given *ix*) and XY (plan view
-        at given *iz*). The mesh z is up (iz = 0 at the bottom); the sections are
-        drawn with the depth ``lz - z`` downwards.  Indices default to the midpoint of each axis.
+        at given *iz*). z is positive downwards (iz = 0 at the surface).  Indices default to the midpoint of each axis.
 
         Parameters
         ----------
@@ -284,10 +292,11 @@ class StructuredMesh:
         iy = int(iy) if iy is not None else self.ey // 2
         iz = int(iz) if iz is not None else self.ez // 2
 
-        vp_3d  = np.array(self.kk_model_vp,  copy=False).reshape(self.ez, self.ey, self.ex)
+        # FUnTiDES order (bottom layer first) -> seismic order (surface first)
+        vp_3d  = np.array(self.kk_model_vp,  copy=False).reshape(self.ez, self.ey, self.ex)[::-1]
         fields = [("Vp  [m/s]", vp_3d, "hot_r")]
         if self.kk_model_rho is not None:
-            rho_3d = np.array(self.kk_model_rho, copy=False).reshape(self.ez, self.ey, self.ex)
+            rho_3d = np.array(self.kk_model_rho, copy=False).reshape(self.ez, self.ey, self.ex)[::-1]
             fields.append(("Rho [kg/m³]", rho_3d, "Blues"))
 
         n_fields = len(fields)
@@ -306,17 +315,19 @@ class StructuredMesh:
             # XZ slice — depth section at y=iy  (shape ez×ex)
             ax = axes[row, 0]
             im = _plot_field(ax, data3d[:, iy, :],
-                             [x0, x1, z1, z0], "X [m]", "Depth [m]",
+                             [x0, x1, z0, z1], "X [m]", "Z [m]",
                              f"{label}  —  XZ  (iy={iy})",
                              cmap, vmin, vmax)
+            ax.invert_yaxis()   # z downwards
             fig.colorbar(im, ax=ax, shrink=0.8)
 
             # YZ slice — depth section at x=ix  (shape ez×ey)
             ax = axes[row, 1]
             im = _plot_field(ax, data3d[:, :, ix],
-                             [y0, y1, z1, z0], "Y [m]", "Depth [m]",
+                             [y0, y1, z0, z1], "Y [m]", "Z [m]",
                              f"{label}  —  YZ  (ix={ix})",
                              cmap, vmin, vmax)
+            ax.invert_yaxis()   # z downwards
             fig.colorbar(im, ax=ax, shrink=0.8)
 
             # XY slice — plan view at z=iz  (shape ey×ex)

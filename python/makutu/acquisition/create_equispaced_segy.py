@@ -29,7 +29,7 @@ Sample interval stored in microseconds.
 
 Usage
 -----
-    python create_equispaced_segy.py \\
+    python -m makutu.acquisition.create_equispaced_segy \\
         --xmin 0 --xmax 5000 --ymin 0 --ymax 5000 \\
         --n-src-x 50 --n-src-y 1 \\
         --n-rcv-x 200 --n-rcv-y 1 \\
@@ -134,9 +134,10 @@ def _trace_header(trace_seq, field_record, n_samples, dt_us,
 
 def write_segy_shot(path, shot, n_samples, dt_us,
                     w_sx=22, w_sy=23, w_sz=14,
-                    w_rx=24, w_ry=25, w_rz=13):
+                    w_rx=24, w_ry=25, w_rz=13,
+                    data=None, field_record=1):
     """
-    Write a single-shot SEG-Y file with zero-amplitude traces.
+    Write a single-shot SEG-Y file: zero-amplitude traces, or ``data``.
 
     Parameters
     ----------
@@ -152,17 +153,27 @@ def write_segy_shot(path, shot, n_samples, dt_us,
         Trace-header word positions for source X, Y, Z.
     w_rx, w_ry, w_rz : int
         Trace-header word positions for receiver X, Y, Z.
+    data : np.ndarray, shape (n_samples, n_receivers), optional
+        Trace data (e.g. a modelled seismogram); zeros when omitted.
+    field_record : int
+        Field record number written in the trace headers (e.g. the shot number).
     """
-    sx, sy, sz = [int(v) for v in shot["src"]]
+    sx, sy, sz = [int(round(v)) for v in shot["src"]]
     rcv_list = shot["rcv"]
     n_traces = len(rcv_list)
+    if data is not None:
+        data = np.asarray(data)
+        if data.ndim != 2 or data.shape[1] != n_traces:
+            raise ValueError(f"data must have shape (n_samples, {n_traces}), got {data.shape}")
+        n_samples = data.shape[0]
 
     text_lines = [
         f"C01  SEG-Y shot file: {os.path.basename(path)}",
         f"C02  Source  : ({sx}, {sy}, {sz})",
         f"C03  Traces  : {n_traces}   Samples: {n_samples}   dt: {dt_us} us",
         "C04  Data format: IEEE float-32",
-        "C05  Zero-amplitude placeholder - fill with simulation data",
+        "C05  Zero-amplitude placeholder - fill with simulation data" if data is None
+        else "C05  Modelled data",
     ]
 
     zero_data = np.zeros(n_samples, dtype=">f4").tobytes()
@@ -172,10 +183,10 @@ def write_segy_shot(path, shot, n_samples, dt_us,
         fh.write(_binary_reel_header(n_samples, dt_us))
 
         for i, rcv in enumerate(rcv_list):
-            rx, ry, rz = [int(v) for v in rcv]
+            rx, ry, rz = [int(round(v)) for v in rcv]
             hdr = _trace_header(
                 trace_seq=i + 1,
-                field_record=1,
+                field_record=field_record,
                 n_samples=n_samples,
                 dt_us=dt_us,
                 sx=sx, sy=sy, sz=sz,
@@ -184,7 +195,7 @@ def write_segy_shot(path, shot, n_samples, dt_us,
                 w_rx=w_rx, w_ry=w_ry, w_rz=w_rz,
             )
             fh.write(hdr)
-            fh.write(zero_data)
+            fh.write(zero_data if data is None else data[:, i].astype(">f4").tobytes())
 
 
 # ─────────────────────────────────────────────────────────────────────────────

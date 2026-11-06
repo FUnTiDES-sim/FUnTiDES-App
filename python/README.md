@@ -16,7 +16,7 @@ before moving here; its history is kept.
 | Path | Contents |
 |---|---|
 | `makutu/` | the library (`import makutu…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
-| `apps/` | applications: `modeling/examples`, `fullWaveformInversion`, `display`, `modelProcessing`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
+| `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, `modelProcessing`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
 | `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI, 2-D against the exact solution) |
 | `docs/` | `funtides_input_parameters.md` + Sphinx source |
 | `scripts/`, `validation/` | developer helper scripts, DAS validation scripts |
@@ -61,16 +61,17 @@ make integratedTests    # forward shots on FUnTiDES (about 2 min on a GPU; MPI t
 
 ## Quick start
 
-Run an acoustic one-shot forward model from a SEP velocity file:
+Model acoustic shots on a SEP velocity file, 2-D or 3-D:
 
 ```bash
-python apps/modeling/examples/acoustic_one_shot_unstruct_sep.py \
-    --vp-file <model.H> --f0 10 --order 2
+python apps/modeling/shot_modeling/run_shot_modeling.py \
+    --vp-file <model.H> --f0 10 --order 2 [--n-shots 5 | --decision <rootname>] --plot
 ```
 
 The application builds a heterogeneous Cartesian mesh, runs the SEM acoustic
-solver through `pyfuntides`, and writes the seismogram to HDF5. See
-`apps/modeling/examples/` for more (multi-shot acquisition, `model_from_sep.py`, …).
+solver through `pyfuntides`, and writes one gather per shot (SEG-Y or HDF5). See
+`apps/modeling/README.md` for the examples (Marmousi 2-D data preparation) and the
+data-preparation tools.
 
 The Python API in a nutshell:
 
@@ -95,21 +96,25 @@ for t in range(solver.n_time_steps):
 seismogram = solver.getPressureAtReceivers()   # (n_samples, n_receivers)
 ```
 
-**Coordinates.** The FUnTiDES meshes have z up, with the free surface on the top
-face z = lz. Everything outside the mesh uses depths, positive downwards from that
-surface:
-- the acquisition coordinates are `[x, y, depth]`
-  (`updateSourceAndReceiversFromCoords` places a point at z = lz - depth);
-- the SEP models have depth 0 at the top;
-- in the SEG-Y headers, the source depth is `sdepth` (byte 49), and makutu writes the
-  receiver depth in `gelev` (byte 41).
+**Coordinates.** makutu uses the seismic convention: z = 0 at the surface (the free
+surface, top of the mesh) and z positive downwards.
+- Coordinates are `[x, y, z]`: acquisitions, `updateSourceAndReceiversFromCoords`,
+  the solver `coordTo*` helpers.
+- Grids have z layer 0 at the surface: the SEP models, `CartesianMesh2D.vp`/`rho`,
+  the solver `get`/`updateVelocityModel` and `get`/`updateDensityModel` (flat, x
+  fastest), `getPressureField()` and `getDisplacementField()`.
+- The elastic z component (source and displacement) is positive downwards.
+- In the SEG-Y headers, the source z is `sdepth` (byte 49), and makutu writes the
+  receiver z in `gelev` (byte 41).
 
-Only the `coordTo*` helpers of the solver take mesh coordinates (z up).
+Inside FUnTiDES the mesh has z up, with the free surface on its face z = lz; makutu
+converts in one place (`WaveSolver`, model builders). The Kokkos arrays
+`kk_model_*` and the raw solver fields keep the FUnTiDES order.
 
 **2-D.** With a FUnTiDES built with `COMPILE_SEM_2D`, `makutu.mesh.CartesianMesh2D`
-builds a 2-D (x, z) quadrilateral mesh (z up, free surface on top), homogeneous,
+builds a 2-D (x, z) quadrilateral mesh (z downwards, free surface on top), homogeneous,
 from arrays or from 2-D SEP files; the solvers detect the dimension from the model
-(acoustic only, single process). Coordinates stay `[x, y, depth]` lists, y being ignored:
+(acoustic only, single process). Coordinates stay `[x, y, z]` lists, y being ignored:
 
 ```python
 from makutu.mesh import CartesianMesh2D
@@ -118,7 +123,7 @@ solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolv
                         dt=dt, maxTime=tmax, sourceType="ricker2", sourceFreq=f0, **mesh.solver_kwargs())
 ```
 
-See `apps/modeling/marmousi_2d/` (README: data preparation, mesh choice, modelling).
+See `apps/modeling/examples/marmousi_2d/` (README: data preparation, mesh choice, modelling).
 
 MPI is supported in 3-D (1-D X-axis domain decomposition) via `mpi4py`; pass a
 communicator to the mesh/solver constructors. A partitioned `StructuredMesh`

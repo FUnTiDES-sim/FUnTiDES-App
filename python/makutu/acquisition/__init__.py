@@ -1,10 +1,8 @@
 """Acquisitions classes
 
-Coordinates are ``[x, y, depth]`` in metres: the depth is positive downwards from
-the free surface (the top face of the mesh). The solver places a point at the mesh
-height ``z = lz - depth`` (``WaveSolver.updateSourceAndReceiversFromCoords``).
-In SEG-Y files the source depth is ``sdepth`` (byte 49) and makutu writes the
-receiver depth in ``gelev`` (byte 41).
+Coordinates are ``[x, y, z]`` in metres, seismic convention: z = 0 at the surface
+(the free surface, top of the mesh), positive downwards. In SEG-Y files the source
+z is ``sdepth`` (byte 49) and makutu writes the receiver z in ``gelev`` (byte 41).
 """
 
 from .Acquisition import Acquisition

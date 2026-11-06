@@ -17,7 +17,7 @@ from makutu.mesh import CartesianMesh2D, sample_sep_2d  # noqa: E402
 from makutu.solvers import AcousticSolver  # noqa: E402
 
 L, VP, F0, DT, TMAX = 2000.0, 1500.0, 5.0, 0.001, 0.7
-SOURCE, RECEIVER = (1010.0, 0.0, 990.0), (1310.0, 0.0, 690.0)    # [x, y, depth]
+SOURCE, RECEIVER = (1010.0, 0.0, 990.0), (1310.0, 0.0, 690.0)    # [x, y, z], z downwards
 
 
 def exact_2d(t, r, f, dt, c=VP, rho=1.0, n=2000):
@@ -67,7 +67,7 @@ def test_free_surface_and_absorbing_edges():
     solver.initialize()
     rcv = [[x, 123.0, 50.0] for x in (300.0, 700.0)]            # symmetric about x = 500
     solver.updateSourceAndReceiversFromCoords([[500.0, 999.0, 100.0]], rcv)   # depth 100 m
-    # depth -> z = lz - depth: receivers (depth 50 m) in the top element row, source in the next one
+    # z downwards: receivers (z = 50 m) in the surface element row (FUnTiDES row 9), source in the next one
     assert [e // 20 for e in solver.receiverElementIndices] == [9, 9]
     assert list(solver.sourceElementIndices) == [10 + 8 * 20]          # x = 500 m: ix = 10, iz = 8
     solver.evaluateSource()
@@ -79,14 +79,36 @@ def test_free_surface_and_absorbing_edges():
     p = np.array(solver.data.get_current_field(0), copy=False)
     top = [i for i in range(mesh.model.get_number_of_nodes()) if mesh.model.is_free_surface(i)]
     assert len(top) == 20 * 2 + 1 and np.all(p[top] == 0.0)
+    grid = solver.getPressureField()                            # z down: row 0 = free surface
+    assert grid.shape == (10 * 2 + 1, 20 * 2 + 1)
+    assert np.all(grid[0] == 0.0) and np.abs(grid[-1]).max() > 0
 
 
 def test_sep_sampling_orientation():
-    """SEP axis 1 = x, axis 2 = depth (0 at the top): z up in the mesh."""
+    """SEP axis 1 = x, axis 2 = depth (0 at the top), as the makutu z."""
     n1, n2 = 10, 5
     depth_index = np.arange(n2, dtype=np.float32)[:, None] * np.ones((1, n1), np.float32)
     sep = SEPModel(depth_index[None, :, :], n1, n2, 1, 100.0, 100.0, 1.0, 0.0, 0.0, 0.0)
     v = sample_sep_2d(sep, ex=10, ez=5, lx=1000.0, lz=500.0)
     assert v.shape == (5, 10)
-    np.testing.assert_array_equal(v[-1], 0.0)   # top row (z near lz) = depth 0
-    np.testing.assert_array_equal(v[0], 4.0)    # bottom row = deepest SEP sample
+    np.testing.assert_array_equal(v[:, 0], [0, 1, 2, 3, 4])   # row 0 = surface
+
+
+def test_model_order():
+    """Model arrays in makutu: row 0 at the surface; FUnTiDES stores the bottom row first."""
+    vp = np.repeat(np.linspace(1500.0, 3000.0, 4, dtype=np.float32)[:, None], 6, axis=1)   # (ez, ex)
+    mesh = CartesianMesh2D(600.0, 400.0, 6, 4, order=2, vp=vp)
+    np.testing.assert_array_equal(mesh.vp, vp)
+    np.testing.assert_array_equal(np.array(mesh.kk_model_vp, copy=False).reshape(4, 6), vp[::-1])
+    solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
+                            dt=0.001, minTime=0.0, maxTime=0.01, dtSeismo=0.001,
+                            sourceType="ricker2", sourceFreq=10.0, **mesh.solver_kwargs())
+    solver.initialize()
+    np.testing.assert_array_equal(solver.getVelocityModel().reshape(4, 6), vp)
+    new = vp.copy()
+    new[0] = 1000.0                                             # surface row
+    solver.updateVelocityModel(new.ravel())
+    np.testing.assert_array_equal(solver.getVelocityModel().reshape(4, 6), new)
+    np.testing.assert_array_equal(np.array(mesh.kk_model_vp, copy=False).reshape(4, 6)[-1], 1000.0)
+    # coordinates: z = 50 m is in the surface row (FUnTiDES row ez - 1)
+    assert solver.coordToElementIndex(350.0, 0.0, 50.0) == 3 + 3 * 6

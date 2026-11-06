@@ -21,10 +21,10 @@ class Acquisition:
                 Timestep
             kwargs : keyword arguments
             sources : list of list of float
-                List of all sources coordinates [x, y, depth] (required)
+                List of all sources coordinates [x, y, z] (required)
             receivers : list of list of float
-                List of all receivers coordinates [x, y, depth] (required);
-                the depth is positive downwards from the free surface
+                List of all receivers coordinates [x, y, z] (required);
+                z = 0 at the surface, positive downwards
             dasgeometry : list of list of float (optional)
                 List of all DAS geometry information (to activate it, use dwords)
             acqId : int

@@ -40,11 +40,11 @@ Library::
 
 CLI::
 
-    python decision_create.py geometry.traces --out survey
-    python decision_create.py geometry.traces --out survey \\
+    python -m makutu.acquisition.decision_create geometry.traces --out survey
+    python -m makutu.acquisition.decision_create geometry.traces --out survey \\
         --segy shot_1.segy shot_2.segy
-    python decision_create.py --from-segy survey.segy --out survey
-    python decision_create.py --from-segy shot_1.segy shot_2.segy --out survey
+    python -m makutu.acquisition.decision_create --from-segy survey.segy --out survey
+    python -m makutu.acquisition.decision_create --from-segy shot_1.segy shot_2.segy --out survey
 
 Traces file format (geometry.traces)::
 

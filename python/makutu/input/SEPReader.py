@@ -168,8 +168,7 @@ def sample_on_elements(sep, ex, ey, ez, hx, hy, hz, origin_x=0.0):
 
     The mesh axes are assumed to align with SEP axes as follows:
     ``X ↔ axis-1``, ``Y ↔ axis-2``, ``Z ↔ axis-3``. SEP axis 3 is the depth
-    (0 at the top) while the mesh z is up with the free surface at
-    ``lz = ez * hz``: the element centre at height z reads depth ``lz - z``.
+    (0 at the top), as the makutu z (seismic convention, positive downwards).
 
     Parameters
     ----------
@@ -186,12 +185,12 @@ def sample_on_elements(sep, ex, ey, ez, hx, hy, hz, origin_x=0.0):
     -------
     np.ndarray, shape (ez, ey, ex), dtype float32
         Values sampled at element centres ``(origin_x+(ix+0.5)*hx,
-        (iy+0.5)*hy, (iz+0.5)*hz)``, i.e. at depth ``(ez-iz-0.5)*hz``.
+        (iy+0.5)*hy, (iz+0.5)*hz)``, z downwards: layer 0 at the surface.
     """
     # Element centre coordinates
     xc = origin_x + (np.arange(ex) + 0.5) * hx   # (ex,)
     yc =            (np.arange(ey) + 0.5) * hy   # (ey,)
-    zc = ez * hz - (np.arange(ez) + 0.5) * hz     # (ez,) depth of the element centres
+    zc =            (np.arange(ez) + 0.5) * hz   # (ez,) z (depth) of the element centres
 
     # Indices in the SEP grid
     # Sample i stands for the cell [o + i d, o + (i+1) d) (the domain is n * d long):

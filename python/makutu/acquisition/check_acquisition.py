@@ -15,13 +15,13 @@ A geometry map is saved (or displayed) showing source and receiver positions.
 Usage
 -----
     # check all .segy files in a directory
-    python check_acquisition.py --dir acquisition --out survey
+    python -m makutu.acquisition.check_acquisition --dir acquisition --out survey
 
     # check specific files
-    python check_acquisition.py shot_00001.segy shot_00002.segy
+    python -m makutu.acquisition.check_acquisition shot_00001.segy shot_00002.segy
 
     # read word positions matching create_equispaced_segy.py defaults
-    python check_acquisition.py --dir acquisition --word-sx 22 --word-sy 23
+    python -m makutu.acquisition.check_acquisition --dir acquisition --word-sx 22 --word-sy 23
 """
 
 import argparse
@@ -52,8 +52,8 @@ def _read_segy_geometry(path, w_sx, w_sy, w_sz, w_rx, w_ry, w_rz):
 
     # Binary reel header: bytes 3201-3600
     bh = raw[3200:3600]
-    n_samples = struct.unpack(">H", bh[16:18])[0]
-    dt_us     = struct.unpack(">H", bh[18:20])[0]
+    dt_us     = struct.unpack(">H", bh[16:18])[0]   # bytes 17-18: sample interval [us]
+    n_samples = struct.unpack(">H", bh[20:22])[0]   # bytes 21-22: samples per trace
 
     trace_size = 240 + n_samples * 4
     n_traces   = (len(raw) - 3600) // trace_size

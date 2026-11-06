@@ -11,7 +11,7 @@ and prints basic statistics so you can verify the values are correct.
 
 Usage
 -----
-    python heterogeneous_model_example.py [--output-dir DIR]
+    python apps/modeling/tools/create_sep_model.py [--output-dir DIR]
 
 Output files
 ------------

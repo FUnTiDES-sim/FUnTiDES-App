@@ -1,14 +1,17 @@
 """
 2-D Cartesian quadrilateral meshes for the FUnTiDES 2-D SEM solver.
 
-The mesh is the rectangle [0, lx] x [0, lz] of the (x, z) plane, z pointing up:
-the free surface (when enabled) is the top edge z = lz, the other edges are
-absorbing. It is a FUnTiDES ``ModelUnstruct`` of dimension 2 built from explicit
-arrays, so heterogeneous velocity and density models are supported.
+The domain is the rectangle [0, lx] x [0, lz] of the (x, z) plane. makutu uses the
+seismic convention, z = 0 at the surface and z positive downwards: the model
+arrays have shape (ez, ex) with row 0 at the surface. The free surface (when
+enabled) is the top edge, the other edges are absorbing. It is a FUnTiDES
+``ModelUnstruct`` of dimension 2 built from explicit arrays, so heterogeneous
+velocity and density models are supported.
 
-Numbering (FUnTiDES 2-D convention): element ``ix + iz * ex``; local node
+Inside FUnTiDES the mesh has z up (free surface at its z = lz) and the numbering
+is: element ``ix + iz * ex`` with iz from the bottom; local node
 ``a + c * (order + 1)`` (a along x, c along z); global node ``gi + gk * nx`` with
-``nx = ex * order + 1``.
+``nx = ex * order + 1``. The rows are reversed when the model is built.
 """
 
 import numpy as np
@@ -50,7 +53,7 @@ def build_cartesian_2d_model(lx, lz, ex, ez, order, vp_elem, rho_elem=None,
     order : int
         Polynomial order.
     vp_elem : np.ndarray, shape (ez, ex)
-        P-wave velocity per element [m/s], row iz from the bottom (z up).
+        P-wave velocity per element [m/s], row 0 at the surface (z down).
     rho_elem : np.ndarray, shape (ez, ex), optional
         Density per element (default 1).
     on_nodes : bool
@@ -71,6 +74,8 @@ def build_cartesian_2d_model(lx, lz, ex, ez, order, vp_elem, rho_elem=None,
                 else np.asarray(rho_elem, dtype=np.float32))
     if rho_elem.shape != (ez, ex):
         raise ValueError(f"rho_elem must have shape (ez, ex) = {(ez, ex)}, got {rho_elem.shape}")
+    # seismic rows (surface first) -> FUnTiDES rows (bottom first)
+    vp_elem, rho_elem = vp_elem[::-1], rho_elem[::-1]
 
     n1d = order + 1
     nx, nz = ex * order + 1, ez * order + 1
@@ -134,18 +139,18 @@ def build_cartesian_2d_model(lx, lz, ex, ez, order, vp_elem, rho_elem=None,
 def sample_sep_2d(sep, ex, ez, lx, lz, depth_axis=2):
     """
     Sample a 2-D SEP model at the element centres of an ex x ez mesh of
-    [0, lx] x [0, lz] (z up), each element taking the SEP sample whose cell
+    [0, lx] x [0, lz], each element taking the SEP sample whose cell
     [o + i d, o + (i+1) d) holds its centre.
 
     The SEP horizontal axis is axis 1 and its depth axis ``depth_axis`` (2 or 3),
-    depth 0 at the top: the element centre (x, z) reads depth ``lz - z``.
+    depth 0 at the top, as the makutu z.
 
     Returns
     -------
-    np.ndarray, shape (ez, ex), float32 — row iz from the bottom.
+    np.ndarray, shape (ez, ex), float32 — row 0 at the surface.
     """
     xc = (np.arange(ex) + 0.5) * lx / ex
-    depth = lz - (np.arange(ez) + 0.5) * lz / ez
+    depth = (np.arange(ez) + 0.5) * lz / ez
 
     # sample i stands for the cell [o + i d, o + (i+1) d): the cell holding the centre
     def nn(coord, origin, delta, n):
@@ -168,13 +173,14 @@ class CartesianMesh2D:
     Parameters
     ----------
     lx, lz : float
-        Domain size [m]; z points up, the free surface is z = lz.
+        Domain size [m]; z = 0 at the surface (free surface), positive downwards.
     ex, ez : int
         Number of elements along x and z.
     order : int
         Polynomial order (at most the order compiled in FUnTiDES).
     vp : float or np.ndarray (ez, ex), optional
-        P-wave velocity [m/s]; default 1500. Ignored if ``vp_file`` is given.
+        P-wave velocity [m/s], row 0 at the surface; default 1500. Ignored if
+        ``vp_file`` is given.
     rho : float or np.ndarray (ez, ex), optional
         Density; default 1. Ignored if ``rho_file`` is given.
     vp_file, rho_file : str, optional
@@ -187,7 +193,9 @@ class CartesianMesh2D:
     Attributes
     ----------
     model : the FUnTiDES ModelUnstruct (dimension 2), for the makutu solvers
-    kk_model_vp, kk_model_rho : Kokkos arrays of the model (per element or per node)
+    vp, rho : np.ndarray (ez, ex), row 0 at the surface (values at construction)
+    kk_model_vp, kk_model_rho : Kokkos arrays of the model (per element or per node),
+        FUnTiDES order (bottom first); use the solver get/update methods instead
     lx, lz, ex, ez, order, dim (= 2), heterogeneous
     """
 

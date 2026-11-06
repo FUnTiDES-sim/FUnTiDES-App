@@ -22,7 +22,7 @@ T_PEAK = 1.0 / F0   # Ricker delay [s]
 
 # Source at the centre of an element: the default source weights are uniform
 # over the element, so its effective position is the element centre.
-# Coordinates are [x, y, depth]: depth 775 m is the mesh height z = 725 m.
+# Coordinates are [x, y, z], z downwards: z = 775 m is the FUnTiDES mesh height 725 m.
 SOURCE = (775.0, 775.0, 775.0)
 
 

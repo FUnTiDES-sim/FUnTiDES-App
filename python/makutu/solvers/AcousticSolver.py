@@ -202,6 +202,14 @@ class AcousticSolver(WaveSolver):
     def getWaveField(self):
         return self.getPressureAtReceivers()
 
+    def getPressureField(self):
+        """
+        Current pressure (time t) on the mesh nodes as a grid, seismic order:
+        shape (nz, nx) in 2-D or (nz, ny, nx) in 3-D, index 0 at the surface
+        (z positive downwards). In MPI mode, the local subdomain only.
+        """
+        return self._grid_field(0)
+
     def getWaveFieldAtReceivers(self):
         return self.getPressureAtReceivers()
 

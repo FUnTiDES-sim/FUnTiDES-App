@@ -1,18 +1,19 @@
 # Marmousi 2-D: from the data to the shot gather
 
-One acoustic shot on the 2-D Marmousi model with the FUnTiDES 2-D SEM solver
-(quadrilaterals in the (x, z) plane), driven by makutu.
+Acoustic shots on the 2-D Marmousi model with the FUnTiDES 2-D SEM solver
+(quadrilaterals in the (x, z) plane), driven by makutu. This directory prepares the
+data; the modelling is done by the generic `../../shot_modeling/run_shot_modeling.py`.
 
 | Step | Command | Result |
 |---|---|---|
 | 0. Environment | `source <FUnTiDES install>/funtides_env.sh` | kokkos, pyfuntides, makutu |
 | 1. Data | files in `FUnTiDES-data/SEP/marmousi/` | Vp (and Rho) SEP files |
-| 2. Preparation | `prepare_marmousi_2d.py [--fix]` | checked/fixed SEP files, mesh and time step, QC figure |
-| 3. Modelling | `run_marmousi_2d.py ...` | `<output>.h5` (gather), `<output>.png` (figure) |
+| 2. Preparation | `prepare_marmousi_2d.py [--fix]` | checked/fixed SEP files, mesh and time step, QC figure, modelling command |
+| 3. Modelling | `../../shot_modeling/run_shot_modeling.py ...` | gather per shot (HDF5 or SEG-Y), figure |
 | 4. Results | Python / HDF5 tools | shot gather, snapshot |
 
 Commands below are run from `FUnTiDES-App/python`; the outputs go to the current
-directory unless `--output`/`--qc` give a path. Every script prints its options with
+directory unless `--output-dir`/`--qc` give a path. Every script prints its options with
 `--help`.
 
 ## 0. Environment
@@ -42,8 +43,8 @@ horizontal, axis 2 depth); the domain size is taken from `n1 * d1` and `n2 * d2`
 ## 2. Preparation
 
 ```bash
-python apps/modeling/marmousi_2d/prepare_marmousi_2d.py --f0 8 --order 4          # check only
-python apps/modeling/marmousi_2d/prepare_marmousi_2d.py --f0 8 --order 4 --fix    # check and fix
+python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py --f0 8 --order 4          # check only
+python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py --f0 8 --order 4 --fix    # check and fix
 ```
 
 - **SEP files**: the script checks the header fields, the binary named by `in=` and the
@@ -67,35 +68,42 @@ Mesh for f0 = 8 Hz, order 4, 6 points per wavelength (lambda_min = 75 m): elemen
 Time step (CFL 0.3): 0.540 ms -> 7403 steps for 4 s
 
 Run:
-  python apps/modeling/marmousi_2d/run_marmousi_2d.py --order 4 --f0 8 --elem-size 50.00 --cfl 0.3 --tmax 4
+  python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file <FUnTiDES-data>/SEP/marmousi/Vp_xz.H --rho-file <FUnTiDES-data>/SEP/marmousi/Rho_xz.H --order 4 --f0 8 --elem-size 50.00 --cfl 0.3 --tmax 4 --plot
 ```
 
 ## 3. Modelling
 
 ```bash
-python apps/modeling/marmousi_2d/run_marmousi_2d.py --order 4 --f0 8 --elem-size 50.00 --cfl 0.3 --tmax 4 \
-    --output runs/marmousi_2d_shot
+python apps/modeling/shot_modeling/run_shot_modeling.py \
+    --vp-file ../../FUnTiDES-data/SEP/marmousi/Vp_xz.H --rho-file ../../FUnTiDES-data/SEP/marmousi/Rho_xz.H \
+    --order 4 --f0 8 --elem-size 50 --cfl 0.3 --tmax 4 --dt-seismo 0.002 --rcv-dx 20 \
+    --format hdf5 --plot --snap-time 1.5 --output-dir runs/marmousi_2d
 ```
 
-- Mesh: 2-D quadrilaterals, z up; the free surface is the top edge, the other edges
-  are absorbing (first-order paraxial condition).
+- Mesh: 2-D quadrilaterals, z = 0 at the surface and positive downwards; the free
+  surface is the top edge, the other edges are absorbing (first-order paraxial condition
+  and a sponge of `--sponge` m, default 5 % of the depth, 174 m; `--sponge 0` for the
+  paraxial condition only).
 - Source: Ricker wavelet (second derivative of a Gaussian) of peak frequency `--f0`,
-  point source at `--src-x` (default 5000 m) and `--src-depth` (default 10 m).
-- Receivers: a line at `--rcv-depth` (default 20 m), every `--rcv-dx` (default 20 m),
-  sampled every `--dt-seismo` (default 2 ms); `--snap-time` sets the snapshot time.
-- Cost: about 8 s on an RTX 40xx GPU for the command above (225 000 nodes, 7 400 steps);
-  10 s with the defaults (40 m elements, 350 000 nodes).
+  point source at `--src-x` (default lx / 2 = 5000 m) and `--src-depth` (default 10 m);
+  `--n-shots N` gives a line of N shots.
+- Receivers: a line at `--rcv-depth` (default 20 m), every `--rcv-dx` (default: element
+  size), sampled every round(`--dt-seismo` / dt) time steps: 2.161 ms here for 2 ms
+  requested, the value written in the outputs.
+- Cost: about 3 s on an RTX 40xx GPU for the command above (225 000 nodes, 7 400 steps).
 
 ## 4. Results
 
-- `<output>.h5`: `pressure` (time samples x receivers), `receiver_x`, and the run
-  parameters as attributes (`dt_seismo`, `f0`, `order`, source and receiver depths);
-- `<output>.png`: velocity model with the source, pressure snapshot, shot gather.
+- `runs/marmousi_2d/shot_00001.h5`: `pressure` (time samples x receivers), `source`,
+  `receivers` ([x, y, z] in m), and the attributes `dt` (actual sampling), `f0`, `order`,
+  `dim`, `vp_file`; `--format segy` writes `shot_00001.segy` instead;
+- `runs/marmousi_2d/shot_00001.png`: velocity model with the source, pressure snapshot at
+  `--snap-time`, shot gather.
 
 ```python
 import h5py
-with h5py.File("runs/marmousi_2d_shot.h5") as f:
-    gather, x, dt = f["pressure"][:], f["receiver_x"][:], f.attrs["dt_seismo"]
+with h5py.File("runs/marmousi_2d/shot_00001.h5") as f:
+    gather, rcv, dt = f["pressure"][:], f["receivers"][:], f.attrs["dt"]
 ```
 
 The gather shows the direct wave, the refractions (linear moveout) and the reflections of

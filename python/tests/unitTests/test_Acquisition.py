@@ -17,9 +17,9 @@ from makutu.acquisition.SegyAcquisition import _int16
 
 # Two shots of 300 receivers (shot_1.sgy, shot_2.sgy, decision.*). The SEG-Y headers hold
 # integers with scalco = scalel = -10 (divide by 10); the decision file holds the raw integers
-# without scalar words (built by creat_acq.py). z is the depth: sdepth for the sources, gelev
-# for the receivers.
-ACQ_DIR = Path(__file__).resolve().parents[2] / "apps/modeling/examples/inputfiles/acquisition"
+# without scalar words (see tests/data/acquisition/README.md). z is positive downwards: sdepth for
+# the sources, gelev for the receivers.
+ACQ_DIR = Path(__file__).resolve().parents[1] / "data/acquisition"
 
 SOURCES = [[100.0, 200.0, 10.0], [300.0, 200.0, 10.0], [500.0, 200.0, 10.0]]
 RECEIVERS = [[0.0, 200.0, 20.0], [50.0, 200.0, 20.0]]
