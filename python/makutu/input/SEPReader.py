@@ -163,10 +163,13 @@ def read_sep(header_file):
 def sample_on_elements(sep, ex, ey, ez, hx, hy, hz, origin_x=0.0):
     """
     Sample a :class:`SEPModel` at element-centre coordinates of a Cartesian
-    mesh, using nearest-neighbour interpolation.
+    mesh, each element taking the SEP sample whose cell
+    ``[o + i d, o + (i+1) d)`` holds its centre.
 
     The mesh axes are assumed to align with SEP axes as follows:
-    ``X ↔ axis-1``, ``Y ↔ axis-2``, ``Z ↔ axis-3``.
+    ``X ↔ axis-1``, ``Y ↔ axis-2``, ``Z ↔ axis-3``. SEP axis 3 is the depth
+    (0 at the top) while the mesh z is up with the free surface at
+    ``lz = ez * hz``: the element centre at height z reads depth ``lz - z``.
 
     Parameters
     ----------
@@ -183,16 +186,18 @@ def sample_on_elements(sep, ex, ey, ez, hx, hy, hz, origin_x=0.0):
     -------
     np.ndarray, shape (ez, ey, ex), dtype float32
         Values sampled at element centres ``(origin_x+(ix+0.5)*hx,
-        (iy+0.5)*hy, (iz+0.5)*hz)``.
+        (iy+0.5)*hy, (iz+0.5)*hz)``, i.e. at depth ``(ez-iz-0.5)*hz``.
     """
     # Element centre coordinates
     xc = origin_x + (np.arange(ex) + 0.5) * hx   # (ex,)
     yc =            (np.arange(ey) + 0.5) * hy   # (ey,)
-    zc =            (np.arange(ez) + 0.5) * hz   # (ez,)
+    zc = ez * hz - (np.arange(ez) + 0.5) * hz     # (ez,) depth of the element centres
 
-    # Nearest-neighbour indices in SEP grid
+    # Indices in the SEP grid
+    # Sample i stands for the cell [o + i d, o + (i+1) d) (the domain is n * d long):
+    # an element takes the sample whose cell holds its centre.
     def _nn(coord, origin, delta, n):
-        idx = np.round((coord - origin) / delta).astype(int)
+        idx = np.floor((coord - origin) / delta).astype(int)
         return np.clip(idx, 0, n - 1)
 
     i1 = _nn(xc, sep.o1, sep.d1, sep.n1)   # (ex,)

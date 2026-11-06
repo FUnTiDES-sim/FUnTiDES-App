@@ -21,9 +21,10 @@ class Acquisition:
                 Timestep
             kwargs : keyword arguments
             sources : list of list of float
-                List of all sources coordinates (required)
+                List of all sources coordinates [x, y, depth] (required)
             receivers : list of list of float
-                List of all receivers coordinates (required)
+                List of all receivers coordinates [x, y, depth] (required);
+                the depth is positive downwards from the free surface
             dasgeometry : list of list of float (optional)
                 List of all DAS geometry information (to activate it, use dwords)
             acqId : int
@@ -174,9 +175,10 @@ class Acquisition:
             comm : MPI.COMM_WORLD
                 MPI communicator
         """
-        if isinstance(self.mesh, StructuredMesh):
-            print("WARNING:\n")
-            print("Limited Aperture configuration not handled yet for Structured Mesh.\n")
+        raise NotImplementedError(
+            "Limited-aperture acquisitions are not implemented (they were a GEOS feature); "
+            "the shots keep the full mesh (limited_aperture stays False)."
+        )
 
 
     def setMesh(self, mesh):
@@ -193,12 +195,13 @@ class Acquisition:
             listOfAcquisition : list
                 list of Acquisition objects such that 1 Shot = 1 Acquisition
             
-            If using DAS, the dwords parameter must be parsed, even if it is None
+            The DAS geometry of a shot, if any, is kept.
         """
         listOfAcquisition = []
         for shot in self.shots:
-            if 'dwords' in kwargs.keys():
-                a = Acquisition(mesh=self.mesh, sources=shot.getSourceCoords(), receivers=shot.getReceiverCoords(), dasgeometry=shot.getDASGeometry(), dt=shot.dt)
+            if shot.dasgeometry is not None:
+                a = Acquisition(mesh=self.mesh, sources=shot.getSourceCoords(), receivers=shot.getReceiverCoords(),
+                                dasgeometry=shot.getDASGeometry(), dwords=None, dt=shot.dt)
             else:
                 a = Acquisition(mesh=self.mesh, sources=shot.getSourceCoords(), receivers=shot.getReceiverCoords(), dt=shot.dt)
             a.shots[0].id = shot.id

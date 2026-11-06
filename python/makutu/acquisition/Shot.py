@@ -131,9 +131,11 @@ class Shot:
 
         Returns
         --------
-            list of list
-                list of the DAS geometry information
+            list of list, or None
+                list of the DAS geometry information; None when the shot has no DAS
         """
+        if self.dasgeometry is None:
+            return None
         return self.dasgeometry.getReceiverCoords()
 
 

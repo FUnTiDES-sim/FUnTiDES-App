@@ -56,7 +56,8 @@ class DecisionAcquisition(Acquisition):
         ----------
             **kwargs : keyword argument to be used in self.decisionReader()
         """
-        srcPos, rcvPos, self.numberOfSources = self.decisionReader(self.filename, self.database, sorted=True, **kwargs)
+        kwargs = {"sorted": True, **kwargs}   # receivers in file order unless sorted=False
+        srcPos, rcvPos, self.numberOfSources = self.decisionReader(self.filename, self.database, **kwargs)
         
         srcID = []
         for k in srcPos.keys():

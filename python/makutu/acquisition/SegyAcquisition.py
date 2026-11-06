@@ -1,5 +1,4 @@
 import os
-import sys
 import glob
 from copy import deepcopy
 
@@ -8,6 +7,12 @@ import numpy as np
 from .Acquisition import Acquisition
 from .Shot import Source, SourceSet, Receiver, ReceiverSet, Shot
 from .decision_reader import Segy, SEGY_READ, p_TRC_HDR
+
+
+def _int16(value):
+    """Two's-complement signed value of the 16 low bits of ``value``."""
+    value &= 0xFFFF
+    return value - 0x10000 if value >= 0x8000 else value
 
 
 class SEGYAcquisition(Acquisition):
@@ -40,11 +45,14 @@ class SEGYAcquisition(Acquisition):
             Folder containing the .sgy traces
         kwargs :
             sbit : tuple of int
-                Source bit position in header for x, y and z coordinates.
-                Default is (73, 77, 49).
+                Source byte positions in the trace header for x, y and depth.
+                Default is (73, 77, 49): sx, sy, sdepth.
             rbit : tuple of int
-                Receiver bit position in header for x, y, z coordinates.
-                Default is (81, 85, 41).
+                Receiver byte positions in the trace header for x, y and depth.
+                Default is (81, 85, 41): gx, gy, gelev, which holds the receiver
+                depth (positive down) in the files written by makutu.
+            ignore : tuple of str
+                File names to skip.
         """
         # Byte positions → word numbers: word N is the int32 at byte (N-1)*4
         # Supplied as 1-based byte offsets; convert to word numbers.
@@ -59,20 +67,12 @@ class SEGYAcquisition(Acquisition):
 
         sw = [_byte_to_word(b) for b in sbit]   # source word numbers
         rw = [_byte_to_word(b) for b in rbit]   # receiver word numbers
-        notEmpty = False
-        i = 0
-        ext = ("*.sgy", "*.segy")
         filesToIgnore = kwargs.get("ignore", ())
 
-        while not notEmpty and i <= len(ext):
-            segfiles = glob.glob(os.path.join(segdir, ext[i]))
-            if segfiles:
-                notEmpty = True
-            else:
-                if i == 1:
-                    print(f"No SEG found in {segdir}")
-                    sys.exit(1)
-            i += 1
+        # .sgy files, or .segy files when there is no .sgy
+        segfiles = glob.glob(os.path.join(segdir, "*.sgy")) or glob.glob(os.path.join(segdir, "*.segy"))
+        if not segfiles:
+            raise FileNotFoundError(f"No SEG-Y file (*.sgy, *.segy) found in {segdir}")
 
         if len(filesToIgnore):
             for f in filesToIgnore:
@@ -95,8 +95,8 @@ class SEGYAcquisition(Acquisition):
             word18 = int(thdr[17])   # 0-based index = word 18 - 1
             # word 18 packs scalel (bytes 69-70) and scalco (bytes 71-72)
             # as two int16 values in big-endian order
-            scalel = np.int16((word18 >> 16) & 0xFFFF)
-            scalco = np.int16(word18 & 0xFFFF)
+            scalel = _int16((word18 >> 16) & 0xFFFF)
+            scalco = _int16(word18 & 0xFFFF)
 
             def _scale(val, sc):
                 s = float(sc)

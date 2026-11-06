@@ -83,7 +83,8 @@ class SEGYTraceOutput:
         scalco = float( kwargs.get( "scalco", -1000 ))
         scalel = float( kwargs.get( "scalel", -1000 ))
 
-        # Segy header creation
+        # Segy header creation. Coordinates are [x, y, depth]: the source depth goes
+        # to sdepth, the receiver depth to gelev (read back by SEGYAcquisition).
         if rank == 0:
             os.makedirs( self.directory, exist_ok=True )
 

@@ -134,7 +134,8 @@ def build_cartesian_2d_model(lx, lz, ex, ez, order, vp_elem, rho_elem=None,
 def sample_sep_2d(sep, ex, ez, lx, lz, depth_axis=2):
     """
     Sample a 2-D SEP model at the element centres of an ex x ez mesh of
-    [0, lx] x [0, lz] (z up), nearest neighbour.
+    [0, lx] x [0, lz] (z up), each element taking the SEP sample whose cell
+    [o + i d, o + (i+1) d) holds its centre.
 
     The SEP horizontal axis is axis 1 and its depth axis ``depth_axis`` (2 or 3),
     depth 0 at the top: the element centre (x, z) reads depth ``lz - z``.
@@ -146,8 +147,9 @@ def sample_sep_2d(sep, ex, ez, lx, lz, depth_axis=2):
     xc = (np.arange(ex) + 0.5) * lx / ex
     depth = lz - (np.arange(ez) + 0.5) * lz / ez
 
+    # sample i stands for the cell [o + i d, o + (i+1) d): the cell holding the centre
     def nn(coord, origin, delta, n):
-        return np.clip(np.round((coord - origin) / delta).astype(int), 0, n - 1)
+        return np.clip(np.floor((coord - origin) / delta).astype(int), 0, n - 1)
 
     i1 = nn(xc, sep.o1, sep.d1, sep.n1)
     if depth_axis == 2:

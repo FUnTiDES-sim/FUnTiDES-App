@@ -81,8 +81,8 @@ def main():
                             sourceType="ricker2", sourceFreq=args.f0, **mesh.solver_kwargs())
     solver.initialize()
     rcv_x = np.arange(args.rcv_dx / 2, lx, args.rcv_dx)
-    receivers = [[x, 0.0, lz - args.rcv_depth] for x in rcv_x]
-    solver.updateSourceAndReceiversFromCoords([[args.src_x, 0.0, lz - args.src_depth]], receivers)
+    receivers = [[x, 0.0, args.rcv_depth] for x in rcv_x]          # [x, y, depth]
+    solver.updateSourceAndReceiversFromCoords([[args.src_x, 0.0, args.src_depth]], receivers)
     solver.evaluateSource()
     print(f"Setup {time.time() - t0:.1f} s; {solver.n_time_steps} steps, {len(rcv_x)} receivers")
 

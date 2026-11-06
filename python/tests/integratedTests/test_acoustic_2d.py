@@ -17,7 +17,7 @@ from makutu.mesh import CartesianMesh2D, sample_sep_2d  # noqa: E402
 from makutu.solvers import AcousticSolver  # noqa: E402
 
 L, VP, F0, DT, TMAX = 2000.0, 1500.0, 5.0, 0.001, 0.7
-SOURCE, RECEIVER = (1010.0, 0.0, 1010.0), (1310.0, 0.0, 1310.0)
+SOURCE, RECEIVER = (1010.0, 0.0, 990.0), (1310.0, 0.0, 690.0)    # [x, y, depth]
 
 
 def exact_2d(t, r, f, dt, c=VP, rho=1.0, n=2000):
@@ -65,8 +65,11 @@ def test_free_surface_and_absorbing_edges():
                             sourceType="ricker2", sourceFreq=10.0, **mesh.solver_kwargs())
     assert solver.mesh_type == FTSolver.MeshType.UNSTRUCT   # forced for a 2-D model
     solver.initialize()
-    rcv = [[x, 123.0, 450.0] for x in (300.0, 700.0)]           # symmetric about x = 500
-    solver.updateSourceAndReceiversFromCoords([[500.0, 999.0, 400.0]], rcv)
+    rcv = [[x, 123.0, 50.0] for x in (300.0, 700.0)]            # symmetric about x = 500
+    solver.updateSourceAndReceiversFromCoords([[500.0, 999.0, 100.0]], rcv)   # depth 100 m
+    # depth -> z = lz - depth: receivers (depth 50 m) in the top element row, source in the next one
+    assert [e // 20 for e in solver.receiverElementIndices] == [9, 9]
+    assert list(solver.sourceElementIndices) == [10 + 8 * 20]          # x = 500 m: ix = 10, iz = 8
     solver.evaluateSource()
     for t in range(solver.n_time_steps):
         solver.execute(t)

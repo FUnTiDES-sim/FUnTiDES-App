@@ -594,8 +594,8 @@ class WaveSolver(Solver):
             # 2-D (x, z) mesh: element ix + iz * ex, y ignored
             iz = max(0, min(int(z / (self.lz / self.ez)), self.ez - 1))
             return ix + iz * self.ex
-        iy = min(int(y / (self.ly / self.ey)), self.ey - 1)
-        iz = min(int(z / (self.lz / self.ez)), self.ez - 1)
+        iy = max(0, min(int(y / (self.ly / self.ey)), self.ey - 1))
+        iz = max(0, min(int(z / (self.lz / self.ez)), self.ez - 1))
         return ix + iy * self.ex + iz * self.ex * self.ey
 
     def coordToNodeIndex(self, x, y, z):
@@ -666,8 +666,8 @@ class WaveSolver(Solver):
             xi_z = float(np.clip(2.0 * (z - iz * hz) / hz - 1.0, -1.0, 1.0))
             return ix + iz * self.ex, _lagrange_weights_2d(xi_x, xi_z, self.order)
         hy = self.ly / self.ey
-        iy = min(int(y / hy), self.ey - 1)
-        iz = min(int(z / hz), self.ez - 1)
+        iy = max(0, min(int(y / hy), self.ey - 1))
+        iz = max(0, min(int(z / hz), self.ez - 1))
         elem_idx = ix + iy * self.ex + iz * self.ex * self.ey
         # Map physical coords to element-local coords in [-1, 1]
         xi_x = float(np.clip(2.0 * (x_local - ix * hx) / hx - 1.0, -1.0, 1.0))
@@ -679,7 +679,13 @@ class WaveSolver(Solver):
     def updateSourceAndReceiversFromCoords(self, source_coords, receiver_coords,
                                             sourceWeights=None):
         """
-        Set source and receiver positions from physical (global) coordinates.
+        Set source and receiver positions from acquisition coordinates.
+
+        Acquisition coordinates are ``[x, y, depth]``: the depth is measured
+        downwards from the top face of the mesh (the free surface), as in the
+        SEG-Y headers and the SEP models. The mesh has z up, so the point is
+        placed at ``z = lz - depth``. In 2-D, y is ignored. The ``coordTo*``
+        helpers take mesh coordinates (z up).
 
         Sources not on this rank are given zero weights so they contribute
         nothing to the RHS.  Receivers not on this rank are stored as -1 and
@@ -688,14 +694,17 @@ class WaveSolver(Solver):
 
         Parameters
         ----------
-            source_coords : list of [x, y, z]
-                Physical coordinates for each source (global frame).
-            receiver_coords : list of [x, y, z]
-                Physical coordinates for each receiver (global frame).
+            source_coords : list of [x, y, depth]
+                Coordinates of each source (global frame, depth positive down).
+            receiver_coords : list of [x, y, depth]
+                Coordinates of each receiver (global frame, depth positive down).
             sourceWeights : array-like, optional
                 Interpolation weights per source.
         """
         self._check_mesh_params()
+        # depth (positive down from the top face) -> mesh z (up)
+        source_coords = [(x, y, self.lz - d) for x, y, d in source_coords]
+        receiver_coords = [(x, y, self.lz - d) for x, y, d in receiver_coords]
         src_elements = []
         src_active = []
         if self.dim == 2:
@@ -711,7 +720,7 @@ class WaveSolver(Solver):
         else:
             for x, y, z in source_coords:
                 try:
-                    idx = self.coordToElementIndex(x, y, max(z, self.lz / self.ez * 0.01))
+                    idx = self.coordToElementIndex(x, y, z)
                     src_elements.append(idx)
                     src_active.append(True)
                 except ValueError:

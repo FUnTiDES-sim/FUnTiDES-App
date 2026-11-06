@@ -111,8 +111,9 @@ class EQUISPACEDAcquisition(Acquisition):
         for n in range(numberOfReceiverLines):
             if isinstance(receiversPerLine, int):
                 numberOfReceivers = receiversPerLine
-            elif isinstance(receiversPerLine, list):
-                assert len(numberOfReceivers) == numberOfReceiverLines
+            elif isinstance(receiversPerLine, (list, tuple)):
+                if len(receiversPerLine) != numberOfReceiverLines:
+                    raise ValueError("`receiversPerLine` must have one entry per receiver line")
                 numberOfReceivers = receiversPerLine[n]
             else:
                 raise TypeError("The parameter `numberOfReceivers` can only be an integer or a list of integer numbers")
@@ -129,8 +130,12 @@ class EQUISPACEDAcquisition(Acquisition):
         for n in range(numberOfSourceLines):
             if isinstance(sourcesPerLine, int):
                 numberOfSources = sourcesPerLine
-            else:
+            elif isinstance(sourcesPerLine, (list, tuple)):
+                if len(sourcesPerLine) != numberOfSourceLines:
+                    raise ValueError("`sourcesPerLine` must have one entry per source line")
                 numberOfSources = sourcesPerLine[n]
+            else:
+                raise TypeError("The parameter `sourcesPerLine` can only be an integer or a list of integer numbers")
 
             xst, yst, zst = self.__generateEquiPositionsWithinLine(startSourcePosition[n], endSourcePosition[n], numberOfSources)
 

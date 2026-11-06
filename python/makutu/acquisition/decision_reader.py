@@ -305,9 +305,11 @@ def read_decision_file(decision_file, database_file="identity",
     Keyword arguments
     -----------------
     scalco : int
-        Scalar applied to all horizontal coordinates.
+        SEG-Y scalar applied to all horizontal coordinates (negative: divide).
+        Default: word 21 of the file, or 1 (no scaling) when it is absent.
     scalel : int
-        Scalar applied to elevations / depths.
+        SEG-Y scalar applied to elevations / depths.
+        Default: word 20 of the file, or 1 (no scaling) when it is absent.
     utmxy2xy : bool
         Convert UTM → local XY using the database.
     xy2utmxy : bool
@@ -369,7 +371,9 @@ def read_decision_file(decision_file, database_file="identity",
         gk_string, gm_string = "rcv", "src"
 
     # Scaling: read from kwargs or from decision file
-    scalc = "scalco" not in kwargs and "scalel" not in kwargs
+    # (words 21 = scalco, 20 = scalel; no scaling when they are not in the file)
+    scalc = ("scalco" not in kwargs and "scalel" not in kwargs
+             and dec.get_word_position(21) > 0 and dec.get_word_position(20) > 0)
     if scalc:
         scalco_idx = dec.get_word_position(21) - 1
         scalel_idx = dec.get_word_position(20) - 1
@@ -480,8 +484,8 @@ def read_decision_file(decision_file, database_file="identity",
             crd_conv = lambda x: list(db.utmxy2xy(x[0], x[1])) + [x[2]]
 
     if not scalc:
-        scalco = kwargs["scalco"]
-        scalel = kwargs["scalel"]
+        scalco = kwargs.get("scalco", 1)
+        scalel = kwargs.get("scalel", 1)
 
     # ------------------------------------------------------------------ #
     # Second pass: convert and collect source / receiver coordinates       #

@@ -33,7 +33,7 @@ Library::
     create_decision_files(
         shots,           # list of {"src": [x,y,z], "rcv": [[x,y,z], ...]}
         out="survey",
-        word_sx=22, word_sy=23, word_sz=15,
+        word_sx=22, word_sy=23, word_sz=14,
         word_rx=24, word_ry=25, word_rz=13,
         segy_files=["shot_1.segy", "shot_2.segy"],  # optional
     )
@@ -48,7 +48,7 @@ CLI::
 
 Traces file format (geometry.traces)::
 
-    22 23 15 24 25 13          # header: word numbers (space-separated)
+    22 23 14 24 25 13          # header: word numbers (space-separated)
     3991 4991 201 201 5991 301  # one line per trace
     ...
 
@@ -178,6 +178,10 @@ def write_mapped(rootname, shots, mapped_word_numbers,
                 if rw_z in wn_set:
                     vals[rw_z] = rz
 
+                for w, v in shot.get("words", {}).items():
+                    if w in wn_set and w not in vals:
+                        vals[w] = int(v[rcv_idx] if np.ndim(v) else v)
+
                 row = [vals.get(w, 0) for w in wn]
                 _write_record(fh, row, shot_idx, rcv_idx)
                 trace_counter += 1
@@ -247,7 +251,7 @@ def write_index(rootname, shots, index_word_numbers,
 # ─────────────────────────────────────────────────────────────────────────────
 
 def create_decision_files(shots, out,
-                          word_sx=22, word_sy=23, word_sz=15,
+                          word_sx=22, word_sy=23, word_sz=14,
                           word_rx=24, word_ry=25, word_rz=13,
                           extra_mapped_words=None,
                           index_words=None,
@@ -272,7 +276,8 @@ def create_decision_files(shots, out,
     extra_mapped_words : list of int, optional
         Additional word numbers to include in the mapped file (beyond
         the six src/rcv words).  Values will be stored as 0 unless the
-        shot dict contains a ``"words"`` key mapping word → value.
+        shot dict contains a ``"words"`` key mapping word → value (one
+        value for the whole shot, or a sequence with one value per receiver).
     index_words : list of int, optional
         Word numbers to store in the index file.  Defaults to
         ``[word_sx, word_sy, word_sz]``.
@@ -348,7 +353,7 @@ def read_segy_headers(path, word_numbers):
 
 
 def shots_from_segy(path,
-                    segy_src_words=(19, 20, 12),
+                    segy_src_words=(19, 20, 13),
                     segy_rcv_words=(21, 22, 11),
                     out_src_words=(22, 23, 14),
                     out_rcv_words=(24, 25, 13)):
@@ -365,10 +370,11 @@ def shots_from_segy(path,
         SEG-Y file path.
     segy_src_words : tuple of int
         Header words to read as source (X, Y, Z) from the SEG-Y.
-        Default: standard SEG-Y positions (19=srcX, 20=srcY, 12=srcElev).
+        Default: 19=sx, 20=sy, 13=sdepth (source depth, positive down).
     segy_rcv_words : tuple of int
         Header words to read as receiver (X, Y, Z) from the SEG-Y.
-        Default: standard SEG-Y positions (21=rcvX, 22=rcvY, 11=rcvElev).
+        Default: 21=gx, 22=gy, 11=gelev, which holds the receiver depth
+        (positive down) in the files written by makutu.
     out_src_words : tuple of int
         Decision-file word numbers to assign source (X, Y, Z).
     out_rcv_words : tuple of int
@@ -399,7 +405,7 @@ def shots_from_segy(path,
 
 
 def shots_from_segy_list(paths,
-                         segy_src_words=(19, 20, 12),
+                         segy_src_words=(19, 20, 13),
                          segy_rcv_words=(21, 22, 11)):
     """
     Extract acquisition geometry from multiple SEG-Y files, one shot per file.
@@ -451,7 +457,7 @@ def read_traces_file(path):
 
     Format::
 
-        22 23 15 24 25 13         # first line: column word-numbers
+        22 23 14 24 25 13         # first line: column word-numbers
         3991 4991 201 201 5991 301  # subsequent lines: one trace per row
 
     Returns
@@ -471,7 +477,7 @@ def read_traces_file(path):
 
 
 def shots_from_traces(rows, word_numbers,
-                      src_words=(22, 23, 15), rcv_words=(24, 25, 13)):
+                      src_words=(22, 23, 14), rcv_words=(24, 25, 13)):
     """
     Group a flat list of trace dicts (from :func:`read_traces_file`) into
     a list of shot dicts ``{"src": [x,y,z], "rcv": [[x,y,z], ...]}``.
@@ -552,14 +558,14 @@ def _build_parser():
                    help="SEG-Y header word for source X  (default: 19).")
     p.add_argument("--segy-word-sy", type=int, default=20,
                    help="SEG-Y header word for source Y  (default: 20).")
-    p.add_argument("--segy-word-sz", type=int, default=12,
-                   help="SEG-Y header word for source Z  (default: 12).")
+    p.add_argument("--segy-word-sz", type=int, default=13,
+                   help="SEG-Y header word for the source depth (default: 13, sdepth).")
     p.add_argument("--segy-word-rx", type=int, default=21,
                    help="SEG-Y header word for receiver X (default: 21).")
     p.add_argument("--segy-word-ry", type=int, default=22,
                    help="SEG-Y header word for receiver Y (default: 22).")
     p.add_argument("--segy-word-rz", type=int, default=11,
-                   help="SEG-Y header word for receiver Z (default: 11).")
+                   help="SEG-Y header word for the receiver depth (default: 11, gelev as written by makutu).")
     return p
 
 

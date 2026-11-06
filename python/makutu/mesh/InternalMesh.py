@@ -255,7 +255,8 @@ class StructuredMesh:
 
         Three orthogonal slices are shown for each available field:
         XZ (depth section at given *iy*), YZ (at given *ix*) and XY (plan view
-        at given *iz*).  Indices default to the midpoint of each axis.
+        at given *iz*). The mesh z is up (iz = 0 at the bottom); the sections are
+        drawn with the depth ``lz - z`` downwards.  Indices default to the midpoint of each axis.
 
         Parameters
         ----------
@@ -305,7 +306,7 @@ class StructuredMesh:
             # XZ slice — depth section at y=iy  (shape ez×ex)
             ax = axes[row, 0]
             im = _plot_field(ax, data3d[:, iy, :],
-                             [x0, x1, z1, z0], "X [m]", "Z [m]",
+                             [x0, x1, z1, z0], "X [m]", "Depth [m]",
                              f"{label}  —  XZ  (iy={iy})",
                              cmap, vmin, vmax)
             fig.colorbar(im, ax=ax, shrink=0.8)
@@ -313,7 +314,7 @@ class StructuredMesh:
             # YZ slice — depth section at x=ix  (shape ez×ey)
             ax = axes[row, 1]
             im = _plot_field(ax, data3d[:, :, ix],
-                             [y0, y1, z1, z0], "Y [m]", "Z [m]",
+                             [y0, y1, z1, z0], "Y [m]", "Depth [m]",
                              f"{label}  —  YZ  (ix={ix})",
                              cmap, vmin, vmax)
             fig.colorbar(im, ax=ax, shrink=0.8)

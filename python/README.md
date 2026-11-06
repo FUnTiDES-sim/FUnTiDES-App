@@ -95,10 +95,21 @@ for t in range(solver.n_time_steps):
 seismogram = solver.getPressureAtReceivers()   # (n_samples, n_receivers)
 ```
 
+**Coordinates.** The FUnTiDES meshes have z up, with the free surface on the top
+face z = lz. Everything outside the mesh uses depths, positive downwards from that
+surface:
+- the acquisition coordinates are `[x, y, depth]`
+  (`updateSourceAndReceiversFromCoords` places a point at z = lz - depth);
+- the SEP models have depth 0 at the top;
+- in the SEG-Y headers, the source depth is `sdepth` (byte 49), and makutu writes the
+  receiver depth in `gelev` (byte 41).
+
+Only the `coordTo*` helpers of the solver take mesh coordinates (z up).
+
 **2-D.** With a FUnTiDES built with `COMPILE_SEM_2D`, `makutu.mesh.CartesianMesh2D`
 builds a 2-D (x, z) quadrilateral mesh (z up, free surface on top), homogeneous,
 from arrays or from 2-D SEP files; the solvers detect the dimension from the model
-(acoustic only, single process). Coordinates stay `[x, y, z]` lists, y being ignored:
+(acoustic only, single process). Coordinates stay `[x, y, depth]` lists, y being ignored:
 
 ```python
 from makutu.mesh import CartesianMesh2D

@@ -162,7 +162,7 @@ def _save_snapshot(solver, mesh, order, t_step, dt, snap_dir, shot_num):
     ny = mesh.ey * order + 1
     nz = mesh.ez * order + 1
     pn  = np.array(solver.kk_pn_curr, copy=False).reshape(nz, ny, nx)
-    xz  = pn[:, ny // 2, :]
+    xz  = pn[::-1, ny // 2, :]   # top (z = lz, depth 0) first
     vmax = float(np.abs(xz).max()) or 1.0
     fig, ax = plt.subplots(figsize=(8, 5))
     im = ax.imshow(
@@ -171,7 +171,7 @@ def _save_snapshot(solver, mesh, order, t_step, dt, snap_dir, shot_num):
         cmap="seismic", vmin=-vmax, vmax=vmax,
     )
     ax.set_xlabel("X [m]")
-    ax.set_ylabel("Z [m]")
+    ax.set_ylabel("Depth [m]")
     ax.set_title(f"Shot {shot_num}  t = {t_step * dt:.4f} s  (step {t_step})")
     fig.colorbar(im, ax=ax, shrink=0.8, label="Pressure")
     fig.tight_layout()
