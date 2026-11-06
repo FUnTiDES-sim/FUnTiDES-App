@@ -29,7 +29,7 @@ import yaml
 # ---------------------------------------------------------------------------
 
 DEFAULT_METHOD = "sem"
-METHODS = ("sem", "dg", "dg-sem", "dg-padaptive")
+METHODS = ("sem", "dg", "dg-sem", "dg-padaptive", "sem2d")
 
 # The script lives in <project_root>/python/apps/, so go two levels up.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

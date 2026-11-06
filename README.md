@@ -33,7 +33,7 @@ text outputs and timing.
 
 - An installed FUnTiDES (`cmake --install` of the FUnTiDES repository). An example
   is built only if FUnTiDES was built with its method (`COMPILE_SEM`, `COMPILE_DG`,
-  `COMPILE_DG_SEM`, `COMPILE_DG_PADAPTIVE`).
+  `COMPILE_DG_SEM`, `COMPILE_DG_PADAPTIVE`, `COMPILE_SEM_2D` for `funtides-sem2d`).
 - MPI, only with `-DUSE_MPI=ON`.
 
 Kokkos is found through the FUnTiDES package configuration. Use the same C++
@@ -56,6 +56,7 @@ The executables are written to `build/bin/`.
 ./build/bin/funtides-sem --help
 ./build/bin/funtides-sem --ex 100 --ey 100 --ez 100 --mesh=cartesian -o 2 --dt 0.001 --timemax 1.5
 ./build/bin/funtides-dg-sem --dg-sem-boundary-z 1000 --rcvz 690
+./build/bin/funtides-sem2d --ex 100 --ez 100 -o 3 --dt 0.001 --timemax 0.7   # 2-D (x, z); y options ignored
 ```
 
 Each example folder has a YAML file listing its options. `python/apps/run_funtides.py`
