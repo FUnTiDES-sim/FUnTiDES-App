@@ -11,7 +11,7 @@ dr = load('decision_reader', 'makutu/acquisition/decision_reader.py')
 
 # --- SEAM: 1 shot, 1 receiver ---
 d_src, d_rcv, n = dr.read_decision_file(
-    '../../FUn-examples/data/1.Acquisition/SEAM_Foothills.decision.mapped',
+    '../../FUnTiDES-data/data/1.Acquisition/SEAM_Foothills.decision.mapped',
     swords=[22, 23, 14], rwords=[24, 25, 13], scalco=1, scalel=1)
 print(f'SEAM: n={n}  src={d_src}  rcv={d_rcv}')
 
@@ -24,6 +24,6 @@ for k in sorted(d_src): print(f'  {k}: src={d_src[k]}  n_rcv={len(d_rcv[\"rcv_\"
 
 # --- test/SEAM (files we created) ---
 d_src, d_rcv, n = dr.read_decision_file(
-    '../../FUn-examples/data/test/SEAM_Foothills.decision.mapped',
+    '../../FUnTiDES-data/data/test/SEAM_Foothills.decision.mapped',
     swords=[22, 23, 14], rwords=[24, 25, 13], scalco=1, scalel=1)
 print(f'test/SEAM: n={n}  src={d_src}  rcv={d_rcv}')

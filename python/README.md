@@ -23,7 +23,7 @@ before moving here; its history is kept.
 
 The applications import the library, never the reverse. Example data and
 models (SEAM acquisition, Marmousi SEP/Cubit models, …) live in the sibling
-`FUn-examples/` directory, next to FUnTiDES-App, out of the source tree.
+`FUnTiDES-data/` directory, next to FUnTiDES-App, out of the source tree.
 
 ## Requirements
 

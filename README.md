@@ -110,7 +110,7 @@ make unitTests integratedTests               # about 1 min on a GPU
 | `python/tests/` | unit and integrated tests |
 
 The applications import the library, never the reverse. Example data and models
-live in the sibling `FUn-examples/` directory.
+live in the sibling `FUnTiDES-data/` directory.
 
 ## License
 

@@ -27,7 +27,7 @@ FUnTiDES-App::
     ├── FUnTiDES/          # FUnTiDES sources
     ├── FUnTiDES-install/  # TPL + FUnTiDES install, with funtides_env.sh
     ├── FUnTiDES-App/      # C++ drivers + python/ (makutu library, apps, tests)
-    └── FUn-examples/      # example data and models
+    └── FUnTiDES-data/      # example data and models
 
 .. code-block:: bash
 
