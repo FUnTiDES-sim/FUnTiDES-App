@@ -5,7 +5,9 @@
  * The medium is the default homogeneous model (Vp = 1500 m/s, rho = 1) of a 2000 m cube.
  * For a point source f(t) the solved equation (1/(rho c^2)) p'' - div((1/rho) grad p) = f(t) delta(x - xs)
  * has the closed-form solution p(x, t) = rho f(t - r/c) / (4 pi r), r = |x - xs|, compared
- * without normalization. The cases are those of the FUnTiDES Python validation
+ * without normalization. In 2-D (method sem2d, square of the (x, z) plane) the solution is
+ * p(x, t) = (rho c / 2 pi) int_0^(t - r/c) f(tau) / sqrt(c^2 (t - tau)^2 - r^2) dtau, computed with
+ * tau = t - r/c - w^2, which removes the singularity at tau = t - r/c. The cases are those of the FUnTiDES Python validation
  * (tests/validation/cases.py): same positions, meshes, time steps and tolerances.
  */
 
@@ -37,13 +39,14 @@ constexpr double kTimeMax = 0.7;
 constexpr double kPi = 3.14159265358979323846;
 
 struct Case {
-  std::string method = "sem";  // sem | dg | dg-sem | dg-padaptive
+  std::string method = "sem";  // sem | dg | dg-sem | dg-padaptive | sem2d
   std::string mesh = "cartesian";
   int order = 1;
   int order_min = 0;  // pMin of dg-padaptive
   double tolerance = 0.0;
 
   bool IsCoupled() const { return method == "dg-sem" || method == "dg-padaptive"; }
+  bool Is2D() const { return method == "sem2d"; }
 
   // Coupled solvers split the domain at z = 1000 m (their default): the source lies 150 m below the
   // interface and the receiver 165 m above, off the element faces where DG fields are discontinuous.
@@ -55,11 +58,11 @@ struct Case {
   }
 
   // Same number of nodes per direction for every order; DG fields have no shared nodes, hence fewer.
-  int ElementsPerDirection() const { return (method == "sem" ? 400 : 300) / (order + 1); }
+  int ElementsPerDirection() const { return (method == "sem" || Is2D() ? 400 : 300) / (order + 1); }
 
   // SEM: 1 ms. DG: stable only for dt ~ h / (vp * order^2), scaled by a measured factor and floored to 1e-5 s.
   double TimeStep() const {
-    if (method == "sem") return 0.001;
+    if (method == "sem" || Is2D()) return 0.001;
     double const cfl = (order == 1) ? 0.15 : 0.2;
     double const h = kDomainSize / ElementsPerDirection();
     return std::floor(cfl * h / (kVp * order * order) / 1e-5) * 1e-5;
@@ -68,8 +71,9 @@ struct Case {
   std::string Command() const {
     int const n = ElementsPerDirection();
     std::ostringstream cmd;
-    cmd << std::setprecision(9) << FUNTIDES_BIN_DIR << "/funtides-" << method << " --order " << order
-        << " --mesh=" << mesh << " --ex " << n << " --ey " << n << " --ez " << n << " --dt " << TimeStep()
+    cmd << std::setprecision(9) << FUNTIDES_BIN_DIR << "/funtides-" << method << " --order " << order;
+    if (!Is2D()) cmd << " --mesh=" << mesh;  // the 2-D mesh is a Cartesian grid of quadrilaterals
+    cmd << " --ex " << n << " --ey " << n << " --ez " << n << " --dt " << TimeStep()
         << " --timemax " << kTimeMax << " --f0 " << kF0 << " --ricker-order " << kRickerOrder << " --tpeak "
         << kTpeak;
     auto const src = Source();
@@ -101,6 +105,25 @@ void ReadTrace(const std::string& path, std::vector<double>& time, std::vector<d
 double AnalyticalPressure(double t, double r) {
   SourceTimeFunction wavelet;
   return kRho * wavelet.evaluateRicker(static_cast<float>(t - r / kVp), kF0, kRickerOrder, kTpeak) / (4.0 * kPi * r);
+}
+
+// 2-D: (rho c / 2 pi) int_0^W f(t - r/c - w^2) 2 / sqrt(c^2 w^2 + 2 c r) dw, W = sqrt(t - r/c),
+// the source starting at t = 0. Composite Simpson rule on a smooth integrand.
+double AnalyticalPressure2D(double t, double r) {
+  double const t0 = t - r / kVp;
+  if (t0 <= 0) return 0.0;
+  SourceTimeFunction wavelet;
+  double const W = std::sqrt(t0);
+  int const n = 4000;  // even
+  double const h = W / n;
+  double sum = 0.0;
+  for (int i = 0; i <= n; ++i) {
+    double const w = i * h;
+    double const f = wavelet.evaluateRicker(static_cast<float>(t0 - w * w), kF0, kRickerOrder, kTpeak);
+    double const g = 2.0 * f / std::sqrt(kVp * kVp * w * w + 2.0 * kVp * r);
+    sum += g * ((i == 0 || i == n) ? 1.0 : (i % 2 ? 4.0 : 2.0));
+  }
+  return kRho * kVp / (2.0 * kPi) * sum * h / 3.0;
 }
 
 Case ParseCase(int argc, char** argv) {
@@ -144,11 +167,11 @@ int main(int argc, char** argv) {
 
     auto const src = c.Source();
     auto const rcv = c.Receiver();
-    double const r = std::sqrt((rcv[0] - src[0]) * (rcv[0] - src[0]) + (rcv[1] - src[1]) * (rcv[1] - src[1]) +
-                               (rcv[2] - src[2]) * (rcv[2] - src[2]));
+    double const dy2 = c.Is2D() ? 0.0 : (rcv[1] - src[1]) * (rcv[1] - src[1]);
+    double const r = std::sqrt((rcv[0] - src[0]) * (rcv[0] - src[0]) + dy2 + (rcv[2] - src[2]) * (rcv[2] - src[2]));
     double error = 0.0, norm = 0.0;
     for (std::size_t n = 0; n < time.size(); ++n) {
-      double const reference = AnalyticalPressure(time[n], r);
+      double const reference = c.Is2D() ? AnalyticalPressure2D(time[n], r) : AnalyticalPressure(time[n], r);
       error += (numerical[n] - reference) * (numerical[n] - reference);
       norm += reference * reference;
     }

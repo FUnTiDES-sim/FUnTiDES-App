@@ -35,7 +35,7 @@ function(add_analytical_test method mesh order order_min tolerance)
 endfunction()
 
 set(ANALYTICAL_DEPENDENCIES validate_analytical)
-foreach(METHOD sem dg dg-sem dg-padaptive)
+foreach(METHOD sem dg dg-sem dg-padaptive sem2d)
   if(TARGET funtides-${METHOD})
     list(APPEND ANALYTICAL_DEPENDENCIES funtides-${METHOD})
   endif()
@@ -62,6 +62,17 @@ foreach(MESH cartesian ucartesian)
     endforeach()
   endif()
 endforeach()
+
+# 2-D SEM (square of the (x, z) plane, funtides-sem2d): Cartesian quadrilateral grid only.
+# Measured relative L2 errors 1.6e-2, 6.3e-4, 6.3e-4 (orders 1-3); thresholds about 3 times larger.
+set(ANALYTICAL_TOLERANCE_sem2d_1 5e-2)
+set(ANALYTICAL_TOLERANCE_sem2d_2 2e-3)
+set(ANALYTICAL_TOLERANCE_sem2d_3 2e-3)
+if(TARGET funtides-sem2d)
+  foreach(ORDER 1 2 3)
+    add_analytical_test(sem2d cartesian ${ORDER} 0 ${ANALYTICAL_TOLERANCE_sem2d_${ORDER}})
+  endforeach()
+endif()
 
 # make validate_methods: every analytical test; one method with ctest -L analytical_<method>.
 add_custom_target(validate_methods

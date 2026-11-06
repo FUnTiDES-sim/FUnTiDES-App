@@ -29,6 +29,7 @@ funtides_add_example(funtides-sem sem/sem_example.cc COMPILE_SEM)
 funtides_add_example(funtides-dg dg/dg_example.cc COMPILE_DG)
 funtides_add_example(funtides-dg-sem dg_sem/dg_sem_example.cc COMPILE_DG_SEM)
 funtides_add_example(funtides-dg-padaptive dg_padaptive/dg_padaptive_example.cc COMPILE_DG_PADAPTIVE)
+funtides_add_example(funtides-sem2d sem2d/sem2d_example.cc COMPILE_SEM_2D)
 
 if(USE_MPI AND TARGET funtides-sem)
   target_compile_definitions(funtides-sem PRIVATE USE_MPI)

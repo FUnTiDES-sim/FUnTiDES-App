@@ -20,6 +20,7 @@ point.
 | `funtides-dg`           | `examples/dg/dg_example.cc`                     | discontinuous Galerkin                         | acoustic                           |
 | `funtides-dg-sem`       | `examples/dg_sem/dg_sem_example.cc`             | DG below a horizontal plane, SEM above         | acoustic                           |
 | `funtides-dg-padaptive` | `examples/dg_padaptive/dg_padaptive_example.cc` | DG, low order below a plane, high order above  | acoustic                           |
+| `funtides-sem2d`        | `examples/sem2d/sem2d_example.cc`               | spectral elements in 2-D, (x, z) plane         | acoustic                           |
 
 Only `funtides-sem` supports MPI (`-DUSE_MPI=ON`, domain split along x), except for
 acousto-elastic runs; the other examples are single-process.
@@ -88,6 +89,8 @@ cmake --build build --target validate
 p-adaptive DG) against the exact solution of the homogeneous medium,
 p = rho f(t - r/c) / (4 pi r), without normalization. The coupled solvers have their
 source below the interface and their receiver above it, so the wave crosses it.
+`funtides-sem2d` (built when FUnTiDES has `COMPILE_SEM_2D`) is compared with the 2-D
+solution p = (rho c / 2 pi) int f(tau) / sqrt(c^2 (t - tau)^2 - r^2) dtau.
 
 ```bash
 cmake --build build --target validate_methods
