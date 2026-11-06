@@ -236,7 +236,7 @@ class FUnTiDESParams:
         -------
         StructuredMesh or UnstructuredMesh
         """
-        from utilities.mesh.InternalMesh import StructuredMesh, UnstructuredMesh
+        from makutu.mesh.InternalMesh import StructuredMesh, UnstructuredMesh
 
         kwargs = dict(
             lx=self.lx, ly=self.ly, lz=self.lz,
@@ -283,7 +283,7 @@ class FUnTiDESParams:
         AcousticSolver or ElasticSolver
         """
         import pyfuntides.solver as FTSolver
-        from utilities.solvers.AcousticSolver import AcousticSolver
+        from makutu.solvers.AcousticSolver import AcousticSolver
 
         _physic_map = {
             "ACOUSTIC": FTSolver.PhysicType.ACOUSTIC,
@@ -343,7 +343,7 @@ class FUnTiDESParams:
             return AcousticSolver(**solver_kwargs)
 
         # Elastic
-        from utilities.solvers.ElasticSolver import ElasticSolver
+        from makutu.solvers.ElasticSolver import ElasticSolver
         return ElasticSolver(**solver_kwargs)
 
     def __repr__(self):

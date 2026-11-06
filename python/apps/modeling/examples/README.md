@@ -5,7 +5,7 @@ Example workflows showing how to drive the FUnTiDES SEM solvers (through
 physically accurate.
 
 Source the environment first — see the top-level `README.md`
-(`source ../../../env.sh` from this directory). Each script prints its options
+(`source <FUnTiDES install>/funtides_env.sh`, then `pip install -e python/` once). Each script prints its options
 with `--help`.
 
 | Script | Content |

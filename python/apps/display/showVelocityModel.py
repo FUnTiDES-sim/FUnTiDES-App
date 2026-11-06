@@ -2,7 +2,7 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 
-from utilities.display import VelocityModel
+from makutu.display import VelocityModel
 
 
 if __name__ == "__main__":

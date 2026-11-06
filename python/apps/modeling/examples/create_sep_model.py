@@ -6,7 +6,7 @@ Two models are built over a 1000 x 1000 x 1000 m domain at 10 m resolution:
   1. Layered model  -- three horizontal layers with increasing Vp.
   2. Salt model     -- same layering with an ellipsoidal high-velocity inclusion.
 
-The script then reads each model back with :func:`~utilities.input.SEPReader.read_sep`
+The script then reads each model back with :func:`~makutu.input.SEPReader.read_sep`
 and prints basic statistics so you can verify the values are correct.
 
 Usage
@@ -30,8 +30,8 @@ import os
 
 import numpy as np
 
-from utilities.input.createSepModel import inclusion_model, layered_model
-from utilities.input.SEPReader import read_sep
+from makutu.input.createSepModel import inclusion_model, layered_model
+from makutu.input.SEPReader import read_sep
 
 
 # ---------------------------------------------------------------------------

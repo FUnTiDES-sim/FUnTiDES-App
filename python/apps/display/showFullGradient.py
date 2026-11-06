@@ -2,7 +2,7 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 
-from utilities.display import Hdf5Field
+from makutu.display import Hdf5Field
 
   
 if __name__ == "__main__":

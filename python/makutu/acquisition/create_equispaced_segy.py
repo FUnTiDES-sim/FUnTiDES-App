@@ -39,7 +39,7 @@ Usage
 
 Library usage::
 
-    from utilities.acquisition.create_equispaced_segy import (
+    from makutu.acquisition.create_equispaced_segy import (
         equispaced_shots, write_segy_shot, write_survey,
     )
     shots = equispaced_shots(...)
@@ -280,7 +280,7 @@ def write_survey(shots, out, output_dir=".",
         SEG-Y / decision-file word numbers for source/receiver coordinates.
     """
     # Lazy import to avoid circular dependency when used as a library
-    from utilities.acquisition.decision_create import create_decision_files
+    from makutu.acquisition.decision_create import create_decision_files
 
     os.makedirs(output_dir, exist_ok=True)
     dt_us = int(round(dt_ms * 1000.0))

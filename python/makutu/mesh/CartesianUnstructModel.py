@@ -2,7 +2,7 @@
 Build a FUnTiDES ``ModelUnstruct`` from a Cartesian structured grid with
 explicit (heterogeneous) vp and rho Kokkos arrays.
 
-This is used by :class:`~utilities.mesh.InternalMesh.StructuredMesh` when
+This is used by :class:`~makutu.mesh.InternalMesh.StructuredMesh` when
 a SEP velocity (or density) file is provided.  The Cartesian geometry is
 reproduced exactly — GLL node coordinates, element-node connectivity, and
 boundary flags are all generated analytically — so the solver physics are
@@ -20,7 +20,7 @@ import numpy as np
 import kokkos
 import pyfuntides.model as FTModel
 
-from utilities.tools.kokkosarrays import funtides_array
+from makutu.tools.kokkosarrays import funtides_array
 
 
 # ---------------------------------------------------------------------------

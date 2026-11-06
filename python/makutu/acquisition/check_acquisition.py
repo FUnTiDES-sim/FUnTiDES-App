@@ -290,7 +290,7 @@ def check_from_decision(rootname,
     summary : dict   Compatible with :func:`print_report` and
                      :func:`plot_acquisition`.
     """
-    from utilities.acquisition.decision_reader import read_decision_file
+    from makutu.acquisition.decision_reader import read_decision_file
 
     print(f"Reading decision file: {rootname}.mapped.data ...")
     d_src, d_rcv, n_shots = read_decision_file(

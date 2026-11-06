@@ -18,7 +18,7 @@ class DataLayer:
             
     Examples
     ---------
-        >>>> from utilities.model import DataLayer
+        >>>> from makutu.model import DataLayer
         >>>> layer = DataLayer(numberOfCells=(10,2,3), value=1500, name="mediumVelocity")
         >>>> layer
         Dataset `mediumVelocity`
@@ -87,7 +87,7 @@ class BilayerData:
     Examples
     ---------
         Bilayer with y axis of symmetry
-        >>>> from utilities.model import BilayerData
+        >>>> from makutu.model import BilayerData
         >>>> bilayerY = BilayerData(numberOfCells=(10,8,2,10), value=(1500,2500), name="velocity", axis=2)
         >>>> bilayerY
         Bilayer dataset `velocity`

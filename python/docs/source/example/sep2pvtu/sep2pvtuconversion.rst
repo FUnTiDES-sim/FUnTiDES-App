@@ -10,7 +10,7 @@ In this first tutorial, you will learn how to convert a velocity model initially
         ├── models/
             ├── velBicouche100x100x100.H
             └── velBicouche100x100x100.H@
-    ├── workflows/modelConversion
+    ├── apps/modelConversion
         ├── SeptoVtk.py
 
 This is a bilayer model of 100 cells in each dimension, and step sizes of 10 m. You can see the files of interest in the above tree. 
@@ -19,7 +19,7 @@ As there is a single dataset to convert, we will provide directly the SEP model 
 
 .. code-block:: bash
 
-    cd workflows/modelConversion
+    cd apps/modelConversion
     mpirun -np 4 python3 SeptoVtk.py --infile=../../examples/models/velBicouche100x100x100.H --outdir=../../modelOut --pn=mediumVelocity --out pvtu --nb1 2 --nb2 3 --nb3 2 --gids --v
 
 With this command line:
@@ -39,7 +39,7 @@ After the execution, the file tree looks like:
         ├── models/
             ├── velBicouche100x100x100.H
             └── velBicouche100x100x100.H@
-    ├── workflows/modelConversion/
+    ├── apps/modelConversion/
         ├── SeptoVtk.py
     ├── modelOut/
         ├── velBicouche100x100x100_0.vtu

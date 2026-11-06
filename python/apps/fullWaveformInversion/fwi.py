@@ -2,15 +2,15 @@ import numpy as np
 import argparse
 import h5py
 
-from utilities.acquisition import SEGYAcquisition
-from utilities.forwardBackward import func, \
+from makutu.acquisition import SEGYAcquisition
+from makutu.forwardBackward import func, \
                                       callback
-from utilities.imaging import initializeGlobalVariables, \
+from makutu.imaging import initializeGlobalVariables, \
                               setModelAsGlobal, \
                               gradf, \
                               Minimizer
-from utilities.imaging import globals as gb
-from utilities.solvers import AcousticSolver
+from makutu.imaging import globals as gb
+from makutu.solvers import AcousticSolver
 
 from mpi4py import MPI
 from mpi4py.util import pkl5

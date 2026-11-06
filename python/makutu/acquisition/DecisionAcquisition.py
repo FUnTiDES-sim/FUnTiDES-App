@@ -90,7 +90,7 @@ class DecisionAcquisition(Acquisition):
         """
         Retrieve the source and receiver data and traces from a decision file.
 
-        Delegates to :func:`utilities.acquisition.decision_reader.read_decision_file`.
+        Delegates to :func:`makutu.acquisition.decision_reader.read_decision_file`.
 
         Parameters
         ----------

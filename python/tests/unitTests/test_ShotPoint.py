@@ -1,7 +1,7 @@
 import pytest
 from contextlib import nullcontext as does_not_raise
 
-from utilities.acquisition import ShotPoint, Source, Receiver
+from makutu.acquisition import ShotPoint, Source, Receiver
 
 
 @pytest.mark.parametrize('sp', [ShotPoint, Source, Receiver])

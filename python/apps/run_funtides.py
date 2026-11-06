@@ -31,8 +31,8 @@ import yaml
 DEFAULT_METHOD = "sem"
 METHODS = ("sem", "dg", "dg-sem", "dg-padaptive")
 
-# The script lives in <project_root>/python/, so go one level up.
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# The script lives in <project_root>/python/apps/, so go two levels up.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def find_executable(root: Path, binary_name: str) -> Path:

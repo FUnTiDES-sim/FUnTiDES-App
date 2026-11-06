@@ -1,5 +1,14 @@
 # FUnTiDES-App
 
+Applications built on top of the FUnTiDES library:
+
+- **C++ drivers** (`examples/`, below): one example program per numerical method;
+- **Python** (`python/`): the `makutu` library (seismic modelling, imaging, FWI on
+  `pyfuntides`), its applications (`python/apps/`) and tests. See
+  [`python/README.md`](python/README.md).
+
+## C++ drivers
+
 Example programs built on top of the FUnTiDES library, one per numerical method.
 Each example is a single file that reads top to bottom: mesh, solver, source and
 receiver, time loop, outputs. Copy the one closest to your use case as a starting
@@ -19,7 +28,7 @@ acousto-elastic runs; the other examples are single-process.
 command-line options, cartesian mesh construction, source and receiver location,
 text outputs and timing.
 
-## Requirements
+### Requirements
 
 - An installed FUnTiDES (`cmake --install` of the FUnTiDES repository). An example
   is built only if FUnTiDES was built with its method (`COMPILE_SEM`, `COMPILE_DG`,
@@ -29,7 +38,7 @@ text outputs and timing.
 Kokkos is found through the FUnTiDES package configuration. Use the same C++
 compiler as the one FUnTiDES was built with.
 
-## Build
+### Build
 
 ```bash
 cmake -S . -B build \
@@ -40,7 +49,7 @@ cmake --build build -j4
 
 The executables are written to `build/bin/`.
 
-## Run
+### Run
 
 ```bash
 ./build/bin/funtides-sem --help
@@ -48,14 +57,14 @@ The executables are written to `build/bin/`.
 ./build/bin/funtides-dg-sem --dg-sem-boundary-z 1000 --rcvz 690
 ```
 
-Each example folder has a YAML file listing its options. `python/run_funtides.py`
+Each example folder has a YAML file listing its options. `python/apps/run_funtides.py`
 runs the executable named by the `method` key of such a file:
 
 ```bash
-python python/run_funtides.py examples/dg/dg_acoustic.yaml
+python python/apps/run_funtides.py examples/dg/dg_acoustic.yaml
 ```
 
-## Outputs
+### Outputs
 
 All outputs are plain text, written to the working directory.
 
@@ -65,7 +74,7 @@ All outputs are plain text, written to the working directory.
 - With `--snapshots`, `slice_*_<step>.dat` every `--snap-interval` steps: a plane of
   the field, one line per row of nodes (gnuplot: `plot 'file' matrix with image`).
 
-## Validation
+### Validation
 
 The validation compares the receiver traces of `funtides-sem` with analytical
 solutions for the acoustic and elastic cases, on cartesian and unstructured cartesian
@@ -84,3 +93,21 @@ source below the interface and their receiver above it, so the wave crosses it.
 cmake --build build --target validate_methods
 cd build && ctest -L analytical_dg-sem --output-on-failure   # one method
 ```
+
+## Python: makutu library and applications
+
+```sh
+source <FUnTiDES install>/funtides_env.sh   # kokkos, pyfuntides, tpl-venv
+cd python
+pip install -e ".[test]"                     # once
+make unitTests integratedTests               # about 1 min on a GPU
+```
+
+| Path | Contents |
+|---|---|
+| `python/makutu/` | the library: acquisition, mesh/model, solvers (acoustic/elastic SEM), I/O, imaging, FWI |
+| `python/apps/` | applications (modeling, FWI, display, model processing) and `run_funtides.py` |
+| `python/tests/` | unit and integrated tests |
+
+The applications import the library, never the reverse. Example data and models
+live in the sibling `FUn-examples/` directory.

@@ -16,8 +16,8 @@ classes to build your own applications.
 Organisation
 -----------------------
 The repository is organized into different sub-modules:
-   - :code:`utilities`: seismic-specific objects and utilities (mesh/model, solvers, acquisition, imaging, I/O). Drives FUnTiDES via :code:`pyfuntides`.
-   - :code:`workflows`: example use-case "main" scripts and basic visualization scripts.
+   - :code:`makutu`: the library, seismic-specific objects and utilities (mesh/model, solvers, acquisition, imaging, I/O). Drives FUnTiDES via :code:`pyfuntides`.
+   - :code:`apps`: applications (example use-case "main" scripts and basic visualization scripts).
 
 
 

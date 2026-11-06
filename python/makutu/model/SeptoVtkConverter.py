@@ -9,8 +9,8 @@ mpi4py.rc.finalize = True
 from mpi4py import MPI
 from mpi4py.util import pkl5
 
-from utilities.model.utils.SepModel import SEPModel, SEPHeader
-from utilities.model.utils.VtkModel import VTSModel, VTUModel, PVTKModel
+from makutu.model.utils.SepModel import SEPModel, SEPHeader
+from makutu.model.utils.VtkModel import VTSModel, VTUModel, PVTKModel
 
 if not MPI.Is_initialized():
     MPI.Init()

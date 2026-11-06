@@ -22,8 +22,8 @@ kokkos.initialize()
 import pyfuntides.solver as FTSolver  # noqa: E402
 
 import shots  # noqa: E402
-from utilities.mesh.InternalMesh import StructuredMesh  # noqa: E402
-from utilities.solvers import AcousticSolver  # noqa: E402
+from makutu.mesh.InternalMesh import StructuredMesh  # noqa: E402
+from makutu.solvers import AcousticSolver  # noqa: E402
 
 DT, TMAX = 0.001, 1.0
 # Receivers on both sides of every split of 2 or 3 ranks, two of them on the

@@ -4,7 +4,7 @@ Reservoir and reservoir-seismic coupling
 1. Reservoir workflow
 ======================
 
-An example of reservoir workflow is present in the folder :file:`workflows/reservoir/reservoir.py`.
+An example of reservoir workflow is present in the folder :file:`apps/reservoir/reservoir.py`.
 
 The input files are located in the :file:`example` subfolder. You will find the xml input file :file:`reservoir.xml`, and three parametric files used to define the initial conditions: :file:`co2flash.txt`, :file:`pvtgas.txt`, :file:`pvtliquidezrokhi.txt`.
 
@@ -18,7 +18,7 @@ The initialization starts with the definition of the solver using the class :cod
 
 Then you need to add the two necessary steps:
 
-.. literalinclude:: ../../../../workflows/reservoir/reservoir.py
+.. literalinclude:: ../../../../apps/reservoir/reservoir.py
     :language: python
     :lines: 16-25
     :linenos:
@@ -33,7 +33,7 @@ As the :code:`ReservoirSolver` is a non-linear solver, the time step is updated 
 
 You can see this update in the following time loop:
 
-.. literalinclude:: ../../../../workflows/reservoir/reservoir.py
+.. literalinclude:: ../../../../apps/reservoir/reservoir.py
     :language: python
     :lines: 27-37
     :linenos:

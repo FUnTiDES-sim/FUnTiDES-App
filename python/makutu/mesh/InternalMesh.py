@@ -186,8 +186,8 @@ class StructuredMesh:
 
         if vp_file is not None or partitioned:
             # --- Heterogeneous model: build ModelUnstruct from SEP data ----
-            from utilities.input.SEPReader import read_sep, sample_on_elements
-            from utilities.mesh.CartesianUnstructModel import (
+            from makutu.input.SEPReader import read_sep, sample_on_elements
+            from makutu.mesh.CartesianUnstructModel import (
                 build_cartesian_unstruct_model,
             )
 

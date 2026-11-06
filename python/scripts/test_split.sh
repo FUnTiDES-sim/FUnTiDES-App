@@ -1,6 +1,6 @@
-source env.sh && python3 -c "
+python3 -c "
 import kokkos; kokkos.initialize()
-from utilities.mesh.InternalMesh import _partition_1d
+from makutu.mesh.InternalMesh import _partition_1d
 
 # Simulate 30-element X domain across 4 ranks
 ex = 30

@@ -11,7 +11,7 @@ import numpy as np
 import pyfuntides.model as FTModel
 import pyfuntides.solver as FTSolver
 
-from utilities.solvers import AcousticSolver, ElasticSolver
+from makutu.solvers import AcousticSolver, ElasticSolver
 
 L = 1500.0          # domain size [m]
 NE = 30             # elements per direction

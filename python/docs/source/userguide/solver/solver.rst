@@ -20,8 +20,8 @@ the explicit time loop and seismogram extraction are driven from Python.
 |       ElasticSolver            |  SEM elastic (leapfrog)                         | VTI-parameterised         |
 +--------------------------------+------------------------------------------------+---------------------------+
 
-.. autoclass:: utilities.solvers.AcousticSolver.AcousticSolver
+.. autoclass:: makutu.solvers.AcousticSolver.AcousticSolver
     :members:
 
-.. autoclass:: utilities.solvers.ElasticSolver.ElasticSolver
+.. autoclass:: makutu.solvers.ElasticSolver.ElasticSolver
     :members:

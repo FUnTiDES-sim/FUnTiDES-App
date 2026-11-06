@@ -8,7 +8,7 @@ Two model types are provided:
                              (analogous to a salt body).
 
 Both functions write a SEP ``.H`` header and a ``.@`` binary file and return
-a :class:`~utilities.input.SEPReader.SEPModel` for immediate use.
+a :class:`~makutu.input.SEPReader.SEPModel` for immediate use.
 
 SEP axis convention used throughout
 ------------------------------------
@@ -17,14 +17,14 @@ SEP axis convention used throughout
   axis 3 (n3, d3, o3) → Z  (depth, slowest in binary)
 
 The on-disk binary layout is therefore ``data[iz, iy, ix]`` in C order,
-which matches the convention expected by :func:`~utilities.input.SEPReader.read_sep`.
+which matches the convention expected by :func:`~makutu.input.SEPReader.read_sep`.
 """
 
 import os
 
 import numpy as np
 
-from utilities.input.SEPReader import SEPModel
+from makutu.input.SEPReader import SEPModel
 
 
 # ---------------------------------------------------------------------------

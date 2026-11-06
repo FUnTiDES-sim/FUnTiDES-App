@@ -29,7 +29,7 @@ Usage
 -----
 Library::
 
-    from utilities.acquisition.decision_create import create_decision_files
+    from makutu.acquisition.decision_create import create_decision_files
     create_decision_files(
         shots,           # list of {"src": [x,y,z], "rcv": [[x,y,z], ...]}
         out="survey",

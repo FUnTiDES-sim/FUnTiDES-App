@@ -2,7 +2,7 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 
-from utilities.display import SEGYSeismicTrace
+from makutu.display import SEGYSeismicTrace
 
 
 if __name__ == "__main__":
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         
         if ext == ".H":
             fformat = "SEP"
-            from utilities.model import SEPModel
+            from makutu.model import SEPModel
             sepmodel = SEPModel(file)
 
             sepmodel.display2d(vmin=args.vmin, vmax=args.vmax, normFactor=args.nf)

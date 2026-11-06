@@ -1,8 +1,8 @@
 import numpy as np
 
-from utilities.acquisition import Acquisition
-from utilities.solvers import AcousticSolver
-from utilities.output import SEPTraceOutput
+from makutu.acquisition import Acquisition
+from makutu.solvers import AcousticSolver
+from makutu.output import SEPTraceOutput
 
 from mpi4py import MPI
 

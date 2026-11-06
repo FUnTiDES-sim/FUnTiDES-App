@@ -1,4 +1,4 @@
-source env.sh && python3 -c "
+python3 -c "
 import kokkos; kokkos.initialize()
 import pyfuntides.model as FTModel
 

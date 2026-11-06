@@ -1,116 +1,84 @@
 # makutu — Python seismic modelling & imaging on FUnTiDES
 
-`makutu` is a Python library for seismic forward modelling, imaging (RTM) and
-full-waveform inversion. It drives the
-[FUnTiDES](https://github.com/FUnTiDES-sim/FUnTiDES) spectral-element solvers
-through their `pyfuntides` Python bindings (zero-copy Kokkos view injection) and
-adds the acquisition, mesh/model, I/O and workflow layers on top.
+`makutu` is the Python part of FUnTiDES-App: a library for seismic forward
+modelling, imaging (RTM) and full-waveform inversion, and the applications built
+on it. It drives the [FUnTiDES](https://github.com/FUnTiDES-sim/FUnTiDES)
+spectral-element solvers through their `pyfuntides` Python bindings (zero-copy
+Kokkos view injection) and adds the acquisition, mesh/model, I/O and workflow
+layers on top.
 
 It began as a [GEOS-DEV/makutu](https://github.com/GEOS-DEV/makutu) `pygeosx`
-interface; it has since been **migrated off GEOS / pysabl / XML** to a
-pure-Python stack on FUnTiDES (the old upstream stays reachable as the
-`upstream` git remote).
+interface, then lived in the `makutu-lib` repository (proxy-FUn, then FUnTiDES)
+before moving here; its history is kept.
 
-## Repository layout
+## Layout
 
 | Path | Contents |
 |---|---|
-| `utilities/` | the core package (`import utilities…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display` |
-| `workflows/` | runnable end-to-end scripts, e.g. `workflows/modeling/examples/` |
-| `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI); run with `make unitTests` / `make integratedTests` after `source env.sh` |
-| `scripts/` | developer inspection / helper scripts |
+| `makutu/` | the library (`import makutu…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
+| `apps/` | applications: `modeling/examples`, `fullWaveformInversion`, `display`, `modelProcessing`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
+| `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI) |
 | `docs/` | `funtides_input_parameters.md` + Sphinx source |
+| `scripts/`, `validation/` | developer helper scripts, DAS validation scripts |
 
-Example data/models live in the sibling `../FUn-examples/` directory (SEAM
-acquisition test data, Marmousi SEP/Cubit models, …), kept out of the source
-tree.
+The applications import the library, never the reverse. Example data and
+models (SEAM acquisition, Marmousi SEP/Cubit models, …) live in the sibling
+`FUn-examples/` directory, next to FUnTiDES-App, out of the source tree.
 
 ## Requirements
 
-- **FUnTiDES**, installed with its Python bindings (`-DENABLE_PYWRAP=ON`). It
-  provides the `pyfuntides` modules and, through FUnTiDES-TPL, the `kokkos`
-  module and the Python virtual environment (`tpl-venv`). **These are not pip
-  packages.** Expected layout (default of `env.sh`):
-
-  ```
-  FUnTiDES-dir/
-  ├── FUnTiDES-TPL/      # third-party libraries (Kokkos, pykokkos-base, ADIOS2, ...)
-  ├── FUnTiDES/          # FUnTiDES sources
-  ├── FUnTiDES-install/  # TPL + FUnTiDES install, with funtides_env.sh
-  └── makutu-lib/        # this repo
-  ```
-
-- **Python packages** (in `tpl-venv`): `numpy`, `scipy`, `matplotlib`, `mpi4py`,
-  `h5py`, `segyio`, `vtk`, `pyevtk`, `numba` (`utilities.model` imports `vtk` and
-  `numba`), and `pytest` for the tests:
-
-  ```bash
-  pip install scipy h5py segyio vtk pyevtk numba pytest
-  ```
+- **FUnTiDES** installed with its Python bindings (`-DENABLE_PYWRAP=ON`): it
+  provides `pyfuntides` and, through FUnTiDES-TPL, the `kokkos` module and the
+  Python virtual environment (`tpl-venv`). These are **not** pip packages; see
+  the FUnTiDES README (Quick Start).
+- Python >= 3.10 with `numpy`, `scipy`, `matplotlib`, `mpi4py`, `h5py`, `segyio`,
+  `vtk`, `pyevtk`, `numba` (installed by `pip install` below) and `pytest` for
+  the tests.
 
 > **GPU.** makutu allocates its Kokkos arrays in the memory space and layout of
-> the FUnTiDES build (`CudaUVMSpace` + `LayoutLeft` with CUDA, `HostSpace` +
-> `LayoutRight` on CPU, see `utilities/tools/kokkosarrays.py`). It is tested with
-> the CUDA build. The polynomial orders available to the solvers are those
-> compiled in FUnTiDES (`MAX_SOLVER_ORDER`).
+> the FUnTiDES build (`CudaUVMSpace` + `LayoutLeft` with CUDA, see
+> `makutu/tools/kokkosarrays.py`); it is tested with the CUDA build. The
+> polynomial orders available to the solvers are those compiled in FUnTiDES
+> (`MAX_SOLVER_ORDER`). Pin the GPU with `CUDA_VISIBLE_DEVICES` on multi-GPU
+> machines (the applications default it to 0).
 
-## Build FUnTiDES (once)
-
-Follow the FUnTiDES README (Quick Start): install FUnTiDES-TPL with its virtual
-environment, then FUnTiDES with `-DENABLE_PYWRAP=ON`, both into
-`FUnTiDES-install`:
+## Installation
 
 ```bash
-FUnTiDES-TPL/install.sh --prefix=$(pwd)/FUnTiDES-install --enable-cuda --enable-venv
-source FUnTiDES-install/setup_env.sh
-cmake -S FUnTiDES -B FUnTiDES/build -DCMAKE_BUILD_TYPE=Release -DENABLE_PYWRAP=ON \
-      -DCMAKE_INSTALL_PREFIX=$(pwd)/FUnTiDES-install
-cmake --build FUnTiDES/build -j 8 && cmake --install FUnTiDES/build
+source <FUnTiDES install>/funtides_env.sh   # kokkos, pyfuntides, tpl-venv
+cd FUnTiDES-App/python
+pip install -e ".[test]"                     # once: makutu in editable mode
 ```
 
-## Environment
+## Tests
 
-Source `env.sh` — it sources `FUnTiDES-install/funtides_env.sh` (Kokkos,
-`pyfuntides`, `tpl-venv`) and puts this repo on `PYTHONPATH` so
-`import utilities` / `import workflows` resolve:
+From `FUnTiDES-App/python/`, with the environment above:
 
 ```bash
-source env.sh
+make unitTests          # acquisition, pure Python
+make integratedTests    # forward shots on FUnTiDES (about 1 min on a GPU; MPI tests launch mpirun)
 ```
-
-To use another FUnTiDES installation:
-
-```bash
-FUNTIDES_ENV=/path/to/funtides_env.sh source env.sh
-```
-
-`env.sh` also pins `CUDA_VISIBLE_DEVICES=0` (single-GPU UVM); override it before
-sourcing if needed. It can be sourced several times. There is **no
-`pip install` / `setup.py`** any more (the old editable install was removed with
-the GEOS migration) — `env.sh` alone makes the package importable.
 
 ## Quick start
 
 Run an acoustic one-shot forward model from a SEP velocity file:
 
 ```bash
-source env.sh
-python workflows/modeling/examples/acoustic_one_shot_unstruct_sep.py \
+python apps/modeling/examples/acoustic_one_shot_unstruct_sep.py \
     --vp-file <model.H> --f0 10 --order 2
 ```
 
-The driver builds a heterogeneous Cartesian mesh, runs the SEM acoustic solver
-through `pyfuntides`, and writes the seismogram to HDF5. See
-`workflows/modeling/examples/` for more (multi-shot acquisition,
-`model_from_sep.py`, …).
+The application builds a heterogeneous Cartesian mesh, runs the SEM acoustic
+solver through `pyfuntides`, and writes the seismogram to HDF5. See
+`apps/modeling/examples/` for more (multi-shot acquisition, `model_from_sep.py`, …).
 
 The Python API in a nutshell:
 
 ```python
 import kokkos; kokkos.initialize()
 import pyfuntides.solver as FTSolver
-from utilities.mesh.InternalMesh import StructuredMesh
-from utilities.solvers.AcousticSolver import AcousticSolver
+from makutu.mesh.InternalMesh import StructuredMesh
+from makutu.solvers.AcousticSolver import AcousticSolver
 
 mesh = StructuredMesh(lx, ly, lz, ex, ey, ez, order=2, vp_file="model.H")
 solver = AcousticSolver(
@@ -136,5 +104,5 @@ uses the `ModelUnstruct` backend (`mesh.heterogeneous` is True), so pass
 
 - [`docs/funtides_input_parameters.md`](docs/funtides_input_parameters.md) —
   FUnTiDES solver input parameters.
-- Sphinx source in `docs/source/` — build with `make -C docs html` (needs
-  `sphinx`); output lands in `docs/build/`.
+- Sphinx source in `docs/source/` — build with `make docs` (needs `sphinx`);
+  output lands in `docs/build/`.

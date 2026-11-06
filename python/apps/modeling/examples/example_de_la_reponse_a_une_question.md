@@ -18,9 +18,9 @@ From `acoustic_one_shot_unstruct_sep.py`, create `acquisition_acoustic_modeling.
 | File | Purpose |
 |---|---|
 | `acoustic_one_shot_unstruct_sep.py` | Reference implementation (single shot) |
-| `utilities/acquisition/decision_reader.py` | `read_decision_file()` API |
-| `utilities/acquisition/create_equispaced_segy.py` | SEG-Y write helpers |
-| `utilities/acquisition/SegyAcquisition.py` | SEG-Y reader pattern |
+| `makutu/acquisition/decision_reader.py` | `read_decision_file()` API |
+| `makutu/acquisition/create_equispaced_segy.py` | SEG-Y write helpers |
+| `makutu/acquisition/SegyAcquisition.py` | SEG-Y reader pattern |
 
 ### Key design decisions
 

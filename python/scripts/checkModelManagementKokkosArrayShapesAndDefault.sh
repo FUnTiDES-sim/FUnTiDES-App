@@ -1,4 +1,4 @@
-source env.sh && python3 -c "
+python3 -c "
 import kokkos; kokkos.initialize()
 import pyfuntides.solver as FTSolver
 import pyfuntides.model as M
@@ -10,7 +10,7 @@ m = b.get_model()
 
 # Check ModelManagement
 import sys; sys.path.insert(0, '.')
-from utilities.solvers.ModelManagement import geos_params_from_model
+from makutu.solvers.ModelManagement import geos_params_from_model
 kk_vp, kk_rho = geos_params_from_model(m)
 vp_arr = np.array(kk_vp, copy=False)
 rho_arr = np.array(kk_rho, copy=False)

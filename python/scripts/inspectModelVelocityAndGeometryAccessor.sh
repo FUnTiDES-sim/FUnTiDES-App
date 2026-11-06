@@ -1,4 +1,4 @@
-source env.sh && python3 -c "
+python3 -c "
 import kokkos; kokkos.initialize()
 import pyfuntides.model as M
 b = M.CartesianStructBuilder_f32_i32_O2(2, 100.0, 2, 100.0, 2, 100.0, False, False)

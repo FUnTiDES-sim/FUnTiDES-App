@@ -39,9 +39,9 @@ kokkos.initialize()
 
 import pyfuntides.solver as FTSolver
 
-from utilities.input.SEPReader import read_sep
-from utilities.mesh.InternalMesh import StructuredMesh
-from utilities.solvers import AcousticSolver
+from makutu.input.SEPReader import read_sep
+from makutu.mesh.InternalMesh import StructuredMesh
+from makutu.solvers import AcousticSolver
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import pytest
 
-from utilities.acquisition import ShotPointSet, Source, ShotPoint, Receiver, ReceiverSet, SourceSet
+from makutu.acquisition import ShotPointSet, Source, ShotPoint, Receiver, ReceiverSet, SourceSet
 
 
 # Initialization tests

@@ -15,7 +15,7 @@ The basic scheme is as follow:
 Starting fom an initial guess for the model :raw-html:`<strong>m<sub>0</sub></strong>`, the data model **m** is predicted through wave equation calculation. The model **m** is then compared to the real subsurface data observations and the cost function **J** is computed to evaluate the misfit. The model is updated and this iterative process goes on until the misfit is small enough to give a final model.
 
 
-An example of Full Waveform Inversion for the acoustic case is given in the :file:`workflows/fullWaveformInversion` folder.
+An example of Full Waveform Inversion for the acoustic case is given in the :file:`apps/fullWaveformInversion` folder.
 
 
 1. Required files
@@ -72,7 +72,7 @@ You can find below the structure of a command line launching a FWI run, with a c
 
 ::
 
-    cd workflows/fullWaveformInversion
+    cd apps/fullWaveformInversion
     Launcher --np=12 --ppn=6 --server_queue=Q_SER --queue=Q_CLI --nb_clients=2 --gpn=6 --flag_cliser python3 fwi.py --xml xmlfile.xml flag_cli_ser=1 --param_file parameter_file.txt --mname velocityVp
 
 
@@ -87,7 +87,7 @@ The intermediate cost functions, as well as partial cost functions and gradients
 Note that you can also use the full debug mode if you wish to save all IO and all residual and seismic traces. Use the flag :code:`--dbg+` in the command line.
 
 
-The visualization scripts are available in the :file:`workflows/display` folder. You will find below examples of command lines for the outputs.
+The visualization scripts are available in the :file:`apps/display` folder. You will find below examples of command lines for the outputs.
 
 
 3.1 Velocity model
@@ -133,7 +133,7 @@ Example of command line:
 3.4 Residual
 ++++++++++++++
 The computed residuals are saved in the :file:`residual` folder with the filename :file:`seismoTrace_shot{ID}_{sourceFrequency}.segy`. 
-You can also use the script :file:`workflows/display/showSeismicTraces.py` to visualize the residuals, with a similar command line as in the previous section.
+You can also use the script :file:`apps/display/showSeismicTraces.py` to visualize the residuals, with a similar command line as in the previous section.
 
 
 

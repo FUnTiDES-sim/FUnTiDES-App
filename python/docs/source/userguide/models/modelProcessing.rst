@@ -3,7 +3,7 @@ Model processing
 
 1. Conversion SEP to VTK
 ===========================
-The script :code:`SeptoVtk.py` in the :code:`workflows` directory can be used to convert easily models from SEP format (.H) to VTK format (.vtu, .vts, .pvtu, .pvts) thanks to a parser. 
+The script :code:`SeptoVtk.py` in the :code:`apps` directory can be used to convert easily models from SEP format (.H) to VTK format (.vtu, .vts, .pvtu, .pvts) thanks to a parser. 
 
 You can access the available options and parameters by calling the parser help:
 
@@ -47,7 +47,7 @@ You can access the available options and parameters by calling the parser help:
 You will find below some examples of command line for the different types of model conversion, for sequential and parallel execution. Please refer to `Tutorial 1 <../tutorial/tutorial1.html>`_ for a practical example.
 
 
-**Don't forget to install the `utilities` package of the makutu repository before trying the following command lines.**
+**Don't forget to install the makutu package (``pip install -e .`` in FUnTiDES-App/python) before trying the following command lines.**
 (see `Configuration <../configuration/configuration.html>`_)
 
 
