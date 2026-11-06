@@ -17,7 +17,7 @@ before moving here; its history is kept.
 |---|---|
 | `makutu/` | the library (`import makutu…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
 | `apps/` | applications: `modeling/examples`, `fullWaveformInversion`, `display`, `modelProcessing`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
-| `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI) |
+| `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI, 2-D against the exact solution) |
 | `docs/` | `funtides_input_parameters.md` + Sphinx source |
 | `scripts/`, `validation/` | developer helper scripts, DAS validation scripts |
 
@@ -56,7 +56,7 @@ From `FUnTiDES-App/python/`, with the environment above:
 
 ```bash
 make unitTests          # acquisition, pure Python
-make integratedTests    # forward shots on FUnTiDES (about 1 min on a GPU; MPI tests launch mpirun)
+make integratedTests    # forward shots on FUnTiDES (about 2 min on a GPU; MPI tests launch mpirun)
 ```
 
 ## Quick start
@@ -95,7 +95,21 @@ for t in range(solver.n_time_steps):
 seismogram = solver.getPressureAtReceivers()   # (n_samples, n_receivers)
 ```
 
-MPI is supported (1-D X-axis domain decomposition) via `mpi4py`; pass a
+**2-D.** With a FUnTiDES built with `COMPILE_SEM_2D`, `makutu.mesh.CartesianMesh2D`
+builds a 2-D (x, z) quadrilateral mesh (z up, free surface on top), homogeneous,
+from arrays or from 2-D SEP files; the solvers detect the dimension from the model
+(acoustic only, single process). Coordinates stay `[x, y, z]` lists, y being ignored:
+
+```python
+from makutu.mesh import CartesianMesh2D
+mesh = CartesianMesh2D(lx, lz, ex, ez, order=4, vp_file="Vp_xz.H")
+solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
+                        dt=dt, maxTime=tmax, sourceType="ricker2", sourceFreq=f0, **mesh.solver_kwargs())
+```
+
+See `apps/modeling/examples/acoustic_marmousi_2d.py`.
+
+MPI is supported in 3-D (1-D X-axis domain decomposition) via `mpi4py`; pass a
 communicator to the mesh/solver constructors. A partitioned `StructuredMesh`
 uses the `ModelUnstruct` backend (`mesh.heterogeneous` is True), so pass
 `MeshType.UNSTRUCT` to the solver.

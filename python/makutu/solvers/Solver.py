@@ -79,7 +79,10 @@ class Solver:
         self.model = model
         self.order = order
         self.implem_type = implem_type
-        self.mesh_type = mesh_type
+        # Space dimension from the model: 2 for a 2-D (x, z) quadrilateral mesh,
+        # which is always an unstructured FUnTiDES mesh.
+        self.dim = model.get_dimension() if hasattr(model, "get_dimension") else 3
+        self.mesh_type = FTSolver.MeshType.UNSTRUCT if self.dim == 2 else mesh_type
         self.physic_type = physic_type
         self.model_location = (model_location if model_location is not None
                                else FTSolver.ModelLocationType.ONELEMENTS)
@@ -105,6 +108,7 @@ class Solver:
             self.model_location,
             self.physic_type,
             self.order,
+            dim=self.dim,
         )
         self.solver.compute_fe_init(
             self.model, self.sponge_size, self.surface_sponge, self.taper_delta

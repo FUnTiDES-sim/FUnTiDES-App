@@ -1,6 +1,7 @@
 """Mesh"""
 
 from .InternalMesh import StructuredMesh, UnstructuredMesh, InternalMesh
+from .CartesianModel2D import CartesianMesh2D, build_cartesian_2d_model, sample_sep_2d, gll_points
 
 try:
     from .VtkMesh import VTKMesh, VTKSubMesh

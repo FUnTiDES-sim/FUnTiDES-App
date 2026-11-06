@@ -34,6 +34,19 @@ def _lagrange_weights_1d(xi, pts):
     return w
 
 
+def _lagrange_weights_2d(xi_x, xi_z, order):
+    """
+    Compute (order+1)^2 Lagrange basis weights at local coords (xi_x, xi_z) of a
+    2-D quadrilateral, in the FUnTiDES local node layout ``node = i_x + i_z * n``.
+    """
+    pts = _GLL_POINTS.get(order)
+    if pts is None:
+        raise ValueError(f"GLL points not tabulated for order {order} (supported: 1-5)")
+    wx = _lagrange_weights_1d(xi_x, pts)
+    wz = _lagrange_weights_1d(xi_z, pts)
+    return np.outer(wz, wx).ravel().astype(np.float32)   # [iz, ix] -> ix + iz*n
+
+
 def _lagrange_weights_3d(xi_x, xi_y, xi_z, order):
     """
     Compute (order+1)^3 Lagrange basis weights at local coords (xi_x, xi_y, xi_z).
@@ -233,6 +246,9 @@ class WaveSolver(Solver):
 
         if self.dtSeismo is None:
             self.dtSeismo = self.dt
+
+        if self.dim == 2 and self._mpi_active():
+            raise NotImplementedError("MPI domain decomposition is not available in 2-D yet")
 
         # Build BoundaryComm BEFORE super().initialize() so that
         # Solver._sync_mass_matrix() can find it.
@@ -530,6 +546,14 @@ class WaveSolver(Solver):
     # ------------------------------------------------------------------
 
     def _check_mesh_params(self):
+        if self.dim == 2:
+            # 2-D (x, z) mesh: no y direction
+            if any(v is None for v in (self.lx, self.lz, self.ex, self.ez)):
+                raise ValueError(
+                    "lx, lz, ex, ez must be set on the solver to use "
+                    "coordinate-based source/receiver placement in 2-D."
+                )
+            return
         if any(v is None for v in (self.lx, self.ly, self.lz, self.ex, self.ey, self.ez)):
             raise ValueError(
                 "lx, ly, lz, ex, ey, ez must be set on the solver to use "
@@ -566,6 +590,10 @@ class WaveSolver(Solver):
                 f"[{self.origin_x}, {self.origin_x + self.lx})"
             )
         ix = min(ix, self.ex - 1)
+        if self.dim == 2:
+            # 2-D (x, z) mesh: element ix + iz * ex, y ignored
+            iz = max(0, min(int(z / (self.lz / self.ez)), self.ez - 1))
+            return ix + iz * self.ex
         iy = min(int(y / (self.ly / self.ey)), self.ey - 1)
         iz = min(int(z / (self.lz / self.ez)), self.ez - 1)
         return ix + iy * self.ex + iz * self.ex * self.ey
@@ -587,16 +615,21 @@ class WaveSolver(Solver):
         """
         self._check_mesh_params()
         nx = self.ex * self.order + 1
-        ny = self.ey * self.order + 1
         nz = self.ez * self.order + 1
         # Node spacing is global (identical across ranks)
         dx = self.lx / (nx - 1)
-        dy = self.ly / (ny - 1)
         dz = self.lz / (nz - 1)
         x_local = x - self.origin_x
         ix = int(round(x_local / dx))
         if ix < 0 or ix >= nx:
             return -1   # receiver not on this rank
+        if self.dim == 2:
+            # 2-D (x, z) mesh: node ix + iz * nx, y ignored (nearest grid line,
+            # exact on the element edges; GLL interior nodes are not uniform)
+            iz = max(0, min(int(round(z / dz)), nz - 1))
+            return ix + iz * nx
+        ny = self.ey * self.order + 1
+        dy = self.ly / (ny - 1)
         iy = max(0, min(int(round(y / dy)), ny - 1))
         iz = max(0, min(int(round(z / dz)), nz - 1))
         return ix + iy * nx + iz * nx * ny
@@ -620,13 +653,19 @@ class WaveSolver(Solver):
         """
         self._check_mesh_params()
         hx = self.lx / self.ex
-        hy = self.ly / self.ey
         hz = self.lz / self.ez
         x_local = x - self.origin_x
         ix = int(x_local / hx)
         if x_local < 0.0 or ix >= self.ex:
             return -1, None    # receiver is on another MPI rank
         ix = min(ix, self.ex - 1)
+        if self.dim == 2:
+            # 2-D (x, z) quadrilateral: element ix + iz * ex, weights ix + iz * n
+            iz = max(0, min(int(z / hz), self.ez - 1))
+            xi_x = float(np.clip(2.0 * (x_local - ix * hx) / hx - 1.0, -1.0, 1.0))
+            xi_z = float(np.clip(2.0 * (z - iz * hz) / hz - 1.0, -1.0, 1.0))
+            return ix + iz * self.ex, _lagrange_weights_2d(xi_x, xi_z, self.order)
+        hy = self.ly / self.ey
         iy = min(int(y / hy), self.ey - 1)
         iz = min(int(z / hz), self.ez - 1)
         elem_idx = ix + iy * self.ex + iz * self.ex * self.ey
@@ -659,14 +698,25 @@ class WaveSolver(Solver):
         self._check_mesh_params()
         src_elements = []
         src_active = []
-        for x, y, z in source_coords:
-            try:
-                idx = self.coordToElementIndex(x, y, max(z, self.lz / self.ez * 0.01))
-                src_elements.append(idx)
-                src_active.append(True)
-            except ValueError:
-                src_elements.append(0)   # placeholder; weights zeroed below
-                src_active.append(False)
+        if self.dim == 2:
+            # 2-D: point sources with their Lagrange weights (y is ignored)
+            src_weights = []
+            for x, y, z in source_coords:
+                idx, w = self.coordToReceiverElementAndWeights(x, y, z)
+                src_active.append(idx >= 0)
+                src_elements.append(max(idx, 0))
+                src_weights.append(w if idx >= 0 else np.zeros((self.order + 1) ** 2, np.float32))
+            if sourceWeights is None:
+                sourceWeights = np.array(src_weights, dtype=np.float32)
+        else:
+            for x, y, z in source_coords:
+                try:
+                    idx = self.coordToElementIndex(x, y, max(z, self.lz / self.ez * 0.01))
+                    src_elements.append(idx)
+                    src_active.append(True)
+                except ValueError:
+                    src_elements.append(0)   # placeholder; weights zeroed below
+                    src_active.append(False)
 
         # Compute receiver element indices + GLL interpolation weights
         rcv_elems, rcv_weights, rcv_nodes = [], [], []
@@ -730,9 +780,18 @@ class WaveSolver(Solver):
     def _receiverElementNodes(self, elements):
         """
         Global node indices of the receiver elements, shape (n_rcv, (order+1)^3),
-        in the layout of the receiver weights: ix*n² + iy*n + iz.
+        in the layout of the receiver weights: ix*n² + iy*n + iz; in 2-D shape
+        (n_rcv, (order+1)^2), layout ix + iz*n.
         """
         n = self.order + 1
+        if self.dim == 2:
+            # 2-D (x, z) quadrilateral: layout ix + iz * n (j is ignored by the model)
+            nodes = np.empty((len(elements), n ** 2), dtype=np.int64)
+            for r, e in enumerate(elements):
+                for iz in range(n):
+                    for ix in range(n):
+                        nodes[r, ix + iz * n] = self.model.global_node_index(int(e), ix, 0, iz)
+            return nodes
         nodes = np.empty((len(elements), n ** 3), dtype=np.int64)
         for r, e in enumerate(elements):
             for ix in range(n):

@@ -14,6 +14,7 @@ with `--help`.
 | `model_from_sep.py` | One acoustic shot on a heterogeneous mesh built from a SEP Vp file; seismogram in HDF5 |
 | `acoustic_one_shot_unstruct_sep.py` | Same, with the mesh and time step derived from the SEP model |
 | `acquisition_acoustic_modeling.py` | Multi-shot acoustic modeling driven by a decision file; one SEG-Y file per shot |
+| `acoustic_marmousi_2d.py` | 2-D acoustic shot on Marmousi (`FUnTiDES-data/SEP/marmousi`) with the 2-D SEM solver; gather in HDF5, figure (model, snapshot, gather) in PNG. About 2 min on a GPU (order 4, 350 000 nodes, 4 s) |
 
 For example:
 
