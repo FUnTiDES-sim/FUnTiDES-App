@@ -15,7 +15,10 @@ pytestmark = pytest.mark.skipif(shutil.which("mpirun") is None, reason="mpirun n
 
 def run_shot(nranks, output):
     cmd = ["mpirun", "-np", str(nranks), "--oversubscribe", sys.executable, SCRIPT, str(output)]
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    # env: the Python copy of the environment. If MPI was initialised in this process
+    # (makutu imports mpi4py.MPI), OpenMPI has changed the C environment, and an
+    # mpirun child inheriting it fails.
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=dict(os.environ))
     assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
     return np.load(output).astype(np.float64)
 
@@ -34,3 +37,14 @@ def test_decomposition_matches_single_process(tmp_path, reference, nranks):
     assert split.shape == ref.shape
     # Same discretization, only the summation order of the shared nodes differs
     assert np.linalg.norm(split - ref) / np.linalg.norm(ref) < 1e-4
+
+
+def test_forward_chain_with_mpi(tmp_path):
+    """Two ranks: seismograms exported by rank 0, cost function ~ 0 on these data."""
+    script = os.path.join(os.path.dirname(__file__), "mpi_forward_cost.py")
+    cmd = ["mpirun", "-np", "2", "--oversubscribe", sys.executable, script, str(tmp_path)]
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=dict(os.environ))
+    assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+    r = np.load(tmp_path / "result.npz")
+    assert r["data"].shape == (301, 14) and np.abs(r["data"]).max() > 0
+    assert r["J"] < 1e-8 * r["energy"]

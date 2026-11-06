@@ -1,6 +1,5 @@
 import numpy as np
 import mpi4py
-mpi4py.rc.initialize = False
 from mpi4py import MPI
 from mpi4py.util import pkl5
 

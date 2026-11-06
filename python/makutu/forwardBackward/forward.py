@@ -2,13 +2,10 @@ import os
 import numpy as np
 
 import mpi4py
-mpi4py.rc.initialize = False
 from mpi4py import MPI
 from mpi4py.util import pkl5
 from ..imaging import globals as gb
 from ..output.SEGYTraceOutput import SEGYTraceOutput
-from ..tools.filter import frequencyFilter
-from ..tools.interpolate import linearInterpolation
 from .costFunction import ComputeCostFunction, \
                           ComputeResidual
 
@@ -74,7 +71,7 @@ def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeC
         if computeCostFunction:
             # set cost function
             computeCostFunctionObj = ComputeCostFunction( directory=pCostDir,
-                                                          dt=solver.dtSeismo,
+                                                          dt=solver.dtSeismoRecorded,
                                                           rootname="partialCost_"+shot.id
             ).computePartialCostFunction
 
@@ -82,7 +79,7 @@ def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeC
             drootname, dformat, dext = dinfo.split(";")
             filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
 
-            computeResidual = ComputeResidual( filename, filtering=[frequencyFilter, freqFilter, solver.dtSeismo] , interpolate=[linearInterpolation, solver.maxTime, solver.dt, solver.dtSeismo] ).computeResidual
+            computeResidual = ComputeResidual(filename, dt=solver.dtSeismoRecorded, fmax=freqFilter).computeResidual
 
         else:
             exportResidual=False
@@ -137,7 +134,7 @@ def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirecto
                                    )
         pressOut.export(receiverCoords=shot.getReceiverCoords(),
                         sourceCoords=shot.getSourceCoords()[0],
-                        dt=solver.dtSeismo,
+                        dt=solver.dtSeismoRecorded,
                         comm=comm)
 
     # residual and cost function calculation
@@ -157,12 +154,16 @@ def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirecto
                         )
             residualOut.export(receiverCoords=shot.getReceiverCoords(),
                                sourceCoords=shot.getSourceCoords()[0],
-                               dt=solver.dtSeismo,
+                               dt=solver.dtSeismoRecorded,
                                comm=comm)
 
 
 def forward(solver, shot, comm, outputWaveField=-1):
-    """Solves forward problem.
+    """Solves forward problem: runs the time loop of the current shot.
+
+    The wavefield and the seismograms are kept at the end (read them with
+    ``solver.getWaveField()``); reset the solver (``solver.resetWaveField()``)
+    before the next shot.
 
     Parameters
     ----------
@@ -190,5 +191,3 @@ def forward(solver, shot, comm, outputWaveField=-1):
             print("time = %.3fs," % (cycle * dt), "dt = %.4f," % dt, "iter =", cycle + 1)
 
         solver.execute(cycle)
-
-    solver.resetWaveField()

@@ -101,11 +101,12 @@ class ElasticSolver(WaveSolver):
             self._allocateSeismogram()
 
     def _allocateSeismogram(self):
-        n_seismo = int(round((self.maxTimeSim - self.minTimeSim) / self.dtSeismo)) + 1
+        self._seismo_step = self.seismoStep
+        # one sample every _seismo_step time steps, from step 0
+        n_seismo = (self.n_time_steps - 1) // self._seismo_step + 1
         n_receivers = len(self.receiverNodeIndices)
         for attr in ("_seismogram_x", "_seismogram_y", "_seismogram_z"):
             setattr(self, attr, np.zeros((n_seismo, n_receivers), dtype=np.float64))
-        self._seismo_step = max(1, int(round(self.dtSeismo / self.dt)))
         self._rcv_elem_nodes = None   # receivers changed: recompute on next record
 
     def updateSourceAndReceivers(self,

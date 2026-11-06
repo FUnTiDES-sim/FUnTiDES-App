@@ -2,7 +2,6 @@ import os
 import numpy as np
 
 import mpi4py
-mpi4py.rc.initialize = False
 from mpi4py import MPI
 from mpi4py.util import pkl5
 
@@ -10,14 +9,12 @@ import h5py
 
 from ..forwardBackward.forward import forward
 from ..forwardBackward.backward import backward
-from ..forwardBackward.costFunction import computeFullCostFunction, \
+from ..forwardBackward.costFunction import computeFullCostFunction, frequencyTag, \
                                            ComputeCostFunction, \
                                            ComputeResidual
 
-from ..tools.interpolate import linearInterpolation
 from ..output.SEGYTraceOutput import SEGYTraceOutput
 from ..imaging import globals as gb
-from ..tools.filter import frequencyFilter
 
 Nfeval = 1
 
@@ -84,7 +81,7 @@ def gradientComputation(iacq, dataDirectory, gradDirectory="partialGradient", ex
             if iterfwi is not None:
                 pCostDir += f"_{iterfwi}_G"
             computeCostFunction = ComputeCostFunction( directory=pCostDir,
-                                                       dt=solver.dtSeismo,
+                                                       dt=solver.dtSeismoRecorded,
                                                        rootname="partialCost_"+shot.id
             ).computePartialCostFunction
         else:
@@ -94,10 +91,7 @@ def gradientComputation(iacq, dataDirectory, gradDirectory="partialGradient", ex
         drootname, dformat, dext = dinfo.split(";")
         filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
 
-        computeResidual = ComputeResidual( filename, 
-                                           filtering=[frequencyFilter, freqFilter, solver.dtSeismo],
-                                           interpolate=[linearInterpolation, solver.maxTime, solver.dt, solver.dtSeismo] 
-        ).computeResidual
+        computeResidual = ComputeResidual(filename, dt=solver.dtSeismoRecorded, fmax=freqFilter).computeResidual
 
         # Compute shot gradient
         partialGradientComputation(solver, shot, dataDirectory, comm, exportSeismicTrace, traceDirectory, gradDirectory, computeResidual, exportResidual, iterfwi=iterfwi, computeCF=computeCostFunction)
@@ -161,7 +155,7 @@ def partialGradientComputation(solver, shot, dataDirectory, comm, exportSeismicT
                     )
         pressOut.export(receiverCoords=shot.getReceiverCoords(),
                         sourceCoords=shot.getSourceCoords()[0],
-                        dt=solver.dtSeismo,
+                        dt=solver.dtSeismoRecorded,
                         comm=comm)
 
     simulatedData = solver.getFullWaveFieldAtReceivers(comm)
@@ -179,7 +173,7 @@ def partialGradientComputation(solver, shot, dataDirectory, comm, exportSeismicT
         )
         residualOut.export(receiverCoords=shot.getReceiverCoords(),
                            sourceCoords=shot.getSourceCoords()[0],
-                           dt=solver.dtSeismo,
+                           dt=solver.dtSeismoRecorded,
                            comm=comm)
     
     if rank == 0 and computeCF is not None:
@@ -382,7 +376,7 @@ def gradf( x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace
         nfiles = len( gb.acquisition.shots )
 
         save = True if gb.mode == "DBG" else False
-        J = computeFullCostFunction( nfiles, pCostDir, sfile=f"fullCostFunction{int(gb.freqList[ifreq])}.txt", save=save )
+        J = computeFullCostFunction( nfiles, pCostDir, sfile=f"fullCostFunction{frequencyTag(gb.freqList[ifreq])}.txt", save=save )
         
         return gradJ, J
     

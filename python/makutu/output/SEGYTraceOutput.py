@@ -2,7 +2,6 @@ import os
 import numpy as np
 
 import mpi4py
-mpi4py.rc.initialize = False
 from mpi4py import MPI
 from mpi4py.util import pkl5
 
@@ -104,24 +103,15 @@ class SEGYTraceOutput:
                                    segyio.su.gx : int( rcv[0] / abs( scalco ) ** np.sign( scalco )),
                                    segyio.su.gy : int( rcv[1] / abs( scalco ) ** np.sign( scalco )),
                                    segyio.su.gelev : int( rcv[2] / abs( scalel )** np.sign ( scalel )),
-                                   segyio.su.dt : int( dt * 1e6 ),
+                                   segyio.su.dt : int( round( dt * 1e6 )),
                                    segyio.su.ns : nsamples
                     }
-                    f.trace[i] = np.zeros( nsamples, dtype=np.float32 )
-                f.bin.update( tsort=segyio.TraceSortingFormat.INLINE_SORTING,
-                             hdt=int( dt*1e6 ),
-                             dto=int( dt*1e6 )
-                )
-
-        comm.Barrier()
-        
-        # Save data to segy file
-        with segyio.open( self.filename, 'r+', ignore_geometry=True ) as f:
-            for i in range( len( receiverCoords )):
-                if any( self.data[1:,i] ) == True:
+                    # every rank holds the whole gather (MPI reduce): rank 0 writes it
                     f.trace[i] = np.ascontiguousarray( self.data[:,i], dtype=np.float32 )
-
-        if rank == 0:
+                f.bin.update( tsort=segyio.TraceSortingFormat.INLINE_SORTING,
+                             hdt=int( round( dt*1e6 )),
+                             dto=int( round( dt*1e6 ))
+                )
             print( f"Seismic traces saved in {self.filename}" )
 
         comm.Barrier()

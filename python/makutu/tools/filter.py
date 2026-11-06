@@ -29,8 +29,8 @@ def frequencyFilter(signal, fmax, dt, padding=False):
     n = signal.shape[0] + 2*pad
 
     tf = fftfreq(n, dt)
-    y_fft = np.zeros((n,signal.shape[1]), dtype="complex_")
-    y = np.zeros(y_fft.shape, dtype="complex_")
+    y_fft = np.zeros((n,signal.shape[1]), dtype=np.complex128)
+    y = np.zeros(y_fft.shape, dtype=np.complex128)
 
     for i in range(y_fft.shape[1]):
         y_fft[pad:n-pad,i] = signal[:,i]

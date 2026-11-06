@@ -69,9 +69,10 @@ class AcousticSolver(WaveSolver):
 
     def _allocateSeismogram(self):
         n_receivers = len(self.receiverNodeIndices)
-        n_seismo = int(round((self.maxTimeSim - self.minTimeSim) / self.dtSeismo)) + 1
+        self._seismo_step = self.seismoStep
+        # one sample every _seismo_step time steps, from step 0
+        n_seismo = (self.n_time_steps - 1) // self._seismo_step + 1
         self._seismogram = np.zeros((n_seismo, n_receivers), dtype=np.float32)
-        self._seismo_step = max(1, int(round(self.dtSeismo / self.dt)))
         self._seismo_idx = 0    # number of time samples actually recorded
 
         if self.receiverElementIndices is not None:

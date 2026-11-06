@@ -22,7 +22,11 @@ python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file ../../FUnTiDES
 
 The modelling path (`makutu.mesh`, `makutu.solvers`, acquisition, outputs) runs on
 FUnTiDES and is covered by `tests/integratedTests` (3-D acoustic and elastic, MPI, 2-D).
-The inversion chain is not: `fullWaveformInversion/fwi.py` still builds `AcousticSolver`
-with its former positional signature (no model or mesh), and the `makutu.forwardBackward`
-and `makutu.imaging` modules it drives (forward/backward runs, gradients, cost function)
-have not been run on FUnTiDES yet.
+The forward part of the inversion chain (`makutu.forwardBackward`: shots of an
+acquisition, SEG-Y export, residual against observed SEG-Y data, cost function, `func`
+for the optimiser) runs on FUnTiDES and is tested (`test_forward_cost.py`, and with MPI in
+`test_mpi_decomposition.py`); `func` and `callback` write the model to HDF5 in a single
+process only. The adjoint part is not: `backward`/`adjointSimulation` and the gradients
+of `makutu.imaging` need a gradient computation that does not exist yet
+(`computePartialGradient` raises NotImplementedError), and `fullWaveformInversion/fwi.py`
+still builds `AcousticSolver` with its former positional signature (no model or mesh).

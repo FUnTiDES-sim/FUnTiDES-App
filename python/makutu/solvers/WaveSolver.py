@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.fftpack import fftfreq, ifft, fft
 
 import kokkos
 import pyfuntides.solver as FTSolver
@@ -409,10 +408,20 @@ class WaveSolver(Solver):
         if self.sourceValue is not None:
             self.evaluateSource()
 
+    @property
+    def seismoStep(self):
+        """Time steps between two seismogram samples: round(dtSeismo / dt), at least 1."""
+        return max(1, int(round(self.dtSeismo / self.dt)))
+
+    @property
+    def dtSeismoRecorded(self):
+        """Actual seismogram sampling [s]: seismoStep * dt (may differ from dtSeismo)."""
+        return self.seismoStep * self.dt
+
     def filterSource(self, fmax):
         """
-        Low-pass filter the source waveform and update kk_RHSTerm.
-        May extend/trim minTimeSim and maxTimeSim to avoid discontinuities.
+        Low-pass filter the source waveform (cosine taper from fmax to fmax + 1 Hz)
+        and update kk_RHSTerm; the time axis is unchanged.
 
         Parameters
         ----------
@@ -421,61 +430,8 @@ class WaveSolver(Solver):
         """
         if str(fmax) == "all":
             return
-
-        minTime = self.minTime
-        maxTime = self.maxTime
-        dt = self.dt
-        sourceValue = self.sourceValue
-
-        pad = int(round(sourceValue.shape[0] / 2))
-        n = sourceValue.shape[0] + 2 * pad
-
-        tf = fftfreq(n, dt)
-        y_fft = np.zeros((n, sourceValue.shape[1]), dtype="complex_")
-        y = np.zeros(y_fft.shape, dtype="complex_")
-
-        for i in range(y_fft.shape[1]):
-            y_fft[pad:n - pad, i] = sourceValue[:, i]
-            y_fft[:, i] = fft(y_fft[:, i])
-
-        isup = np.where(tf >= fmax)[0]
-        imax = np.where(tf[isup] >= fmax + 1)[0][0]
-        i1 = isup[0]
-        i2 = isup[imax]
-
-        iinf = np.where(tf <= -fmax)[0]
-        imin = np.where(tf[iinf] <= -fmax - 1)[0][-1]
-        i3 = iinf[imin]
-        i4 = iinf[-1]
-
-        for i in range(y_fft.shape[1]):
-            y_fft[i1:i2, i] = np.cos((isup[0:imax] - i1) / (i2 - i1) * np.pi / 2) ** 2 * y_fft[i1:i2, i]
-            y_fft[i3:i4, i] = np.cos((iinf[imin:-1] - i4) / (i3 - i4) * np.pi / 2) ** 2 * y_fft[i3:i4, i]
-            y_fft[i2:i3, i] = 0
-
-        for i in range(y.shape[1]):
-            y[:, i] = ifft(y_fft[:, i])
-
-        it0 = int(round(abs(minTime / dt))) + pad
-        d = int(round(1 / fmax / dt))
-
-        i1 = max(it0 - 4 * d, 0)
-        i2 = int(round(i1 + d / 4))
-        i4 = min(n, n - pad + 4 * d)
-        i3 = int(round(i4 - d / 4))
-
-        for i in range(y.shape[1]):
-            y[i1:i2, i] = np.cos((np.arange(i1, i2) - i2) / (i2 - i1) * np.pi / 2) ** 2 * y[i1:i2, i]
-            y[i3:i4, i] = np.cos((np.arange(i3, i4) - i3) / (i4 - i3) * np.pi / 2) ** 2 * y[i3:i4, i]
-            y[max(i1 - d, 0):i1, i] = 0.0
-            y[i4:min(i4 + d, n), i] = 0.0
-
-        t = np.arange(minTime - pad * dt, maxTime + pad * dt + dt / 2, dt)
-
-        filtered = np.real(y[max(i1 - d, 0):min(i4 + d, n), :])
-        self.updateSourceValue(filtered)
-        self.minTimeSim = t[max(i1 - d, 0)]
-        self.maxTimeSim = t[min(i4 + d, n - 1)]
+        from ..tools.filter import frequencyFilter
+        self.updateSourceValue(frequencyFilter(self.sourceValue, float(fmax), self.dt))
 
     # ------------------------------------------------------------------
     # Model update
