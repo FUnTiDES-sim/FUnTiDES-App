@@ -158,7 +158,7 @@ def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirecto
                                comm=comm)
 
 
-def forward(solver, shot, comm, outputWaveField=-1):
+def forward(solver, shot, comm, snapshotStep=None):
     """Solves forward problem: runs the time loop of the current shot.
 
     The wavefield and the seismograms are kept at the end (read them with
@@ -173,21 +173,11 @@ def forward(solver, shot, comm, outputWaveField=-1):
             Contains all informations on current shot
         comm : MPI_COMM
             MPI communicators
-        outputWaveField : int
-            Output interval for the Wavefield (not used with pyfuntides)
+        snapshotStep : int, optional
+            Keep the second time derivative of the pressure every snapshotStep
+            steps, for the gradient (``backward``); default None keeps nothing
     """
-    rank = comm.Get_rank()
-
-    if rank == 0 :
+    if comm.Get_rank() == 0:
         print("\nForward ", shot.id)
-
-    # Time loop (step index 0-based)
-    dt = solver.dt
-    n_steps = solver.n_time_steps
     shot.flag = "In Progress"
-
-    for cycle in range(n_steps):
-        if rank == 0 and cycle % 100 == 0:
-            print("time = %.3fs," % (cycle * dt), "dt = %.4f," % dt, "iter =", cycle + 1)
-
-        solver.execute(cycle)
+    solver.runForward(snapshotStep)

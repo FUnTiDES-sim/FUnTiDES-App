@@ -102,9 +102,13 @@ class ComputeResidual:
                              f"{nrcv} simulated receivers")
         tSim = np.arange(nt) * self.dt
         tObs = np.arange(self.data.shape[0]) * self.dtObs
+        # times beyond the data (beyond rounding: 5 * 0.0004 != 0.002) get zero
+        beyond = tSim > tObs[-1] + 1e-6 * min(self.dt, self.dtObs)
+        tSim = np.minimum(tSim, tObs[-1])
         observed = np.empty_like(simulatedData)
         for i in range(nrcv):
-            observed[:, i] = np.interp(tSim, tObs, self.data[:, i], right=0.0)
+            observed[:, i] = np.interp(tSim, tObs, self.data[:, i])
+        observed[beyond] = 0.0
         return observed - simulatedData
 
 

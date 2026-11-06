@@ -48,3 +48,15 @@ def test_forward_chain_with_mpi(tmp_path):
     r = np.load(tmp_path / "result.npz")
     assert r["data"].shape == (301, 14) and np.abs(r["data"]).max() > 0
     assert r["J"] < 1e-8 * r["energy"]
+
+
+def test_gradient_with_mpi(tmp_path):
+    """The gradient computed by 2 ranks, gathered, equals the single-process one."""
+    script = os.path.join(os.path.dirname(__file__), "mpi_gradient.py")
+    for n in (1, 2):
+        cmd = ["mpirun", "-np", str(n), "--oversubscribe", sys.executable, script, str(tmp_path)]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=dict(os.environ))
+        assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+    g1, g2 = np.load(tmp_path / "gradient_1.npy"), np.load(tmp_path / "gradient_2.npy")
+    assert g1.shape == g2.shape == (30, 30, 30)
+    assert np.abs(g1 - g2).max() < 1e-3 * np.abs(g1).max()

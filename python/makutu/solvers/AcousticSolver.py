@@ -298,15 +298,169 @@ class AcousticSolver(WaveSolver):
 
         self.updateVelocityModel(x)
 
-    def computePartialGradient(self, shotId, minDepth, comm=None,
-                                gradDirectory="partialGradient", **kwargs):
+    def runForward(self, snapshotStep=None):
         """
-        Compute and save the partial FWI gradient for this shot.
+        Time loop of the current shot (sources and receivers set, source evaluated,
+        wavefield reset). With ``snapshotStep``, the second time derivative of the
+        pressure is kept every ``snapshotStep`` steps for :meth:`computeGradient`.
 
-        .. note::
-            FUnTiDES gradient API is not yet defined.
-            This method raises NotImplementedError until it is available.
+        Parameters
+        ----------
+            snapshotStep : int, optional
+                Steps between the kept snapshots; the default, None, keeps nothing.
+                The integrand of the gradient has frequencies up to about twice the
+                highest frequency of the data: snapshotStep * dt < 1 / (5 f0) is safe
+                for a Ricker wavelet of peak frequency f0 (see :meth:`snapshotStepFor`).
         """
-        raise NotImplementedError(
-            "Gradient computation via FUnTiDES is not yet implemented."
-        )
+        n_steps = self.n_time_steps
+        self._pdd, self._pddStep = {}, snapshotStep
+        stored = set(range(snapshotStep, n_steps, snapshotStep)) if snapshotStep else set()
+        keep = {k + d for k in stored for d in (-1, 0, 1)}
+        fields = {0: np.zeros(self.n_dof, dtype=np.float32)} if 0 in keep else {}   # p^0 = 0
+        for t in range(n_steps):
+            self.execute(t)
+            k = t + 1                                    # the current field is p^(t+1)
+            if k in keep:
+                fields[k] = np.array(self.data.get_current_field(0), copy=True)
+            n = k - 1
+            if n in stored:                              # p^(n-1), p^n, p^(n+1) available
+                self._pdd[n] = (fields[n + 1] - 2.0 * fields[n] + fields[n - 1]) / (self.dt * self.dt)
+                for old in [i for i in fields if i < n]:     # later snapshots need indices >= n
+                    del fields[old]
+
+    def snapshotStepFor(self, fmax=None):
+        """Snapshot step for :meth:`runForward`: (snapshotStep * dt) < 1 / (2.5 fmax),
+        fmax = 2.5 f0 by default (highest frequency of a Ricker wavelet)."""
+        fmax = 2.5 * self.sourceFreq if fmax is None else fmax
+        return max(1, int(1.0 / (2.5 * fmax * self.dt)))
+
+    def _elementNodeTable(self):
+        """
+        Global node indices of every (local) element, shape (n_elem, n_pts), and the
+        matching quadrature weights times the Jacobian, shape (n_pts,), for the
+        Cartesian meshes (elements of size lx/ex x [ly/ey x] lz/ez).
+        """
+        if getattr(self, "_nodeTable", None) is not None:
+            return self._nodeTable
+        o, n = self.order, self.order + 1
+        from ..mesh.CartesianModel2D import gll_points
+        x = gll_points(o)
+        w = np.array([2.0 / (o * n) / np.polynomial.legendre.legval(xi, [0] * o + [1]) ** 2 for xi in x])
+        hx, hz = self.lx / self.ex, self.lz / self.ez
+        nx = self.ex * o + 1
+        a = np.arange(n)
+        if self.dim == 2:
+            e = np.arange(self.ex * self.ez)
+            ix, iz = e % self.ex, e // self.ex
+            c, b = np.meshgrid(a, a, indexing="ij")                 # local index b + c n
+            gi = ix[:, None] * o + b.ravel()[None, :]
+            gk = iz[:, None] * o + c.ravel()[None, :]
+            table = gi + gk * nx
+            weights = (np.outer(w, w).ravel() * hx * hz / 4.0)        # w_c w_b
+            check = [(int(ee), int(bb), 0, int(cc)) for ee in (0, len(e) - 1) for bb, cc in ((0, 0), (o, o), (1 % n, 0))]
+            local = lambda bb, yy, cc: bb + cc * n
+        else:
+            hy = self.ly / self.ey
+            ny = self.ey * o + 1
+            e = np.arange(self.ex * self.ey * self.ez)
+            ix, iy, iz = e % self.ex, (e // self.ex) % self.ey, e // (self.ex * self.ey)
+            c, bj, b = np.meshgrid(a, a, a, indexing="ij")          # local index b + bj n + c n^2
+            gi = ix[:, None] * o + b.ravel()[None, :]
+            gj = iy[:, None] * o + bj.ravel()[None, :]
+            gk = iz[:, None] * o + c.ravel()[None, :]
+            table = gi + gj * nx + gk * nx * ny
+            weights = (np.einsum("i,j,k->ijk", w, w, w).ravel() * hx * hy * hz / 8.0)
+            check = [(int(ee), int(bb), int(yy), int(cc)) for ee in (0, len(e) - 1)
+                     for bb, yy, cc in ((0, 0, 0), (o, 1 % n, o), (1 % n, 0, o))]
+            local = lambda bb, yy, cc: bb + yy * n + cc * n * n
+        for ee, bb, yy, cc in check:                                  # the model numbering
+            if self.model.global_node_index(ee, bb, yy, cc) != table[ee, local(bb, yy, cc)]:
+                raise NotImplementedError("gradient: node numbering of the mesh not supported")
+        self._nodeTable = (table.astype(np.int64), weights)
+        return self._nodeTable
+
+    def computeGradient(self, residual, parametrization="c"):
+        """
+        Gradient of the cost function J = dt_r / 2 * sum(residual^2) of the current
+        shot (adjoint-state method), after :meth:`runForward` with a snapshot step.
+
+        The residual (observed - simulated) is injected, reversed in time, at the
+        receivers with their interpolation weights (adjoint run, same solver); the
+        gradient with respect to m = 1 / (vp^2 rho), which weighs the mass matrix,
+        is G_e = sum_n dt sum_(i in e) |J| w_i lambda_i^n d2p_i^n / dt2, then converted.
+        The absorbing terms are not differentiated (exact away from the boundaries).
+
+        The receivers are replaced by the adjoint sources: read the seismograms
+        before; set the sources and receivers again for the next shot.
+
+        Parameters
+        ----------
+            residual : array, shape (n_samples, n_receivers)
+                observed - simulated, sampled every ``dtSeismoRecorded``
+            parametrization : str
+                "c" (velocity), "1/c" or "1/c2"
+
+        Returns
+        -------
+            np.ndarray : gradient per element, seismic order (as getVelocityModel);
+            the local part of the mesh with the MPI domain decomposition
+        """
+        if not getattr(self, "_pddStep", None):
+            raise RuntimeError("computeGradient needs runForward(snapshotStep=...) first")
+        vp = np.array(self.kk_model_vp, copy=False).astype(np.float64)
+        table, weights = self._elementNodeTable()
+        if vp.size != table.shape[0]:
+            raise NotImplementedError("gradient: the model must be defined on the elements")
+        rho = (np.array(self.kk_model_rho, copy=False).astype(np.float64)
+               if self.kk_model_rho is not None else np.ones_like(vp))
+
+        # Adjoint sources: the receivers of this rank, with their weights
+        residual = np.asarray(residual, dtype=np.float64)
+        elems = np.asarray(self.receiverElementIndices)
+        on_rank = np.where(elems >= 0)[0]
+        n = self.order + 1
+        def src_layout(w):           # receiver layout ix n^2 + iy n + iz -> source x + y n + z n^2
+            w = np.asarray(w, dtype=np.float32)
+            return w if self.dim == 2 else w.reshape(n, n, n).transpose(2, 1, 0).ravel()
+        n_pts = n ** self.dim
+        if len(on_rank):
+            src_elems = elems[on_rank]
+            src_weights = np.array([src_layout(self.receiverWeights[j]) for j in on_rank])
+        else:                         # no receiver here: one silent source
+            src_elems, src_weights = np.array([0]), np.zeros((1, n_pts), np.float32)
+        self.receiverElementIndices, self.receiverWeights = None, None
+        self.sourceValue = None
+        self.updateSourceAndReceivers(src_elems, [], src_weights)
+
+        # Residual at every step, reversed: h^j = r(t_(N-j))
+        n_steps, dtr = self.n_time_steps, self.dtSeismoRecorded
+        t = np.arange(n_steps + 1) * self.dt
+        trec = np.arange(residual.shape[0]) * dtr
+        rhs = np.array(self.kk_RHSTerm, copy=False)
+        rhs[:] = 0.0
+        for k, j in enumerate(on_rank):
+            r = np.interp(t, trec, residual[:, j], right=0.0)
+            rhs[k, :] = r[n_steps:0:-1].astype(np.float32)
+
+        # Adjoint run; lambda^n = current field after execute(N - 1 - n)
+        self.resetWaveField()
+        grad_m = np.zeros(table.shape[0])
+        step = self._pddStep * self.dt
+        for j in range(n_steps):
+            self.execute(j)
+            m = n_steps - 1 - j
+            if m in self._pdd:
+                lam = np.array(self.data.get_current_field(0), copy=False)
+                v = lam * self._pdd.pop(m)
+                grad_m += step * (v[table] @ weights)
+        self._pdd, self._pddStep = {}, None
+
+        if parametrization == "c":
+            grad = grad_m * (-2.0 / (vp ** 3 * rho))
+        elif parametrization == "1/c":
+            grad = grad_m * (2.0 / (vp * rho))
+        elif parametrization == "1/c2":
+            grad = grad_m / rho
+        else:
+            raise ValueError(f"Unknown parametrization: {parametrization}")
+        return self._flip_z(grad)

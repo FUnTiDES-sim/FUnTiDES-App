@@ -8,11 +8,7 @@ from .forward import (
     forwardComputation,
     forward,
 )
-from .backward import (
-    backwardComputation,
-    backward,
-    adjointSimulation,
-)
+from .backward import backward
 from .costFunction import (
     ComputeCostFunction,
     computeFullCostFunction,

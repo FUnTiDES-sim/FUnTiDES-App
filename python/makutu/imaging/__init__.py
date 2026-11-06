@@ -5,8 +5,6 @@ from .globals import (
 )
 from .gradient import (
     gradientComputation,
-    partialGradientComputation,
-    computeFullGradient,
     gradf
 )
 from .Minimizer import (

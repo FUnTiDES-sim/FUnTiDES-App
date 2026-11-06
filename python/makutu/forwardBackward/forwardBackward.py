@@ -8,22 +8,11 @@ import h5py
 
 from ..imaging import globals as gb
 from .forward import directSimulation
+from .modelio import writeModel
 from .costFunction import computeFullCostFunction, frequencyTag
 
 iter = 1
 feval = 1
-
-
-def _writeModel(filename, x, comm):
-    """
-    Write the model ``x`` (dataset "velocity") to an HDF5 file, single process only:
-    with the MPI domain decomposition each rank holds its part of the model, which
-    would have to be gathered (not implemented).
-    """
-    if comm.Get_size() > 1:
-        raise NotImplementedError("model files (func, callback) with the MPI domain decomposition")
-    with h5py.File(filename, "w") as h:
-        h.create_dataset("velocity", data=x[:], dtype='d', chunks=True, maxshape=(x.shape[0],))
 
 
 def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=True, traceDirectory=".", exportResidual=False, ifreq=0, model="c", pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy",*args):
@@ -65,7 +54,7 @@ def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=T
     freqFilter = gb.freqList[ifreq]
 
     modelFile = "velocityModel.hdf5"
-    _writeModel(modelFile, x, comm)
+    writeModel(modelFile, x, comm)
 
     pCostDir += f"_{feval}_F"
     for i in range(len(gb.listOfAcquisition)):
@@ -98,7 +87,7 @@ def callback(x):
     rank = comm.Get_rank()
 
     modelFile = "velocityModel" + str(iter) + ".hdf5"
-    _writeModel(modelFile, x, comm)
+    writeModel(modelFile, x, comm)
     
     if rank == 0:
         print( "*"*80, f"Velocity model {iter} saved as `{modelFile}`", "*"*80, sep="\n"*2 )

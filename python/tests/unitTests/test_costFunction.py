@@ -32,6 +32,14 @@ def test_residual_resamples_the_observed_data(tmp_path):
     assert np.all(r[250:] == 0.0)                             # no data after 0.499 s
 
 
+def test_residual_with_rounded_sampling(tmp_path):
+    # 5 * 0.0004 is 0.0020000000000000005: the last sample is still inside the data
+    obs = np.random.default_rng(1).standard_normal((301, 2))
+    write_segy(tmp_path / "obs.sgy", obs, 2e-3)
+    r = ComputeResidual(str(tmp_path / "obs.sgy"), dt=5 * 4e-4).computeResidual(obs)
+    assert np.abs(r).max() < 1e-6
+
+
 def test_residual_is_observed_minus_simulated(tmp_path):
     obs = np.random.default_rng(0).standard_normal((100, 3))
     write_segy(tmp_path / "obs.sgy", obs, 2e-3)

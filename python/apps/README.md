@@ -22,11 +22,19 @@ python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file ../../FUnTiDES
 
 The modelling path (`makutu.mesh`, `makutu.solvers`, acquisition, outputs) runs on
 FUnTiDES and is covered by `tests/integratedTests` (3-D acoustic and elastic, MPI, 2-D).
-The forward part of the inversion chain (`makutu.forwardBackward`: shots of an
-acquisition, SEG-Y export, residual against observed SEG-Y data, cost function, `func`
-for the optimiser) runs on FUnTiDES and is tested (`test_forward_cost.py`, and with MPI in
-`test_mpi_decomposition.py`); `func` and `callback` write the model to HDF5 in a single
-process only. The adjoint part is not: `backward`/`adjointSimulation` and the gradients
-of `makutu.imaging` need a gradient computation that does not exist yet
-(`computePartialGradient` raises NotImplementedError), and `fullWaveformInversion/fwi.py`
-still builds `AcousticSolver` with its former positional signature (no model or mesh).
+The inversion chain runs on FUnTiDES in makutu (acoustic, model per element):
+- forward part (`makutu.forwardBackward`): shots of an acquisition, SEG-Y export, residual
+  against observed SEG-Y data, cost function, `func` for the optimiser;
+- gradient (adjoint-state method): `solver.runForward(snapshotStep)` keeps the second time
+  derivative of the pressure, `solver.computeGradient(residual, "c" | "1/c" | "1/c2")`
+  runs the adjoint (residual injected at the receivers) and applies the imaging
+  condition; `makutu.forwardBackward.backward` and `makutu.imaging.gradf` use it over the
+  shots. It matches finite differences of the cost function to about 1 % (2-D orders 1-4,
+  3-D) and gives the same result with the MPI domain decomposition.
+
+Tests: `test_forward_cost.py`, `test_gradient.py`, `test_mpi_decomposition.py`.
+Limits: `func`, `callback` and `gradf` write the model to HDF5 in a single process (with
+the MPI decomposition each rank holds its part of the model); the absorbing terms are not
+differentiated (gradient exact away from the absorbing boundaries); elastic gradients are
+not available. `fullWaveformInversion/fwi.py` still builds `AcousticSolver` with its former
+positional signature (no model or mesh) and is not adapted yet.
