@@ -45,6 +45,7 @@ class AcousticSolver(WaveSolver):
         self._seismogram = None
         self._seismo_step = 1
         self.gradient_param = None
+        self.snapshotStep = None   # snapshot step of the forward run for the gradient (None: automatic)
 
     def __repr__(self):
         lines = [

@@ -1,303 +1,222 @@
-import numpy as np
+"""
+Acoustic full-waveform inversion with makutu on the FUnTiDES SEM solvers.
+
+Workflow
+--------
+1. Initial model: SEP Vp file (2-D if n3 = 1, else 3-D), or a restart model (HDF5).
+   It sets the mesh and the time step (``makutu.mesh.mesh_from_sep``).
+2. Acquisition: from the trace headers of the observed SEG-Y files (``dataDirectory``,
+   standard positions sx, sy, sdepth / gx, gy, gelev, as written by makutu's
+   SEGYTraceOutput), or from a decision file (``decision``).
+3. For every filter frequency of ``freqFilterList``: minimisation of the least-squares
+   cost function (``makutu.imaging.Minimizer``, gradient by the adjoint-state method,
+   ``makutu.imaging.gradf``), starting from the model of the previous frequency.
+
+The model is a flat array per element in seismic order (z down), in the parametrisation
+``model`` ("c", "1/c" or "1/c2"). Single process (the model files are not distributed).
+
+Usage
+-----
+    python fwi.py --param_file fwi_parameters.txt [--restart --rfile velocityModel3.hdf5] [--dbg | --dbg+]
+
+See README.md for the parameters.
+"""
+
 import argparse
+import os
+
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+
+import numpy as np
 import h5py
-
-from makutu.acquisition import SEGYAcquisition
-from makutu.forwardBackward import func, \
-                                      callback
-from makutu.imaging import initializeGlobalVariables, \
-                              setModelAsGlobal, \
-                              gradf, \
-                              Minimizer
-from makutu.imaging import globals as gb
-from makutu.solvers import AcousticSolver
-
 from mpi4py import MPI
-from mpi4py.util import pkl5
 
-comm = pkl5.Intracomm(MPI.COMM_WORLD)
-rank = comm.Get_rank()
+import kokkos
+kokkos.initialize()
+
+import pyfuntides.solver as FTSolver
+
+from makutu.acquisition import SEGYAcquisition, DecisionAcquisition
+from makutu.forwardBackward import func, callback
+from makutu.imaging import initializeGlobalVariables, setModelAsGlobal, gradf, Minimizer
+from makutu.imaging import globals as gb
+from makutu.mesh import mesh_from_sep
+from makutu.solvers import AcousticSolver
 
 
 def parse_args():
     parser = argparse.ArgumentParser("FWI workflow parser")
-    parser.add_argument("--param_file", type=str, dest="pfile",
+    parser.add_argument("--param_file", type=str, dest="pfile", required=True,
                         help="File containing all the parameters necessary")
-    parser.add_argument("--r", "--restart", action="store_true", default=False,
-                        dest="restart",
+    parser.add_argument("--r", "--restart", action="store_true", default=False, dest="restart",
                         help="Flag to restart from existing model file")
-    parser.add_argument("--rfile", "--restart_model_file", 
-                        type=str, dest="rfile", default=None,
-                        help="HDF5 file containing the model for restart. WARNING: the restart model (c, 1/c or 1/c2) used should be the same as the one requested for the current run")
-    parser.add_argument("--model_name", "--mname", dest="mname",
-                        type=str, default="mediumVelocity",
-                        help="Velocity model field name in file")
-    parser.add_argument("--dbg", dest="DBG",
-                        action="store_true", default=False,
-                        help="Debug mode\
-                              Save all intermediate full gradient \
-                              Save all intermediate full cost function \
-                              Don't remove the partial cost functions files \
-                              Don't remove the partial gradient directories \
-                              Default is False")
-    parser.add_argument("--dbg+", dest="dbgIO",
-                        action="store_true", default=False,
-                        help="Mode Debug+, \
-                              Activate the debug mode, \
-                              Save all the seismic traces, \
-                              Save all the residual \
-                              Default is False.")
-
+    parser.add_argument("--rfile", "--restart_model_file", type=str, dest="rfile", default=None,
+                        help="HDF5 file (dataset 'velocity') with the model for restart, in the "
+                             "parametrisation of this run (c, 1/c or 1/c2)")
+    parser.add_argument("--dbg", dest="DBG", action="store_true", default=False,
+                        help="Debug mode: keep the full gradients, the cost functions and the "
+                             "partial cost function files")
+    parser.add_argument("--dbg+", dest="dbgIO", action="store_true", default=False,
+                        help="Debug mode, and export all the seismic traces and residuals")
     args, _ = parser.parse_known_args()
     return args
 
 
+def str2bool(value):
+    return str(value).lower() in ("1", "true", "yes", "on")
+
+
 def parse_workflow_parameters(pfile):
+    """Parameters file: one ``key=value`` per line, ``#`` starts a comment."""
     with open(pfile, "r") as f:
         hdrStr = f.read()
 
     hdrList = []
     for fl in hdrStr.split('\n'):
-        l = fl.split("#")[0]
-        if l:
-            # add "--" to facilitate parsing that follows
-            l = "--" + l
-            hdrList += l.split("=")
-    
-    parser = argparse.ArgumentParser("FWI workflow parser")
-    parser.add_argument("--mintime", dest="mintime",
-                        default=None, type=float,
-                        help="Min time for the simulation")
-    parser.add_argument("--maxtime", dest="maxtime",
-                        default=None, type=float,
-                        help="Max time for the simulation")
-    parser.add_argument("--dt", dest="dt",
-                        default=None, type=float,
-                        help="Time step of simulation")
-    parser.add_argument("--dtSeismo", dest="dtSeismo",
-                        default=None, type=float,
-                        help="Time step for ")
-    parser.add_argument("--dtWaveField", dest="dtWaveField",
-                        required=True, type=float,
-                        help="Time step for the wavefields. \
-                         Required for a FWI calculation")
-    parser.add_argument("--dataDirectory", dest="dataDir",
-                        type=str, default="seismicTrace",
-                        help="Directory containing data for residual/cost function" )
-    parser.add_argument("--ignore_files", dest="filesIgnore",
-                        type=str, default="",
-                        help="Files to ignore in data directory")
-    parser.add_argument("--dinfo", dest="dinfo",
-                        type=str, default="seismoTrace_shot;5;.sgy",
-                        help="Rootname of data traces, shot id formatting (e.g. 000123 is 6), extension, separated by `;`\
-                        Default is `seismoTrace_shot;5;.sgy`")
-    parser.add_argument("--trace_directory", dest="traceDir",
-                        type=str, default="seismicTrace",
-                        help="Seismo trace output directory")
-    parser.add_argument("--exportSeismicTrace", dest="exportSeismicTrace",
-                        action="store_true", default=False,
-                        help="Flag to export the seismo traces. \
-                            Default is false")
-    parser.add_argument("--exportResidual", dest="exportResidual",
-                        action="store_true", default=False,
-                        help="Flag to export the residual. \
-                            Default is false")
-    parser.add_argument("--pCostdir", dest="pCostDir",
-                        type=str, default="partialCostFunction",
-                        help="Partial cost function folder name")
-    parser.add_argument("--sourceType", dest="sourceType",
-                        type=str,
-                        help="Source type")
-    parser.add_argument("--sourceFreq", dest="sourceFreq",
-                        type=float, 
-                        help="Source frequency")
-    parser.add_argument("--freqFilterList", dest="freqFilterList",
-                        type=str, default="all",
-                        help="Frequency filter list. \
-                              Default is 'all'. \
-                              Format: fq1,fq2,fq3")
-    parser.add_argument("--gradDir", dest="gradDir",
-                        type=str, default="partialGradient",
-                        help="Directory to store the gradients")
-    parser.add_argument("--gDn", dest="gDn",
-                        type=int, default=0,
-                        help="Option to normalize gradient")
-    parser.add_argument("--minDepth", dest="minDepth",
-                        type=float, default=0,
-                        help="Minimal depth")
-    parser.add_argument("--model", dest="model",
-                        type=str, choices=["c", "1/c", "1/c2"],
-                        help="Model considered")
-    parser.add_argument("--method", dest="method",
-                        type=str, default="steepestDescent",
-                        help="Optimization method")
-    parser.add_argument("--minimizerOptions", dest="miniOptions",
-                        type=str, default="{}",
-                        help="Options for the FWI minimizer")
+        line = fl.split("#")[0].strip()
+        if line:
+            hdrList += ("--" + line).split("=", 1)
 
-    args, _ = parser.parse_known_args(hdrList)
+    p = argparse.ArgumentParser("FWI workflow parameters")
+    # Model and mesh
+    p.add_argument("--vpFile", dest="vpFile", default=None, help="SEP file of the initial Vp model")
+    p.add_argument("--rhoFile", dest="rhoFile", default=None, help="SEP file of the density (default 1)")
+    p.add_argument("--order", dest="order", type=int, default=2, help="Polynomial order")
+    p.add_argument("--ppw", dest="ppw", type=float, default=6.0, help="GLL points per shortest wavelength")
+    p.add_argument("--elemSize", dest="elemSize", type=float, default=None, help="Element size [m]")
+    p.add_argument("--freeSurface", dest="freeSurface", type=str2bool, default=True,
+                   help="Free surface on top")
+    p.add_argument("--sponge", dest="sponge", type=float, default=None,
+                   help="Sponge width [m] (default 5%% of the smallest extent)")
+    # Time
+    p.add_argument("--maxtime", dest="maxtime", type=float, required=True, help="Recorded time [s]")
+    p.add_argument("--dt", dest="dt", type=float, default=None, help="Time step (default from the CFL)")
+    p.add_argument("--cfl", dest="cfl", type=float, default=0.3, help="CFL number when dt is not given")
+    p.add_argument("--dtSeismo", dest="dtSeismo", type=float, default=None, help="Seismogram sampling [s]")
+    p.add_argument("--dtWaveField", dest="dtWaveField", type=float, default=None,
+                   help="Interval between the snapshots of the forward run for the gradient [s] "
+                        "(default: from the source frequency)")
+    # Source
+    p.add_argument("--sourceType", dest="sourceType", type=str, default="ricker2", help="Source type")
+    p.add_argument("--sourceFreq", dest="sourceFreq", type=float, required=True, help="Source frequency [Hz]")
+    p.add_argument("--freqFilterList", dest="freqFilterList", type=str, default="all",
+                   help="Filter frequencies fq1,fq2,... (default 'all': no filter)")
+    # Data and acquisition
+    p.add_argument("--dataDirectory", dest="dataDir", type=str, default="seismicTrace",
+                   help="Directory of the observed data, one SEG-Y file per shot")
+    p.add_argument("--dinfo", dest="dinfo", type=str, default="seismoTrace_shot;5;.sgy",
+                   help="Rootname of the data files, digits of the shot id, extension, separated by ';'")
+    p.add_argument("--ignore_files", dest="filesIgnore", type=str, default="",
+                   help="Files of the data directory to ignore (comma separated)")
+    p.add_argument("--decision", dest="decision", type=str, default=None,
+                   help="Decision file rootname for the acquisition (default: SEG-Y headers)")
+    # Outputs
+    p.add_argument("--trace_directory", dest="traceDir", type=str, default="seismicTrace",
+                   help="Output directory of the simulated traces")
+    p.add_argument("--exportSeismicTrace", dest="exportSeismicTrace", type=str2bool, default=False)
+    p.add_argument("--exportResidual", dest="exportResidual", type=str2bool, default=False)
+    p.add_argument("--pCostdir", dest="pCostDir", type=str, default="partialCostFunction")
+    p.add_argument("--gradDir", dest="gradDir", type=str, default="partialGradient",
+                   help="Directory of the full gradients in debug mode")
+    # Inversion
+    p.add_argument("--model", dest="model", type=str, choices=["c", "1/c", "1/c2"], default="c",
+                   help="Parametrisation")
+    p.add_argument("--method", dest="method", type=str, default="steepestDescent",
+                   help="Optimisation method (steepestDescent, SD2, CGPR, CGPR2 or a scipy method)")
+    p.add_argument("--gDn", dest="gDn", type=int, default=0,
+                   help="Gradient normalisation: 0 none, 1 max, 2 norm (0 with SD2, CGPR and scipy)")
+    p.add_argument("--minimizerOptions", dest="miniOptions", type=str, default="{}",
+                   help="Options of the optimiser as a Python dict; minModel and maxModel are "
+                        "the velocity bounds [m/s] (default 500, 8500)")
+
+    args, _ = p.parse_known_args(hdrList)
     return args
-        
 
-def fullWaveformInversion( minimizer, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=False, traceDirectory=".", exportResidual=False, model="c", pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy",gDn=0 ):
-    """Perform FWI simulation
 
-    Parameters:
-    -----------
-        minimizer : Minimizer
-            Optimization method
-        dataDirectory : str
-            Directory for residual/costFunction computation.
-        gradDirectory : str
-            Directory where to output the partial gradients. Default creates (if not already exists) a new directory 'partialGradient'
-        exportSeismicTrace : bool
-            Whether or not to export seismic trace to .sgy. If not set default is True
-        traceDirectory : str
-            Directory where to export the seismic traces. If not set default is current directory
-        exportResidual : bool
-            Wheter or not to export the residual if computeCostFunction is set to True. Default is False
-        model : str
-            Model considered
-        pCostDir : str
-            Partial cost function directory
+def fullWaveformInversion(minimizer, x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=False,
+                          traceDirectory=".", exportResidual=False, model="c", pCostDir="partialCostFunction",
+                          dinfo="seismoTrace_shot;5;.sgy", gDn=0, freqList=("all",)):
     """
-    for ifreq, freq in enumerate(gb.freqList):
-            print("\n", "*"*80, sep="")
-            print(f"Filtering frequency = {freq}  [ {ifreq + 1} / {len(gb.freqList)} ]" )
-            print("*"*80, end="\n\n")
+    Minimisation for every filter frequency, each starting from the model of the previous one.
 
-            minimizer.optimize(x=gb.model,
-                               args=(dataDirectory,
-                                     gradDirectory,
-                                     exportSeismicTrace,
-                                     traceDirectory,
-                                     exportResidual,
-                                     ifreq,
-                                     model,
-                                     pCostDir,
-                                     dinfo,
-                                     gDn)
-            )
+    Returns
+    -------
+        np.ndarray : final model
+    """
+    for ifreq, freq in enumerate(freqList):
+        print("\n", "*" * 80, sep="")
+        print(f"Filtering frequency = {freq}  [ {ifreq + 1} / {len(freqList)} ]")
+        print("*" * 80, end="\n\n")
+        x = minimizer.optimize(x=x, args=(dataDirectory, gradDirectory, exportSeismicTrace, traceDirectory,
+                                          exportResidual, ifreq, model, pCostDir, dinfo, gDn))
+    return x
+
+
+def main():
+    args = parse_args()
+    wf = parse_workflow_parameters(args.pfile)
+    if MPI.COMM_WORLD.Get_size() > 1:
+        raise SystemExit("fwi.py runs in a single process (the model files are not distributed)")
+    mode = "DBG" if (args.DBG or args.dbgIO) else "REL"
+    exportSeismicTrace = True if args.dbgIO else wf.exportSeismicTrace
+    exportResidual = True if args.dbgIO else wf.exportResidual
+    freqFilterList = (["all"] if "all" in wf.freqFilterList
+                      else np.asarray(wf.freqFilterList.split(","), dtype=float).tolist())
+
+    # Model, mesh, solver
+    if wf.vpFile is None:
+        raise SystemExit("vpFile (initial model, SEP) is required: it also sets the mesh")
+    m = mesh_from_sep(wf.vpFile, wf.sourceFreq, wf.order, rho_file=wf.rhoFile, ppw=wf.ppw, cfl=wf.cfl,
+                      elem_size=wf.elemSize, free_surface_on_top=wf.freeSurface)
+    dt = wf.dt if wf.dt is not None else m.dt
+    sponge = wf.sponge if wf.sponge is not None else 0.05 * min(m.lengths)
+    solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
+                            model_location=FTSolver.ModelLocationType.ONELEMENTS,
+                            sponge_size=[sponge] * 3, surface_sponge=False,
+                            dt=dt, minTime=0.0, maxTime=wf.maxtime, dtSeismo=wf.dtSeismo or dt,
+                            sourceType=wf.sourceType, sourceFreq=wf.sourceFreq, **m.mesh.solver_kwargs())
+    solver.initialize()
+    if wf.dtWaveField is not None:
+        solver.snapshotStep = max(1, int(round(wf.dtWaveField / dt)))
+    print(f"Time  : dt {dt * 1e3:.3f} ms, {solver.n_time_steps} steps, seismograms every "
+          f"{solver.dtSeismoRecorded * 1e3:.3f} ms, sponge {sponge:g} m")
+
+    # Acquisition
+    if wf.decision is not None:
+        acquisition = DecisionAcquisition(decision_filename=wf.decision, scalco=1, scalel=1)
+    else:
+        ignore = [f for f in wf.filesIgnore.split(",") if f]
+        acquisition = SEGYAcquisition(segdir=wf.dataDir, ignore=ignore)
+    print(f"Shots : {len(acquisition.shots)}")
+
+    # Parametrisation and bounds
+    options = eval(wf.miniOptions)
+    vmin, vmax = options.pop("minModel", 500.0), options.pop("maxModel", 8500.0)
+    to_param = {"c": lambda v: v, "1/c": lambda v: 1.0 / v, "1/c2": lambda v: 1.0 / v ** 2}[wf.model]
+    minx, maxx = sorted((to_param(vmin), to_param(vmax)))
+
+    if args.restart and args.rfile is not None:
+        with h5py.File(args.rfile, "r") as f:
+            x0 = f["velocity"][:]
+        print(f"Restart model: {args.rfile}")
+    else:
+        x0 = to_param(solver.getVelocityModel().astype(np.float64))
+    setModelAsGlobal(x0.copy())
+    initializeGlobalVariables(solver, acquisition, [acquisition], minx, maxx, 0.0, freqFilterList, mode)
+
+    minimizer = Minimizer(func, method=wf.method, jac=gradf, bounds=[[minx, maxx]] * len(x0),
+                          tol=None, callback=callback, options=options)
+    x = fullWaveformInversion(minimizer, x0, wf.dataDir, gradDirectory=wf.gradDir,
+                              exportSeismicTrace=exportSeismicTrace, traceDirectory=wf.traceDir,
+                              exportResidual=exportResidual, model=wf.model, pCostDir=wf.pCostDir,
+                              dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList)
+    with h5py.File("finalModel.hdf5", "w") as f:
+        f.create_dataset("velocity", data=x)
+    print("Final model written to finalModel.hdf5")
+    gb.solver = None              # every Kokkos view must be released before kokkos.finalize
+    del solver, m
 
 
 if __name__ == "__main__":
-
-    args = parse_args()
-
-    wf_args = parse_workflow_parameters(args.pfile)
-
-    mode = "DBG" if ( args.DBG or args.dbgIO ) else "REL"
-
-    #Time Parameters
-    minTime = wf_args.mintime
-    maxTime = wf_args.maxtime
-    dt = wf_args.dt
-    dtSeismo = wf_args.dtSeismo
-    dtWaveField = wf_args.dtWaveField
-
-    #Seismic trace parameters
-    traceDir = wf_args.traceDir
-
-    if args.dbgIO:
-        exportSeismicTrace = True
-        exportResidual = True
-    else:
-        exportSeismicTrace = wf_args.exportSeismicTrace
-        exportResidual = wf_args.exportResidual
-
-    #Forward/Backward computation parameters
-    sourceType = wf_args.sourceType
-    sourceFreq = wf_args.sourceFreq
-    if "all" not in wf_args.freqFilterList:
-        freqFilterList = np.asarray(wf_args.freqFilterList.split(","), dtype=float).tolist()
-    else:
-        freqFilterList = ["all"]
-   
- 
-    #fwi parameters
-    method = wf_args.method
-    gradDir = wf_args.gradDir
-    dataDir = wf_args.dataDir
-    filesToIgnore = wf_args.filesIgnore.split(",")
-    dinfo = wf_args.dinfo
-    gDn = wf_args.gDn
-    
-    model = wf_args.model
-
-    minimizerOptions = eval(wf_args.miniOptions)
-
-    #tol = minimizerOptions.pop("tol",0.0001)
-    tol = None
-    #Jtol = minimizerOptions.pop("Jtol",0.0001)
-    
-    # Set model bound constraints
-    minx = minimizerOptions.pop("minModel", 500)
-    maxx = minimizerOptions.pop("maxModel", 8500)
-    
-    if model == "1/c2":
-        minx, maxx = 1 / maxx**2, 1 / minx**2
-    elif model == "1/c":
-        minx, maxx = 1 / maxx, 1 / minx
-
-    minDepth = wf_args.minDepth
-    
-    pCostDir = wf_args.pCostDir
-
-    #Set Acquisition
-    acquisition = SEGYAcquisition(segdir=wf_args.dataDir,
-                                  dt=dt,
-                                  ignore=filesToIgnore
-                                  )
-
-
-    print(f"\n Restart model file is {args.rfile} \n")
-    if args.restart and args.rfile is not None:
-        startModelFile = args.rfile
-        f = h5py.File(startModelFile, 'r', driver="mpio", comm=comm)
-        x = f["velocity"][:]
-        f.close()
-        startModel = x
-    else:
-        startModelFile = None
-        x = acquisition.getMesh().getArray(args.mname, copy=True)
-        
-        if model == "1/c2":
-            startModel = 1/(x*x)         
-        elif model == "1/c":
-            startModel = 1/x
-        else:
-            startModel = x
-
-    setModelAsGlobal(startModel)
-
-    solver = AcousticSolver(dt,
-                            minTime,
-                            maxTime,
-                            dtSeismo,
-                            dtWaveField,
-                            sourceType,
-                            sourceFreq,
-                            )
-
-    # Solver with Caliper output
-    # solver = AcousticSolver(dt,
-    #                         minTime,
-    #                         maxTime,
-    #                         dtSeismo,
-    #                         dtWaveField,
-    #                         sourceType,
-    #                         sourceFreq)
-   
-    minimizer = Minimizer(func,
-                          method=method,
-                          jac=gradf,
-                          bounds=[[minx,maxx]]*len(startModel),
-                          tol=tol,
-                          callback=callback,
-                          options=minimizerOptions)
-
-    
-    listOfAcquisition = acquisition.splitAcquisition()
-    initializeGlobalVariables(solver, acquisition, listOfAcquisition, minx, maxx, minDepth, freqFilterList, mode)
-
-    fullWaveformInversion(gradDirectory=gradDir, exportSeismicTrace=exportSeismicTrace, traceDirectory=traceDir, dataDirectory=dataDir, exportResidual=exportResidual, minimizer=minimizer, model=model, pCostDir=pCostDir, dinfo=dinfo, gDn=gDn)
+    main()
+    kokkos.finalize()

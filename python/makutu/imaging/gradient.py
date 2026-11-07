@@ -72,7 +72,8 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
             Default is False
         snapshotStep : int, optional
             Steps between the snapshots of the forward run \
-            Default: ``solver.snapshotStepFor(fmax)`` with the filter frequency
+            Default: ``solver.snapshotStep``, or ``solver.snapshotStepFor(fmax)`` with the
+            filter frequency
 
     Returns:
     --------
@@ -85,7 +86,8 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
     freqFilter = gb.freqList[ifreq]
     solver.setModelForGradient(model)
     if snapshotStep is None:
-        snapshotStep = solver.snapshotStepFor(None if str(freqFilter) == "all" else float(freqFilter))
+        snapshotStep = getattr(solver, "snapshotStep", None) or \
+            solver.snapshotStepFor(None if str(freqFilter) == "all" else float(freqFilter))
     drootname, dformat, dext = dinfo.split(";")
 
     gradient = None

@@ -1,0 +1,36 @@
+# Parameters of fwi.py: one key=value per line, "#" starts a comment.
+
+# Initial model (SEP; 2-D if n3 = 1) and mesh
+vpFile=init.H
+#rhoFile=rho.H
+order=2
+#ppw=6              # GLL points per shortest wavelength (element size)
+#elemSize=25        # element size [m], instead of ppw
+#freeSurface=true
+#sponge=50          # sponge width [m], default 5 % of the smallest extent
+
+# Time
+maxtime=0.6
+#dt=0.0004          # default: CFL condition (cfl=0.3)
+dtSeismo=0.002
+#dtWaveField=0.01   # snapshots of the forward run for the gradient, default from the frequency
+
+# Source and frequencies
+sourceType=ricker2
+sourceFreq=10
+freqFilterList=all  # or e.g. 5,8,10 (multi-scale)
+
+# Observed data: one SEG-Y file per shot, <rootname><shot id on 5 digits><extension>
+dataDirectory=obs
+dinfo=seismoTrace_shot;5;.sgy
+#decision=acquisition/survey   # acquisition from a decision file instead of the SEG-Y headers
+
+# Inversion
+model=c             # c, 1/c or 1/c2
+method=steepestDescent
+gDn=0
+minimizerOptions={"maxiter": 5, "minls": 2, "minModel": 1000, "maxModel": 4000}
+
+# Outputs
+#exportSeismicTrace=false
+#trace_directory=seismicTrace

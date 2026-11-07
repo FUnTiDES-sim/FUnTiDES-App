@@ -10,7 +10,7 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
 | `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
 | `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces and gradients |
-| `fullWaveformInversion/fwi.py` | Full-waveform inversion workflow; **not yet adapted** to the current solver API (see below) |
+| `fullWaveformInversion/fwi.py` | Full-waveform inversion (acoustic, single process); see its README |
 
 ```bash
 python apps/run_funtides.py ../examples/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
@@ -36,5 +36,6 @@ Tests: `test_forward_cost.py`, `test_gradient.py`, `test_mpi_decomposition.py`.
 Limits: `func`, `callback` and `gradf` write the model to HDF5 in a single process (with
 the MPI decomposition each rank holds its part of the model); the absorbing terms are not
 differentiated (gradient exact away from the absorbing boundaries); elastic gradients are
-not available. `fullWaveformInversion/fwi.py` still builds `AcousticSolver` with its former
-positional signature (no model or mesh) and is not adapted yet.
+not available. `fullWaveformInversion/fwi.py` runs the whole chain (initial SEP model,
+observed SEG-Y data, optimisers of `makutu.imaging.Minimizer`), checked on a small 2-D case;
+the gradient is not preconditioned yet.

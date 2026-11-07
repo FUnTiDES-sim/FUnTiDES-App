@@ -37,8 +37,7 @@ kokkos.initialize()
 
 import pyfuntides.solver as FTSolver
 
-from makutu.input.SEPReader import read_sep
-from makutu.mesh import CartesianMesh2D, StructuredMesh, suggest_mesh
+from makutu.mesh import mesh_from_sep
 from makutu.solvers import AcousticSolver
 from makutu.acquisition import Acquisition, DecisionAcquisition
 from makutu.acquisition.create_equispaced_segy import write_segy_shot
@@ -87,30 +86,6 @@ def parse_args():
     g.add_argument("--plot", action="store_true", help="figure per shot: model, snapshot, gather")
     g.add_argument("--snap-time", type=float, default=None, help="snapshot time [s] (default tmax / 3)")
     return p.parse_args()
-
-
-def build_mesh(args, sep, dim):
-    """Mesh, time step and extents from the SEP model."""
-    vp_min, vp_max = float(sep.data.min()), float(sep.data.max())
-    if dim == 2:
-        lengths = (sep.n1 * sep.d1, sep.n2 * sep.d2)                       # lx, lz
-    else:
-        lengths = (sep.n1 * sep.d1, sep.n2 * sep.d2, sep.n3 * sep.d3)      # lx, ly, lz
-    counts, dt, lam = suggest_mesh(lengths, vp_min, vp_max, args.f0, args.order,
-                                   ppw=args.ppw, cfl=args.cfl, elem_size=args.elem_size)
-    if dim == 2:
-        mesh = CartesianMesh2D(*lengths, *counts, order=args.order,
-                               vp_file=args.vp_file, rho_file=args.rho_file)
-        nodes = (counts[0] * args.order + 1) * (counts[1] * args.order + 1)
-    else:
-        mesh = StructuredMesh(*lengths, *counts, order=args.order, on_nodes=False, is_elastic=False,
-                              free_surface_on_top=True, vp_file=args.vp_file, rho_file=args.rho_file)
-        nodes = mesh.numberOfPoints
-    sizes = " x ".join(f"{length / n:.1f}" for length, n in zip(lengths, counts))
-    print(f"Model : {dim}-D, {' x '.join(f'{v / 1e3:g}' for v in lengths)} km, vp {vp_min:.0f}-{vp_max:.0f} m/s")
-    print(f"Mesh  : {' x '.join(map(str, counts))} elements of order {args.order} ({sizes} m), {nodes} nodes; "
-          f"lambda_min {lam:.0f} m")
-    return mesh, lengths, dt, vp_min
 
 
 def build_acquisition(args, lengths, dim, h):
@@ -174,9 +149,9 @@ def plot_shot(path, model, snapshot, snap_time, gather, dt_rec, src, rcv, lx, lz
 
 def main():
     args = parse_args()
-    sep = read_sep(args.vp_file)
-    dim = 2 if sep.n3 == 1 else 3
-    mesh, lengths, dt, vp_min = build_mesh(args, sep, dim)
+    m = mesh_from_sep(args.vp_file, args.f0, args.order, rho_file=args.rho_file, ppw=args.ppw, cfl=args.cfl,
+                      elem_size=args.elem_size)
+    mesh, dim, lengths, dt, vp_min = m.mesh, m.dim, m.lengths, m.dt, m.vp_min
     lx, lz = lengths[0], lengths[-1]
     h = lx / mesh.ex
 

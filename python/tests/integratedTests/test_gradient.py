@@ -130,3 +130,29 @@ def test_gradf_descent():
     step = 10.0 / np.abs(g0).max()                                # at most 10 m/s
     _, J1 = gradf(v0.ravel() - step * g0, "obs", exportSeismicTrace=False, computeFullCF=True)
     assert J1 < J0
+
+
+@pytest.mark.skipif(not HAS_2D, reason="FUnTiDES built without COMPILE_SEM_2D")
+def test_steepest_descent_lowers_the_cost():
+    """Three iterations of makutu.imaging.Minimizer (steepest descent) with func and gradf."""
+    from makutu.forwardBackward import func
+    from makutu.imaging import Minimizer
+
+    X, Z = grid_2d()
+    v0 = np.full(X.shape, 2000.0)
+    vtrue = v0 + 300.0 * np.exp(-((X - 600) ** 2 + (Z - 300) ** 2) / 80.0 ** 2)
+    solver = solver_2d(2, vtrue)
+    acq = Acquisition(sources=[[300.0, 0.0, 100.0], [700.0, 0.0, 100.0]],
+                      receivers=[[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)])
+    gb.initializeGlobalVariables(solver, acq, [acq], 1000.0, 4000.0, 0.0, ["all"])
+    directSimulation(0, exportSeismicTrace=True, traceDirectory="obs")           # observed data
+    for i in (1, 2):
+        os.replace(f"obs/seismoTrace_shot{i:05d}_10.sgy", f"obs/seismoTrace_shot{i:05d}.sgy")
+
+    args = ("obs", "partialGradient", False, ".", False, 0, "c", "partialCostFunction",
+            "seismoTrace_shot;5;.sgy", 0)
+    J0 = func(v0.ravel(), *args)
+    x = Minimizer(func, method="steepestDescent", jac=gradf, bounds=[[1000.0, 4000.0]],
+                  options={"maxiter": 3, "minls": 2}).optimize(v0.ravel(), args)
+    assert x.shape == (v0.size,) and x.min() >= 1000.0 and x.max() <= 4000.0
+    assert func(x, *args) < 0.8 * J0                                              # 0.67 measured
