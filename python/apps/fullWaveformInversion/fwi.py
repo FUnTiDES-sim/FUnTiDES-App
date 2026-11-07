@@ -38,7 +38,7 @@ import pyfuntides.solver as FTSolver
 
 from makutu.acquisition import SEGYAcquisition, DecisionAcquisition
 from makutu.forwardBackward import func, callback
-from makutu.imaging import initializeGlobalVariables, setModelAsGlobal, gradf, Minimizer
+from makutu.imaging import initializeGlobalVariables, setModelAsGlobal, gradf, Minimizer, GradientConditioner
 from makutu.imaging import globals as gb
 from makutu.mesh import mesh_from_sep
 from makutu.solvers import AcousticSolver
@@ -86,8 +86,8 @@ def parse_workflow_parameters(pfile):
     p.add_argument("--elemSize", dest="elemSize", type=float, default=None, help="Element size [m]")
     p.add_argument("--freeSurface", dest="freeSurface", type=str2bool, default=True,
                    help="Free surface on top")
-    p.add_argument("--sponge", dest="sponge", type=float, default=None,
-                   help="Sponge width [m] (default 5%% of the smallest extent)")
+    p.add_argument("--sponge", dest="sponge", type=float, default=0.0,
+                   help="Sponge width [m] on top of the absorbing condition (default 0: the FUnTiDES sponge with the default taper_delta makes the field grow at late times)")
     # Time
     p.add_argument("--maxtime", dest="maxtime", type=float, required=True, help="Recorded time [s]")
     p.add_argument("--dt", dest="dt", type=float, default=None, help="Time step (default from the CFL)")
@@ -125,12 +125,50 @@ def parse_workflow_parameters(pfile):
                    help="Optimisation method (steepestDescent, SD2, CGPR, CGPR2 or a scipy method)")
     p.add_argument("--gDn", dest="gDn", type=int, default=0,
                    help="Gradient normalisation: 0 none, 1 max, 2 norm (0 with SD2, CGPR and scipy)")
+    # Gradient conditioning (makutu.imaging.GradientConditioner)
+    p.add_argument("--minDepth", dest="minDepth", type=float, default=0.0,
+                   help="Depth [m] above which the model is not updated")
+    p.add_argument("--gradEdge", dest="gradEdge", type=float, default=0.0,
+                   help="Band [m] along the sides and the bottom where the model is not updated")
+    p.add_argument("--gradTaper", dest="gradTaper", type=float, default=0.0,
+                   help="Width [m] of the cosine ramps of minDepth and gradEdge")
+    p.add_argument("--illumination", dest="illumination", type=str2bool, default=False,
+                   help="Divide the gradient by the illumination (pseudo-Hessian, source side)")
+    p.add_argument("--illumEps", dest="illumEps", type=float, default=0.01,
+                   help="Stabilisation of the illumination division, relative to its maximum")
     p.add_argument("--minimizerOptions", dest="miniOptions", type=str, default="{}",
                    help="Options of the optimiser as a Python dict; minModel and maxModel are "
                         "the velocity bounds [m/s] (default 500, 8500)")
 
     args, _ = p.parse_known_args(hdrList)
     return args
+
+
+def build_solver(wf, vp_file):
+    """
+    Mesh (from the SEP model ``vp_file``) and initialised AcousticSolver for the
+    parameters ``wf`` of :func:`parse_workflow_parameters`. Also used to compute the
+    observed data of a synthetic case on the same mesh, time step and sponge.
+
+    Returns
+    -------
+        (AcousticSolver, SimpleNamespace of makutu.mesh.mesh_from_sep)
+    """
+    m = mesh_from_sep(vp_file, wf.sourceFreq, wf.order, rho_file=wf.rhoFile, ppw=wf.ppw, cfl=wf.cfl,
+                      elem_size=wf.elemSize, free_surface_on_top=wf.freeSurface)
+    dt = wf.dt if wf.dt is not None else m.dt
+    sponge = wf.sponge
+    solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
+                            model_location=FTSolver.ModelLocationType.ONELEMENTS,
+                            sponge_size=[sponge] * 3, surface_sponge=False,
+                            dt=dt, minTime=0.0, maxTime=wf.maxtime, dtSeismo=wf.dtSeismo or dt,
+                            sourceType=wf.sourceType, sourceFreq=wf.sourceFreq, **m.mesh.solver_kwargs())
+    solver.initialize()
+    if wf.dtWaveField is not None:
+        solver.snapshotStep = max(1, int(round(wf.dtWaveField / dt)))
+    print(f"Time  : dt {dt * 1e3:.3f} ms, {solver.n_time_steps} steps, seismograms every "
+          f"{solver.dtSeismoRecorded * 1e3:.3f} ms, sponge {sponge:g} m")
+    return solver, m
 
 
 def fullWaveformInversion(minimizer, x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=False,
@@ -166,20 +204,7 @@ def main():
     # Model, mesh, solver
     if wf.vpFile is None:
         raise SystemExit("vpFile (initial model, SEP) is required: it also sets the mesh")
-    m = mesh_from_sep(wf.vpFile, wf.sourceFreq, wf.order, rho_file=wf.rhoFile, ppw=wf.ppw, cfl=wf.cfl,
-                      elem_size=wf.elemSize, free_surface_on_top=wf.freeSurface)
-    dt = wf.dt if wf.dt is not None else m.dt
-    sponge = wf.sponge if wf.sponge is not None else 0.05 * min(m.lengths)
-    solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
-                            model_location=FTSolver.ModelLocationType.ONELEMENTS,
-                            sponge_size=[sponge] * 3, surface_sponge=False,
-                            dt=dt, minTime=0.0, maxTime=wf.maxtime, dtSeismo=wf.dtSeismo or dt,
-                            sourceType=wf.sourceType, sourceFreq=wf.sourceFreq, **m.mesh.solver_kwargs())
-    solver.initialize()
-    if wf.dtWaveField is not None:
-        solver.snapshotStep = max(1, int(round(wf.dtWaveField / dt)))
-    print(f"Time  : dt {dt * 1e3:.3f} ms, {solver.n_time_steps} steps, seismograms every "
-          f"{solver.dtSeismoRecorded * 1e3:.3f} ms, sponge {sponge:g} m")
+    solver, m = build_solver(wf, wf.vpFile)
 
     # Acquisition
     if wf.decision is not None:
@@ -202,10 +227,16 @@ def main():
     else:
         x0 = to_param(solver.getVelocityModel().astype(np.float64))
     setModelAsGlobal(x0.copy())
-    initializeGlobalVariables(solver, acquisition, [acquisition], minx, maxx, 0.0, freqFilterList, mode)
+    initializeGlobalVariables(solver, acquisition, [acquisition], minx, maxx, wf.minDepth, freqFilterList, mode)
 
+    precond = None
+    if wf.minDepth > 0 or wf.gradEdge > 0 or wf.illumination:
+        precond = GradientConditioner(solver, minDepth=wf.minDepth, edge=wf.gradEdge, taper=wf.gradTaper,
+                                      illumination=wf.illumination, eps=wf.illumEps)
+        print(f"Gradient conditioning: minDepth {wf.minDepth:g} m, edge {wf.gradEdge:g} m, "
+              f"taper {wf.gradTaper:g} m, illumination {wf.illumination} (eps {wf.illumEps:g})")
     minimizer = Minimizer(func, method=wf.method, jac=gradf, bounds=[[minx, maxx]] * len(x0),
-                          tol=None, callback=callback, options=options)
+                          tol=None, callback=callback, options=options, precond=precond)
     x = fullWaveformInversion(minimizer, x0, wf.dataDir, gradDirectory=wf.gradDir,
                               exportSeismicTrace=exportSeismicTrace, traceDirectory=wf.traceDir,
                               exportResidual=exportResidual, model=wf.model, pCostDir=wf.pCostDir,

@@ -24,8 +24,11 @@ convention). Commands below are run from `FUnTiDES-App/python` after
 - element size h = order * lambda_min / `--ppw` (GLL points per wavelength, default 6),
   or `--elem-size`;
 - dt = `--cfl` (default 0.3) * smallest GLL spacing / vp_max;
-- free surface on top; the other edges are absorbing, with a sponge of `--sponge` m
-  (default 5 % of the smallest extent; `--sponge 0` keeps only the absorbing condition);
+- free surface on top; the other edges have the absorbing condition of FUnTiDES (about
+  1 % of the signal reflected on a 2-D homogeneous case); `--sponge` adds a sponge of that
+  width (default 0: with the default `taper_delta` of 0.015 m, the FUnTiDES sponge makes
+  the field grow at late times, about 25 times the signal at 1 s on a 2 x 1 km 2-D case;
+  with a larger `taper_delta` it is also applied along the free surface);
 - orders: 1 to 3 in 3-D, up to the order compiled in FUnTiDES in 2-D.
 
 The seismograms are recorded every round(`--dt-seismo` / dt) steps; the actual sampling is

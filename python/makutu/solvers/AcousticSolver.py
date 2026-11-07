@@ -391,6 +391,10 @@ class AcousticSolver(WaveSolver):
         is G_e = sum_n dt sum_(i in e) |J| w_i lambda_i^n d2p_i^n / dt2, then converted.
         The absorbing terms are not differentiated (exact away from the boundaries).
 
+        Also sets ``self.illumination``: energy of the forward field per element,
+        H_e = sum_n dt sum_(i in e) |J| w_i (d2p_i^n / dt2)^2 times (dm/dparam)^2, the
+        source side of the diagonal pseudo-Hessian (Shin et al., 2001), seismic order.
+
         The receivers are replaced by the adjoint sources: read the seismograms
         before; set the sources and receivers again for the next shot.
 
@@ -446,22 +450,25 @@ class AcousticSolver(WaveSolver):
         # Adjoint run; lambda^n = current field after execute(N - 1 - n)
         self.resetWaveField()
         grad_m = np.zeros(table.shape[0])
+        illum_m = np.zeros(table.shape[0])
         step = self._pddStep * self.dt
         for j in range(n_steps):
             self.execute(j)
             m = n_steps - 1 - j
             if m in self._pdd:
                 lam = np.array(self.data.get_current_field(0), copy=False)
-                v = lam * self._pdd.pop(m)
-                grad_m += step * (v[table] @ weights)
+                pdd = self._pdd.pop(m)
+                grad_m += step * ((lam * pdd)[table] @ weights)
+                illum_m += step * ((pdd * pdd)[table] @ weights)
         self._pdd, self._pddStep = {}, None
 
         if parametrization == "c":
-            grad = grad_m * (-2.0 / (vp ** 3 * rho))
+            dm = -2.0 / (vp ** 3 * rho)
         elif parametrization == "1/c":
-            grad = grad_m * (2.0 / (vp * rho))
+            dm = 2.0 / (vp * rho)
         elif parametrization == "1/c2":
-            grad = grad_m / rho
+            dm = 1.0 / rho
         else:
             raise ValueError(f"Unknown parametrization: {parametrization}")
-        return self._flip_z(grad)
+        self.illumination = self._flip_z(illum_m * dm ** 2)
+        return self._flip_z(grad_m * dm)

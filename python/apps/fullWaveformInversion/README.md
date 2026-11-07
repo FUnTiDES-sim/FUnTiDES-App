@@ -32,9 +32,18 @@ Single process (the model files are not distributed over MPI ranks yet).
 - `freqFilterList`: the data and the source are low-pass filtered at each frequency in
   turn, each stage starting from the model of the previous one (multi-scale).
 - `method`: `steepestDescent` (default) or `CGPR2`, heuristic line search (first step 1 %
-  of the model, option `alpha`); `SD2` or `CGPR`, Wolfe line search
-  (`scipy.optimize.line_search`); or any `scipy.optimize.minimize` method, such as
-  `L-BFGS-B`. The Wolfe and scipy methods need `gDn=0` (true gradient).
+  of the model, option `alpha`; the best trial step is kept if it lowers J); `SD2` or
+  `CGPR`, Wolfe line search (`scipy.optimize.line_search`, step 1 scaled on the last
+  decrease of J); or any `scipy.optimize.minimize` method, such as `L-BFGS-B`. The Wolfe
+  and scipy methods need `gDn=0` (true gradient).
+- Gradient conditioning (methods of makutu only), `makutu.imaging.GradientConditioner`:
+  no update above `minDepth` and within `gradEdge` of the sides and the bottom (the
+  absorbing terms are not differentiated: the gradient is exact inside, wrong on the
+  edge elements), cosine ramps of `gradTaper`; `illumination=true` divides by the energy
+  of the forward field (pseudo-Hessian, source side, stabilised by `illumEps`).
+- Absorbing edges: the absorbing condition of FUnTiDES, without sponge by default
+  (`sponge`: the FUnTiDES sponge with the default `taper_delta` makes the field grow at
+  late times).
 
 ## Outputs
 
@@ -46,6 +55,9 @@ Single process (the model files are not distributed over MPI ranks yet).
 
 ## Status
 
-Checked on a small 2-D case (3 shots): the cost function decreases. The gradient is not
-preconditioned yet (it is dominated by the source and receiver areas) and the absorbing
-terms are not differentiated; see `../README.md`.
+The phases are tested separately (`tests/`): acquisition, modelling, filtering,
+residual and cost, gradient (finite differences, Taylor test, reciprocity, edges, MPI),
+conditioning, optimisers (quadratic cost). The complete inversion is not validated yet:
+`examples/anomaly_2d` (two anomalies above a known reflector, 8 shots; `make_case.py`
+writes the models, the observed data and the parameters, `check_result.py` compares
+the result with the true model) is the case for that next step.

@@ -37,5 +37,6 @@ Limits: `func`, `callback` and `gradf` write the model to HDF5 in a single proce
 the MPI decomposition each rank holds its part of the model); the absorbing terms are not
 differentiated (gradient exact away from the absorbing boundaries); elastic gradients are
 not available. `fullWaveformInversion/fwi.py` runs the whole chain (initial SEP model,
-observed SEG-Y data, optimisers of `makutu.imaging.Minimizer`), checked on a small 2-D case;
-the gradient is not preconditioned yet.
+observed SEG-Y data, optimisers of `makutu.imaging.Minimizer`, gradient conditioning); its
+phases are tested separately, the complete inversion is not validated yet
+(`fullWaveformInversion/examples/anomaly_2d`).

@@ -8,6 +8,9 @@ the residual injected at the receivers and imaging condition
 (``solver.computeGradient``). The gradients of the shots are summed in memory.
 The model and the gradient are flat arrays per element, in seismic order
 (``solver.getVelocityModel``), in the parametrisation ``model`` ("c", "1/c", "1/c2").
+The illumination of the shots (``solver.illumination``, source side of the diagonal
+pseudo-Hessian) is summed in ``gb.illumination`` by :func:`gradf`, for
+makutu.imaging.GradientConditioner.
 """
 
 import os
@@ -77,7 +80,8 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
 
     Returns:
     --------
-        np.ndarray : gradient summed over the shots
+        np.ndarray : gradient summed over the shots; the illumination summed over the
+        shots is in the attribute ``gradientComputation.illumination``
     """
     comm = pkl5.Intracomm(MPI.COMM_WORLD)
     rank = comm.Get_rank()
@@ -91,6 +95,7 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
     drootname, dformat, dext = dinfo.split(";")
 
     gradient = None
+    gradientComputation.illumination = None
     for ishot, shot in enumerate(gb.listOfAcquisition[iacq].shots):
         solver.resetWaveField()
         if ishot == 0 and startModelFile is not None:
@@ -123,6 +128,10 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
 
         partial = backward(solver, residual, model)
         gradient = partial if gradient is None else gradient + partial
+        illum = getattr(solver, "illumination", None)
+        if illum is not None:
+            ill = gradientComputation.illumination
+            gradientComputation.illumination = illum if ill is None else ill + illum
 
         shot.flag = "Done"
         if rank == 0:
@@ -193,17 +202,23 @@ def gradf(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=
     writeModel(modelFile, x, comm)
     pdir = f"{pCostDir}_{Nfeval}_G"
 
-    gradJ = None
+    gradJ, illumination = None, None
     for i in range(len(gb.listOfAcquisition)):
         g = gradientComputation(i, dataDirectory, exportSeismicTrace, traceDirectory, exportResidual, ifreq,
                                 model, startModelFile=modelFile, iterfwi=Nfeval, pCostDir=pdir,
                                 dinfo=dinfo, computeCF=computeFullCF)
         gradJ = g if gradJ is None else gradJ + g
+        ill = gradientComputation.illumination
+        if ill is not None:
+            illumination = ill if illumination is None else illumination + ill
+    gb.illumination = illumination
 
     if getattr(gb, "mode", "REL") == "DBG" and comm.Get_rank() == 0:
         os.makedirs(gradDirectory, exist_ok=True)
         with h5py.File(os.path.join(gradDirectory, f"fullGradient{Nfeval}.hdf5"), "w") as h:
             h.create_dataset("fullGradient", data=gradJ)
+            if illumination is not None:
+                h.create_dataset("illumination", data=illumination)
 
     if gDn == 1:
         gradJ = gradJ / np.max(np.abs(gradJ))

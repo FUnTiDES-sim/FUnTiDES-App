@@ -7,7 +7,7 @@ order=2
 #ppw=6              # GLL points per shortest wavelength (element size)
 #elemSize=25        # element size [m], instead of ppw
 #freeSurface=true
-#sponge=50          # sponge width [m], default 5 % of the smallest extent
+#sponge=0           # sponge width [m] (default 0: absorbing condition only)
 
 # Time
 maxtime=0.6
@@ -27,9 +27,16 @@ dinfo=seismoTrace_shot;5;.sgy
 
 # Inversion
 model=c             # c, 1/c or 1/c2
-method=steepestDescent
+method=CGPR         # CGPR, SD2 (Wolfe line search), steepestDescent, CGPR2 (heuristic) or a scipy method
 gDn=0
-minimizerOptions={"maxiter": 5, "minls": 2, "minModel": 1000, "maxModel": 4000}
+minimizerOptions={"maxiter": 10, "minModel": 1000, "maxModel": 4000}
+
+# Gradient conditioning (methods of makutu only, not the scipy ones)
+#minDepth=50        # no update above this depth [m] (sources, receivers)
+#gradEdge=50        # no update along the sides and the bottom [m]
+#gradTaper=50       # cosine ramps of minDepth and gradEdge [m]
+#illumination=true  # divide by the illumination of the shots (pseudo-Hessian, source side)
+#illumEps=0.01      # stabilisation, relative to the maximum illumination
 
 # Outputs
 #exportSeismicTrace=false

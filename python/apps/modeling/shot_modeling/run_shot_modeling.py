@@ -8,7 +8,7 @@ Workflow
    depth (seismic convention: 0 at the surface, positive downwards).
 2. Mesh and time step (``makutu.mesh.suggest_mesh``): element size from the shortest
    wavelength (``--ppw`` GLL points per wavelength) or ``--elem-size``, dt from ``--cfl``.
-   Free surface on top, absorbing edges elsewhere (plus a sponge of ``--sponge`` m).
+   Free surface on top, absorbing edges elsewhere (optional sponge of ``--sponge`` m).
 3. Acquisition, either
    - a decision file (``--decision``), as written by
      ``python -m makutu.acquisition.create_equispaced_segy``, or
@@ -58,8 +58,9 @@ def parse_args():
     g.add_argument("--cfl", type=float, default=0.3, help="CFL number (default 0.3)")
     g.add_argument("--tmax", type=float, default=None, help="recorded time [s] (default 2 lz / vp_min)")
     g.add_argument("--dt-seismo", type=float, default=None, help="seismogram sampling [s] (default dt)")
-    g.add_argument("--sponge", type=float, default=None,
-                   help="sponge width on the absorbing edges [m] (default 5%% of the smallest extent)")
+    g.add_argument("--sponge", type=float, default=0.0,
+                   help="sponge width on the absorbing edges [m] (default 0: absorbing condition only; "
+                        "the FUnTiDES sponge with the default taper_delta makes the field grow at late times)")
 
     g = p.add_argument_group("acquisition (decision file)")
     g.add_argument("--decision", default=None, help="decision file rootname (e.g. acquisition/survey)")
@@ -156,7 +157,7 @@ def main():
     h = lx / mesh.ex
 
     tmax = args.tmax if args.tmax is not None else 2.0 * lz / vp_min
-    sponge = args.sponge if args.sponge is not None else 0.05 * min(lengths)
+    sponge = args.sponge
     solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU,
                             mesh_type=FTSolver.MeshType.UNSTRUCT,       # SEP model: ModelUnstruct
                             model_location=FTSolver.ModelLocationType.ONELEMENTS,
