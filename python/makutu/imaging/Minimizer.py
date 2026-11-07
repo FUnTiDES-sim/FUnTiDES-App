@@ -11,6 +11,8 @@ import numpy as np
 
 from scipy import optimize
 
+from . import globals as gb
+
 
 class Minimizer:
     """
@@ -143,6 +145,13 @@ class _WolfeOptimizer(Minimizer):
     1 % of max|x|) on the largest element; then the step whose first-order decrease is
     twice the last decrease of J (Nocedal & Wright, eq. 3.60), at most 10 times the
     last model change.
+
+    Evaluations: the line search asks for J and then for the gradient at the trial steps;
+    by default (option fWithGradient) J is computed with the gradient (one forward run with
+    snapshots and one adjoint run), and the gradient at the accepted step is reused for the
+    next iteration: about two forward runs per iteration when the first step is accepted,
+    instead of five. With fWithGradient=False, J alone is computed first (one forward run),
+    which is cheaper when the first trial steps are rejected.
     """
 
     def _options(self, method):
@@ -152,7 +161,48 @@ class _WolfeOptimizer(Minimizer):
         self.nbCFcheck = o.get("nbCFcheck", 5)
         self.amax = o.get("amax", 50)
         self.lsMaxiter = o.get("lsMaxiter", 10)
+        self.fWithGradient = o.get("fWithGradient", True)
         self._lastChange = None
+        self._cache = []                     # (x, J, gradient or None, illumination), latest last
+        self.nEval = {"J": 0, "gradient": 0}
+
+    # ------------------------------------------------------------------ evaluations
+    def _lookup(self, x):
+        for entry in reversed(self._cache):
+            if entry[0].shape == x.shape and np.array_equal(entry[0], x):
+                return entry
+        return None
+
+    def _store(self, x, J, gradJ):
+        self._cache = [e for e in self._cache if not np.array_equal(e[0], x)][-3:]
+        self._cache.append((np.array(x, copy=True), J, gradJ, getattr(gb, "illumination", None)))
+
+    def _fg(self, x, *args):
+        """(J, gradient) at x, from the cache or from jac."""
+        entry = self._lookup(x)
+        if entry is not None and entry[2] is not None:
+            if entry[3] is not None:
+                gb.illumination = entry[3]       # for the preconditioner
+            return entry[1], entry[2]
+        gradJ, J = self.jac(x, *args, computeFullCF=True)
+        self.nEval["gradient"] += 1
+        self._store(x, J, gradJ)
+        return J, gradJ
+
+    def _f(self, x, *args):
+        """J at x (computed with the gradient if fWithGradient)."""
+        entry = self._lookup(x)
+        if entry is not None:
+            return entry[1]
+        if self.fWithGradient:
+            return self._fg(x, *args)[0]
+        J = self.func(x, *args)
+        self.nEval["J"] += 1
+        self._store(x, J, None)
+        return J
+
+    def _g(self, x, *args):
+        return self._fg(x, *args)[1]
 
     def _scaled(self, x, d, gradJ, J, Jpast):
         """Direction d scaled so that step 1 is the expected step."""
@@ -166,7 +216,7 @@ class _WolfeOptimizer(Minimizer):
 
     def _lineSearch(self, x, d, gradJ, J, args):
         """Step length along d satisfying the strong Wolfe conditions, or None."""
-        res = optimize.line_search(self.func, self.jac, x, d, gfk=gradJ, old_fval=J, old_old_fval=None,
+        res = optimize.line_search(self._f, self._g, x, d, gfk=gradJ, old_fval=J, old_old_fval=None,
                                    args=args, c1=1e-4, c2=0.9, amax=self.amax, maxiter=self.lsMaxiter)
         return res[0]
 
@@ -181,11 +231,10 @@ class _WolfeOptimizer(Minimizer):
 
     def optimize(self, x, args):
         """Optimize; returns the final model."""
-        gradJ, J = self.jac(x, *args, computeFullCF=True)
-        Jpast = None
+        J, gradJ = self._fg(x, *args)
+        J0, Jpast = J, None
         history = [J]
         for it in range(self.maxiter):
-            self._iterate(x)
             _logCost(it, J)
             print(f"\nFWI iter {it} - Full cost function : {J}\n")
 
@@ -201,10 +250,12 @@ class _WolfeOptimizer(Minimizer):
             print("Calculated step length: ", step)
 
             xup = self._clip(x + step * d)
-            gradUp, Jup = self.jac(xup, *args, computeFullCF=True)
-            print(f"Jup: {Jup}, J: {J}, |J(i) - J(i-1)|: {abs(Jup - J)} (tolerance {self.Jtol})")
-            if abs(Jup - J) < self.Jtol:
+            Jup, gradUp = self._fg(xup, *args)
+            print(f"Jup: {Jup}, J: {J}, |J(i) - J(i-1)| / J(0): {abs(Jup - J) / J0:.3e} (tolerance {self.Jtol})")
+            print(f"Evaluations so far: {self.nEval['gradient']} with gradient, {self.nEval['J']} of J alone")
+            if abs(Jup - J) < self.Jtol * J0:
                 x, J = xup, Jup
+                self._iterate(x)
                 print("Tolerance criteria satisfied.")
                 break
             if self._tooSmall(x, xup):
@@ -213,6 +264,7 @@ class _WolfeOptimizer(Minimizer):
             self._lastChange = float(np.max(np.abs(xup - x)))
             self._gradPast = gradJ
             x, gradJ, Jpast, J = xup, gradUp, J, Jup
+            self._iterate(x)                             # callback: model after the update
             # stop when J stays within 5 % of the mean of the last nbCFcheck values
             meanJ = np.mean(history[-self.nbCFcheck:])
             history.append(J)
@@ -237,8 +289,11 @@ class CGPROptimizer(_WolfeOptimizer):
             Maximum number of iterations \
             Default is 10
         Jtol (or gtol) : float, optional
-            Stop when |J(i) - J(i-1)| < Jtol \
+            Stop when |J(i) - J(i-1)| < Jtol J(0) \
             Default is 1e-4
+        fWithGradient : bool, optional
+            Compute J with the gradient in the line search (see _WolfeOptimizer) \
+            Default is True
         nbCFcheck : int, optional
             Stop when J stays above 95 % of the mean of the last nbCFcheck values \
             Default is 5

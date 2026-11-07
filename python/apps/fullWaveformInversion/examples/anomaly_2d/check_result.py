@@ -14,19 +14,22 @@ import os
 import h5py
 import numpy as np
 
-from case import LX, LZ, ELEM, ANOMALIES, models
+from case import LX, LZ, ELEM, ANOMALIES, Z_REFLECTOR, models
 
 
 def summary(v, X, Z, v0, vtrue):
-    """Relative model error, and value and position of the extremum near every anomaly."""
+    """Relative model error (whole model, and above the reflector minus 50 m), and value and
+    position of the extremum near every anomaly."""
     err = np.linalg.norm(v - vtrue) / np.linalg.norm(v0 - vtrue)
+    above = Z < Z_REFLECTOR - 50.0
+    err_above = np.linalg.norm((v - vtrue)[above]) / np.linalg.norm((v0 - vtrue)[above])
     lines = []
     for x, z, r, dv in ANOMALIES:
         near = (X - x) ** 2 + (Z - z) ** 2 < (2 * r) ** 2
         dvr = np.where(near, (v - v0) * np.sign(dv), -np.inf)
         k = np.unravel_index(np.argmax(dvr), v.shape)
         lines.append((x, z, dv, X[k], Z[k], (v - v0)[k]))
-    return err, lines
+    return err, err_above, lines
 
 
 def main():
@@ -41,11 +44,14 @@ def main():
         v = f["velocity"][:].reshape(X.shape)
 
     for cf in sorted(glob.glob(os.path.join(a.rundir, "fullCostFunction*.txt"))):
-        J = np.loadtxt(cf)[:, 1]
-        print(f"{os.path.basename(cf)}: {len(J) - 1} iterations, J {J[0]:.4g} -> {J[-1]:.4g} "
-              f"(J / J0 = {J[-1] / J[0]:.3g})")
-    err, lines = summary(v, X, Z, v0, vtrue)
-    print(f"Model error |v - vtrue| / |v0 - vtrue| = {err:.3f}")
+        it, J = np.loadtxt(cf, ndmin=2).T
+        # one stage per filter frequency: the iteration index restarts at 0
+        starts = list(np.flatnonzero(it == 0)) + [len(J)]
+        for k, (i0, i1) in enumerate(zip(starts[:-1], starts[1:])):
+            print(f"{os.path.basename(cf)} stage {k + 1}: {i1 - i0 - 1} iterations, J {J[i0]:.4g} -> "
+                  f"{J[i1 - 1]:.4g} (J / J0 = {J[i1 - 1] / J[i0]:.3g})")
+    err, err_above, lines = summary(v, X, Z, v0, vtrue)
+    print(f"Model error |v - vtrue| / |v0 - vtrue| = {err:.3f} (above {Z_REFLECTOR - 50:.0f} m: {err_above:.3f})")
     print(f"Model range {v.min():.0f} - {v.max():.0f} m/s")
     for x, z, dv, xr, zr, dvr in lines:
         print(f"Anomaly {dv:+.0f} m/s at ({x:.0f}, {z:.0f}) m: recovered {dvr:+.0f} m/s at ({xr:.0f}, {zr:.0f}) m")

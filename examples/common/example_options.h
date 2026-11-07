@@ -42,7 +42,7 @@ struct CommonOptions {
   int snap_interval = 20;          ///< Number of time steps between two slices.
   float boundaries_size = 0.f;     ///< Thickness of the sponge layers.
   bool surface_sponge = false;     ///< Forwarded to Solver::computeFEInit().
-  float taper_delta = 0.015f;      ///< Taper coefficient of the sponge layers.
+  float taper_delta = 0.01f;       ///< Sponge attenuation (amplitude ratio after a normal round trip).
   bool is_model_on_nodes = false;  ///< Model given on nodes (true) or on elements (false).
   bool free_surface = false;       ///< Free surface on the top boundary (z+).
   std::string model_file;          ///< Heterogeneous .ftmd model file; empty for a homogeneous model.
@@ -78,9 +78,10 @@ struct CommonOptions {
         ("s,snapshots", "Write field slices during the run", cxxopts::value<bool>(o.snapshots))
         ("snap-interval", "Time steps between two slices (default 20)", cxxopts::value<int>(o.snap_interval))
         ("boundaries-size", "Thickness of the sponge layers (m)", cxxopts::value<float>(o.boundaries_size))
-        ("sponge-surface", "Treat the top surface nodes as non-sponge nodes",
+        ("sponge-surface", "No sponge along the top side (free surface)",
          cxxopts::value<bool>(o.surface_sponge))
-        ("taper-delta", "Taper coefficient of the sponge layers", cxxopts::value<float>(o.taper_delta))
+        ("taper-delta", "Sponge attenuation: amplitude ratio of a wave crossing it and back (default 0.01)",
+         cxxopts::value<float>(o.taper_delta))
         ("is-model-on-nodes", "Model given on nodes (true) or on elements (false)",
          cxxopts::value<bool>(o.is_model_on_nodes))
         ("free-surface", "Free surface on the top boundary (z+), default false",

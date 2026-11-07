@@ -60,7 +60,7 @@ def parse_args():
     g.add_argument("--dt-seismo", type=float, default=None, help="seismogram sampling [s] (default dt)")
     g.add_argument("--sponge", type=float, default=0.0,
                    help="sponge width on the absorbing edges [m] (default 0: absorbing condition only; "
-                        "the FUnTiDES sponge with the default taper_delta makes the field grow at late times)")
+                        "the sponge does better from about two wavelengths)")
 
     g = p.add_argument_group("acquisition (decision file)")
     g.add_argument("--decision", default=None, help="decision file rootname (e.g. acquisition/survey)")
@@ -161,7 +161,7 @@ def main():
     solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU,
                             mesh_type=FTSolver.MeshType.UNSTRUCT,       # SEP model: ModelUnstruct
                             model_location=FTSolver.ModelLocationType.ONELEMENTS,
-                            sponge_size=[sponge, sponge, sponge], surface_sponge=False,
+                            sponge_size=[sponge, sponge, sponge], surface_sponge=True,
                             dt=dt, minTime=0.0, maxTime=tmax, dtSeismo=args.dt_seismo or dt,
                             sourceType="ricker2", sourceFreq=args.f0, **mesh.solver_kwargs())
     solver.initialize()

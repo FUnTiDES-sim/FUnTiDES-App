@@ -38,5 +38,6 @@ the MPI decomposition each rank holds its part of the model); the absorbing term
 differentiated (gradient exact away from the absorbing boundaries); elastic gradients are
 not available. `fullWaveformInversion/fwi.py` runs the whole chain (initial SEP model,
 observed SEG-Y data, optimisers of `makutu.imaging.Minimizer`, gradient conditioning); its
-phases are tested separately, the complete inversion is not validated yet
-(`fullWaveformInversion/examples/anomaly_2d`).
+phases are tested separately, and the complete inversion recovers the two anomalies of
+the synthetic 2-D case `fullWaveformInversion/examples/anomaly_2d` (single- and
+multi-scale, see `fullWaveformInversion/README.md`).

@@ -27,9 +27,10 @@ class Solver:
         sponge_size : list of float
             Absorbing boundary sizes [x, y, z] in meters
         surface_sponge : bool
-            Enable sponge at the free surface
+            No sponge along the top side (free surface)
         taper_delta : float
-            Taper delta for sponge boundaries
+            Attenuation of the sponge: amplitude ratio of a wave crossing it at normal
+            incidence and coming back (FUnTiDES sponge_profile.h)
         comm : mpi4py communicator or None
             MPI communicator for domain-decomposed runs.  ``None`` means
             single-process (no MPI synchronisation).
@@ -47,7 +48,7 @@ class Solver:
                  model_location=None,
                  sponge_size=None,
                  surface_sponge=False,
-                 taper_delta=0.015,
+                 taper_delta=0.01,
                  comm=None,
                  **kwargs):
         """
@@ -68,9 +69,10 @@ class Solver:
             sponge_size : list of float, optional
                 Absorbing boundary sizes [x, y, z]. Default is [0.0, 0.0, 0.0]
             surface_sponge : bool, optional
-                Enable sponge at free surface. Default is False
+                No sponge along the top side (free surface). Default is False
             taper_delta : float, optional
-                Taper delta for sponge. Default is 0.015
+                Attenuation of the sponge (amplitude ratio after a normal round trip).
+                Default is 0.01
             comm : mpi4py communicator, optional
                 MPI communicator for 1-D X domain decomposition.  When
                 provided and ``size > 1``, the mass matrix boundaries are

@@ -25,10 +25,10 @@ convention). Commands below are run from `FUnTiDES-App/python` after
   or `--elem-size`;
 - dt = `--cfl` (default 0.3) * smallest GLL spacing / vp_max;
 - free surface on top; the other edges have the absorbing condition of FUnTiDES (about
-  1 % of the signal reflected on a 2-D homogeneous case); `--sponge` adds a sponge of that
-  width (default 0: with the default `taper_delta` of 0.015 m, the FUnTiDES sponge makes
-  the field grow at late times, about 25 times the signal at 1 s on a 2 x 1 km 2-D case;
-  with a larger `taper_delta` it is also applied along the free surface);
+  2 % error on the seismograms of a 2-D homogeneous case); `--sponge` adds a sponge of
+  that width on these edges (default 0). The sponge reflects little from about two
+  wavelengths: on that case (10 Hz, 2000 m/s), 0.5 % with 400 m, 0.14 % with 600 m; with
+  one wavelength or less it does worse than the absorbing condition alone;
 - orders: 1 to 3 in 3-D, up to the order compiled in FUnTiDES in 2-D.
 
 The seismograms are recorded every round(`--dt-seismo` / dt) steps; the actual sampling is

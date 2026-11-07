@@ -6,8 +6,8 @@ Adjoint and gradient of makutu on FUnTiDES, phase by phase (2-D, small mesh):
 - Taylor test: J(m + h dm) - J(m) - h <g, dm> = O(h^2) for a random perturbation;
 - absorbing edges: their terms are not differentiated (the gradient is exact inside the
   domain, not on the edge elements: see makutu.imaging.GradientConditioner, edge);
-- FUnTiDES sponge: with the default taper_delta the field grows at late times (expected
-  failure).
+- FUnTiDES sponge: it lowers the late-time energy left by the absorbing condition and
+  leaves the direct arrivals unchanged.
 """
 
 import numpy as np
@@ -98,20 +98,27 @@ def test_gradient_inside_and_on_the_absorbing_edges():
     assert rel["side"] > 0.2                                               # documents the edge error
 
 
-@pytest.mark.xfail(strict=True, reason="FUnTiDES sponge (initSpongeValues) with the default taper_delta "
-                                       "(0.015 m): the late-time field grows (x 25 above the signal at 1 s)")
-def test_sponge_keeps_the_seismograms_bounded():
-    """Seismograms with and without a 50 m sponge on a homogeneous model: the sponge only
-    absorbs, it should not add energy."""
-    def run(sponge):
-        mesh = CartesianMesh2D(2000.0, 1000.0, 80, 40, order=2, vp=np.full((40, 80), 2000.0))
+def test_sponge_absorbs_without_growth():
+    """Homogeneous model, interior 1000 x 500 m, free surface on top: with a 400 m sponge (two
+    wavelengths) on the sides and the bottom, the energy after the direct arrivals (0.6 to
+    2 s) falls below half of that left by the absorbing condition alone (0.15 measured), and
+    the direct arrivals do not change."""
+    def run(pad):
+        lx, lz = 1000.0 + 2 * pad, 500.0 + pad
+        ex, ez = int(lx / 25), int(lz / 25)
+        mesh = CartesianMesh2D(lx, lz, ex, ez, order=2, vp=np.full((ez, ex), 2000.0))
         s = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
-                           model_location=FTSolver.ModelLocationType.ONELEMENTS, sponge_size=[sponge] * 3,
-                           surface_sponge=False, dt=1.67e-3, minTime=0.0, maxTime=1.2, dtSeismo=3.34e-3,
+                           model_location=FTSolver.ModelLocationType.ONELEMENTS, sponge_size=[pad] * 3,
+                           surface_sponge=True, dt=1.67e-3, minTime=0.0, maxTime=2.0, dtSeismo=3.34e-3,
                            sourceType="ricker2", sourceFreq=10.0, **mesh.solver_kwargs())
         s.initialize()
-        p = shoot(s, s.getVelocityModel(), [[1000.0, 0.0, 25.0]], [[x, 0.0, 25.0] for x in (200.0, 600.0, 1400.0)])
+        p = shoot(s, s.getVelocityModel(), [[pad + 500.0, 0.0, 25.0]],
+                  [[pad + x, 0.0, z] for x, z in ((100.0, 25.0), (300.0, 25.0), (800.0, 25.0), (500.0, 400.0))])
         del s, mesh
         return p
-    p0, p50 = run(0.0), run(50.0)
-    assert np.linalg.norm(p50) < 1.05 * np.linalg.norm(p0)
+
+    p0, p400 = run(0.0), run(400.0)
+    late = slice(int(0.6 / 3.34e-3), None)
+    early = slice(0, int(0.25 / 3.34e-3))                                  # before any edge reflection
+    assert np.linalg.norm(p400[early] - p0[early]) < 1e-3 * np.linalg.norm(p0[early])
+    assert np.linalg.norm(p400[late]) < 0.5 * np.linalg.norm(p0[late])

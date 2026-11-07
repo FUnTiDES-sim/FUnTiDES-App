@@ -87,7 +87,7 @@ def parse_workflow_parameters(pfile):
     p.add_argument("--freeSurface", dest="freeSurface", type=str2bool, default=True,
                    help="Free surface on top")
     p.add_argument("--sponge", dest="sponge", type=float, default=0.0,
-                   help="Sponge width [m] on top of the absorbing condition (default 0: the FUnTiDES sponge with the default taper_delta makes the field grow at late times)")
+                   help="Sponge width [m] on the absorbing edges, on top of the absorbing condition (default 0; useful from about two wavelengths)")
     # Time
     p.add_argument("--maxtime", dest="maxtime", type=float, required=True, help="Recorded time [s]")
     p.add_argument("--dt", dest="dt", type=float, default=None, help="Time step (default from the CFL)")
@@ -160,7 +160,7 @@ def build_solver(wf, vp_file):
     sponge = wf.sponge
     solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolver.MeshType.UNSTRUCT,
                             model_location=FTSolver.ModelLocationType.ONELEMENTS,
-                            sponge_size=[sponge] * 3, surface_sponge=False,
+                            sponge_size=[sponge] * 3, surface_sponge=wf.freeSurface,
                             dt=dt, minTime=0.0, maxTime=wf.maxtime, dtSeismo=wf.dtSeismo or dt,
                             sourceType=wf.sourceType, sourceFreq=wf.sourceFreq, **m.mesh.solver_kwargs())
     solver.initialize()

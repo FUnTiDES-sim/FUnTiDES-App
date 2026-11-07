@@ -86,8 +86,8 @@ physics:
 
   boundaries:  # absorbing sponge — set boundaries-size > 0 to enable
     boundaries-size: 0.0    # absorbing layer thickness (meters, 0 = disabled)
-    sponge-surface:  false  # include the top surface in the sponge
-    taper-delta:     0.015  # taper decay rate
+    sponge-surface:  false  # true: no sponge along the top side (free surface)
+    taper-delta:     0.01   # attenuation: amplitude ratio of a wave crossing the sponge and back
 
 # ---------------------------------------------------------------------------
 # Output

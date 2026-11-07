@@ -420,8 +420,9 @@ class WaveSolver(Solver):
 
     def filterSource(self, fmax):
         """
-        Low-pass filter the source waveform (cosine taper from fmax to fmax + 1 Hz)
-        and update kk_RHSTerm; the time axis is unchanged.
+        Low-pass filter the source waveform (causal Butterworth, -3 dB at fmax, as the
+        observed data: makutu.tools.frequencyFilter) and update kk_RHSTerm; the time axis
+        is unchanged.
 
         Parameters
         ----------

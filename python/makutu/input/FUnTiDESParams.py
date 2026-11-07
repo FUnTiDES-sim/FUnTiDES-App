@@ -42,7 +42,7 @@ Example parameter file::
     sponge_y = 0.0
     sponge_z = 0.0
     surface_sponge = False
-    taper_delta = 0.015
+    taper_delta = 0.01
 
     # --- Physics ---
     physic_type = ACOUSTIC      # ACOUSTIC or ELASTIC
@@ -104,7 +104,7 @@ def _build_parser():
     p.add_argument("--sponge_y", type=float, default=0.0)
     p.add_argument("--sponge_z", type=float, default=0.0)
     p.add_argument("--surface_sponge", type=_str2bool, default=False)
-    p.add_argument("--taper_delta", type=float, default=0.015)
+    p.add_argument("--taper_delta", type=float, default=0.01)
 
     # Physics
     p.add_argument("--physic_type", type=str, default="ACOUSTIC",
@@ -172,9 +172,9 @@ class FUnTiDESParams:
     sponge_size : list of float
         Absorbing boundary thickness ``[sponge_x, sponge_y, sponge_z]`` [m].
     surface_sponge : bool
-        Apply sponge on free surface.
+        No sponge along the top side (free surface).
     taper_delta : float
-        Sponge taper width.
+        Attenuation of the sponge (amplitude ratio after a normal round trip).
     physic_type : str
         ``'ACOUSTIC'`` or ``'ELASTIC'``.
     """

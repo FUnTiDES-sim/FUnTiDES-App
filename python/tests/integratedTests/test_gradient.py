@@ -134,3 +134,28 @@ def test_gradf_descent():
     step = 10.0 / np.abs(g0).max()                                # at most 10 m/s
     _, J1 = gradf(v0.ravel() - step * g0, "obs", exportSeismicTrace=False, computeFullCF=True)
     assert J1 < J0
+
+
+@pytest.mark.skipif(not HAS_2D, reason="FUnTiDES built without COMPILE_SEM_2D")
+def test_filtered_stage_vanishes_on_the_true_model():
+    """Multi-scale stage (filter frequency 6 Hz): the source (solver.filterSource) and the
+    observed data (ComputeResidual) are filtered consistently, so that J is close to 0 on
+    the true model, and the filtered gradient still lowers J."""
+    X, Z = grid_2d()
+    v0 = np.full(X.shape, 2000.0)
+    vtrue = v0 + 300.0 * np.exp(-((X - 600) ** 2 + (Z - 300) ** 2) / 80.0 ** 2)
+    solver = solver_2d(2, vtrue)
+    acq = Acquisition(sources=[[300.0, 0.0, 100.0], [700.0, 0.0, 100.0]],
+                      receivers=[[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)])
+    gb.initializeGlobalVariables(solver, acq, [acq], 1000.0, 4000.0, 0.0, ["all"])
+    directSimulation(0, exportSeismicTrace=True, traceDirectory="obs")          # unfiltered data
+    for i in (1, 2):
+        os.replace(f"obs/seismoTrace_shot{i:05d}_10.sgy", f"obs/seismoTrace_shot{i:05d}.sgy")
+    gb.freqList = [6.0]
+
+    kw = dict(exportSeismicTrace=False, computeFullCF=True, ifreq=0)
+    _, J_true = gradf(vtrue.ravel(), "obs", **kw)
+    g0, J0 = gradf(v0.ravel(), "obs", **kw)
+    assert J_true < 1e-2 * J0                     # 1.5e-3 measured (0.99 with the former FFT filter)
+    _, J1 = gradf(v0.ravel() - 10.0 / np.abs(g0).max() * g0, "obs", **kw)
+    assert J1 < J0

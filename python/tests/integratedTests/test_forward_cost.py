@@ -85,8 +85,11 @@ def test_source_filter_keeps_the_time_axis():
     solver.filterSource(40.0)                                 # above the Ricker band: nearly unchanged
     wide = solver.sourceValue[:, 0].copy()
     assert wide.shape == raw.shape
-    assert np.argmax(np.abs(wide)) == np.argmax(np.abs(raw))
-    assert np.corrcoef(raw, wide)[0, 1] > 0.999
+    # causal filter: same waveform, delayed by a few ms (group delay at 40 Hz)
+    shift = int(np.argmax(np.abs(wide))) - int(np.argmax(np.abs(raw)))
+    assert 0 <= shift * solver.dt < 0.015
+    xc = np.correlate(wide, raw, "full") / (np.linalg.norm(wide) * np.linalg.norm(raw))
+    assert xc.max() > 0.99
     solver.evaluateSource()
     solver.filterSource(5.0)                                  # below the peak frequency: smaller
     assert np.abs(solver.sourceValue).max() < 0.8 * np.abs(raw).max()

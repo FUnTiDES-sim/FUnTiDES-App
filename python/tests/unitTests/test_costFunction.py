@@ -53,8 +53,28 @@ def test_residual_filters_the_observed_data(tmp_path):
     obs = (np.sin(2 * np.pi * 5 * t) + np.sin(2 * np.pi * 100 * t))[:, None]
     write_segy(tmp_path / "obs.sgy", obs, 1e-3)
     r = ComputeResidual(str(tmp_path / "obs.sgy"), dt=1e-3, fmax=20).computeResidual(np.zeros((1000, 1)))
-    # the 100 Hz component is removed, the 5 Hz one kept (away from the edges)
-    np.testing.assert_allclose(r[200:800, 0], np.sin(2 * np.pi * 5 * t[200:800]), atol=2e-2)
+    # the 100 Hz component is removed, the 5 Hz one kept (causal filter: amplitude 1, delayed)
+    late = r[300:, 0]
+    assert np.abs(np.fft.rfft(late))[np.argmin(np.abs(np.fft.rfftfreq(late.size, 1e-3) - 100))] < 1e-2 * late.size / 2
+    assert np.max(np.abs(late)) == pytest.approx(1.0, abs=2e-2)
+
+
+def test_filter_is_causal_and_commutes_with_resampling():
+    """Filtering a wavelet before or after a delay and a resampling gives the same signal:
+    the source and the data of a multi-scale stage are filtered consistently."""
+    from makutu.tools import frequencyFilter
+    dt, f0 = 4e-4, 10.0
+    t = np.arange(3000) * dt
+    a = (np.pi * f0 * (t - 1 / f0)) ** 2
+    w = ((1 - 2 * a) * np.exp(-a))[:, None]                       # Ricker, delay 1 / f0
+    fw = frequencyFilter(w, 6.0, dt)
+    spike = np.zeros((1000, 1)); spike[400] = 1.0
+    assert np.all(frequencyFilter(spike, 6.0, dt)[:400] == 0.0)    # causal
+    delay = 500                                                   # samples
+    shifted = np.vstack([np.zeros((delay, 1)), w[:-delay]])
+    after = frequencyFilter(shifted[::5], 6.0, 5 * dt)            # filter after delay and resampling
+    before = np.vstack([np.zeros((delay, 1)), fw[:-delay]])[::5]
+    assert np.linalg.norm(after - before) < 1e-2 * np.linalg.norm(before)
 
 
 def test_residual_checks_the_number_of_traces(tmp_path):

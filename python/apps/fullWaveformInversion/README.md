@@ -30,20 +30,26 @@ Single process (the model files are not distributed over MPI ranks yet).
 
 - Parametrisation `model`: `c`, `1/c` or `1/c2` (the bounds are converted).
 - `freqFilterList`: the data and the source are low-pass filtered at each frequency in
-  turn, each stage starting from the model of the previous one (multi-scale).
+  turn, each stage starting from the model of the previous one (multi-scale). The filter
+  is a causal Butterworth (-3 dB at the frequency), so that the filtered data and the data
+  simulated with the filtered source agree (0.1 %; the former zero-phase FFT filter rang
+  before t = 0 and gave 24 % of difference).
 - `method`: `steepestDescent` (default) or `CGPR2`, heuristic line search (first step 1 %
   of the model, option `alpha`; the best trial step is kept if it lowers J); `SD2` or
   `CGPR`, Wolfe line search (`scipy.optimize.line_search`, step 1 scaled on the last
-  decrease of J); or any `scipy.optimize.minimize` method, such as `L-BFGS-B`. The Wolfe
-  and scipy methods need `gDn=0` (true gradient).
+  decrease of J; J is computed with the gradient at each trial step and the gradient of
+  the accepted step is reused: about one gradient, i.e. two forward runs, per iteration;
+  stop when J changes by less than `Jtol` times the first J); or any
+  `scipy.optimize.minimize` method, such as `L-BFGS-B`. The Wolfe and scipy methods need
+  `gDn=0` (true gradient).
 - Gradient conditioning (methods of makutu only), `makutu.imaging.GradientConditioner`:
   no update above `minDepth` and within `gradEdge` of the sides and the bottom (the
   absorbing terms are not differentiated: the gradient is exact inside, wrong on the
   edge elements), cosine ramps of `gradTaper`; `illumination=true` divides by the energy
   of the forward field (pseudo-Hessian, source side, stabilised by `illumEps`).
-- Absorbing edges: the absorbing condition of FUnTiDES, without sponge by default
-  (`sponge`: the FUnTiDES sponge with the default `taper_delta` makes the field grow at
-  late times).
+- Absorbing edges: the absorbing condition of FUnTiDES (about 2 % error on the
+  seismograms), and optionally a sponge of width `sponge` [m] on the sides and the bottom
+  (not along the free surface), useful from about two wavelengths (0.5 % with two).
 
 ## Outputs
 
@@ -55,9 +61,22 @@ Single process (the model files are not distributed over MPI ranks yet).
 
 ## Status
 
-The phases are tested separately (`tests/`): acquisition, modelling, filtering,
-residual and cost, gradient (finite differences, Taylor test, reciprocity, edges, MPI),
-conditioning, optimisers (quadratic cost). The complete inversion is not validated yet:
-`examples/anomaly_2d` (two anomalies above a known reflector, 8 shots; `make_case.py`
-writes the models, the observed data and the parameters, `check_result.py` compares
-the result with the true model) is the case for that next step.
+The phases are tested separately (`tests/`): acquisition, modelling, filtering (source
+and data of a multi-scale stage), residual and cost, gradient (finite differences, Taylor
+test, reciprocity, edges, MPI), conditioning, optimisers (quadratic cost, number of
+evaluations).
+
+First complete inversions on `examples/anomaly_2d` (two Gaussian anomalies of +-250 m/s
+above a known reflector, 8 shots, 73 receivers at the surface; `make_case.py` writes the
+models, the observed data and the parameters, `check_result.py` compares the result with
+the true model), CGPR, `minDepth=50`, `gradEdge=50`, `gradTaper=50`, `illumination=true`,
+same mesh for the data and the inversion:
+
+| Run | Time (GPU) | J / J0 | Anomalies recovered | Model error above 750 m |
+|---|---|---|---|---|
+| no filter, 15 iterations | 4 min | 0.012 | +92, -104 m/s | 0.71 |
+| `freqFilterList=5,8,12`, 10 iterations each | 6.5 min | 0.05, 0.44, 0.49 | +162, -155 m/s | 0.66 |
+
+The anomalies are found at the right place (within 15 m), smeared vertically (surface
+acquisition); part of the traveltime shifts goes into the reflector (velocities up to
+2830 m/s there).

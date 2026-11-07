@@ -73,3 +73,23 @@ def test_preconditioner_mask_freezes_the_masked_elements(method):
 def test_preconditioner_refused_by_scipy_methods():
     with pytest.raises(ValueError):
         Minimizer(func, method="L-BFGS-B", jac=jac, precond=lambda g: g).optimize(X0, ())
+
+
+@pytest.mark.parametrize("method", ["SD2", "CGPR"])
+def test_wolfe_evaluations_are_reused(method):
+    """J is computed with the gradient (one call of jac per trial point) and the gradient of
+    the accepted step is not recomputed: about one jac call per iteration, no func call."""
+    calls = {"func": 0, "jac": 0}
+
+    def counted_func(x, *args):
+        calls["func"] += 1
+        return func(x)
+
+    def counted_jac(x, *args, computeFullCF=False):
+        calls["jac"] += 1
+        return jac(x, computeFullCF=computeFullCF)
+
+    x = Minimizer(counted_func, method=method, jac=counted_jac, options={"maxiter": 5}).optimize(X0, ())
+    assert func(x) < 0.02 * func(X0)
+    assert calls["func"] == 0
+    assert calls["jac"] <= 5 + 1 + 3                  # one per iteration, the first, few rejected trials
