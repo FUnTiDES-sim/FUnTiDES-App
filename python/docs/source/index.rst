@@ -1,42 +1,30 @@
-.. Makutu documentation master file, created by
-   sphinx-quickstart on Wed Oct 26 19:34:28 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+makutu documentation
+####################
 
-MAKUTU repository documentation
-=========================================
+:code:`makutu` is a Python library for seismic applications on the **FUnTiDES**
+spectral-element solvers (through their :code:`pyfuntides` bindings): forward modelling
+of shots in 2-D and 3-D, gradient of the least-squares misfit by the adjoint-state method,
+and acoustic full-waveform inversion (FWI).
 
-The :code:`makutu` code is a library focused on seismic applications (forward
-modelling, imaging and full-waveform inversion). It drives the **FUnTiDES**
-spectral-element solvers through their :code:`pyfuntides` Python bindings. You will find a variety of functions and
-classes to build your own applications.
+It is the :file:`python/` directory of FUnTiDES-App:
 
-
-
-Organisation
------------------------
-The repository is organized into different sub-modules:
-   - :code:`makutu`: the library, seismic-specific objects and utilities (mesh/model, solvers, acquisition, imaging, I/O). Drives FUnTiDES via :code:`pyfuntides`.
-   - :code:`apps`: applications (example use-case "main" scripts and basic visualization scripts).
-
-
-
-
-
+- :file:`makutu/`: the library (mesh and model, acquisition, solvers, forward and adjoint
+  runs, imaging and optimisation, outputs, display);
+- :file:`apps/`: applications (shot modelling, FWI, display scripts) and their examples;
+- :file:`tests/`: unit tests (no solver) and integrated tests (FUnTiDES on the GPU, MPI).
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    configuration/configuration
    userguide/userguide
    example/example
+   api/api
+   status
 
-
-
-Indices and tables
-==================
+Indices
+=======
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`

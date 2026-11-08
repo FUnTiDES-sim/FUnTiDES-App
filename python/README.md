@@ -1,8 +1,8 @@
 # makutu — Python seismic modelling & imaging on FUnTiDES
 
 `makutu` is the Python part of FUnTiDES-App: a library for seismic forward
-modelling, imaging (RTM) and full-waveform inversion, and the applications built
-on it. It drives the [FUnTiDES](https://github.com/FUnTiDES-sim/FUnTiDES)
+modelling, adjoint-state gradients and acoustic full-waveform inversion (FWI), and the
+applications built on it. It drives the [FUnTiDES](https://github.com/FUnTiDES-sim/FUnTiDES)
 spectral-element solvers through their `pyfuntides` Python bindings (zero-copy
 Kokkos view injection) and adds the acquisition, mesh/model, I/O and workflow
 layers on top.
@@ -17,8 +17,8 @@ before moving here; its history is kept.
 |---|---|
 | `makutu/` | the library (`import makutu…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
 | `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
-| `tests/` | `unitTests` (acquisition), `integratedTests` (forward shots on FUnTiDES: arrival times, elastic, MPI, 2-D against the exact solution) |
-| `docs/` | `funtides_input_parameters.md` + Sphinx source |
+| `tests/` | `unitTests` (acquisition, cost, filter, optimisers, conditioning; no solver), `integratedTests` (FUnTiDES on the GPU: shots, 2-D against the exact solution, elastic, gradient, adjoint, FWI functions, MPI) |
+| `docs/` | Sphinx documentation (user guide, examples, API, status) and `funtides_input_parameters.md` |
 | `scripts/`, `validation/` | developer helper scripts, DAS validation scripts |
 
 The applications import the library, never the reverse. Example data and
@@ -54,8 +54,8 @@ pip install -e ".[test]"                     # once: makutu in editable mode
 From `FUnTiDES-App/python/`, with the environment above:
 
 ```bash
-make unitTests          # acquisition, pure Python
-make integratedTests    # forward shots on FUnTiDES (about 2 min on a GPU; MPI tests launch mpirun)
+make unitTests          # pure Python, about 2 s
+make integratedTests    # FUnTiDES on the GPU, about 3 min (the MPI tests launch mpirun)
 ```
 
 ## Quick start
@@ -113,7 +113,7 @@ converts in one place (`WaveSolver`, model builders). The Kokkos arrays
 **2-D.** With a FUnTiDES built with `COMPILE_SEM_2D`, `makutu.mesh.CartesianMesh2D`
 builds a 2-D (x, z) quadrilateral mesh (z downwards, free surface on top), homogeneous,
 from arrays or from 2-D SEP files; the solvers detect the dimension from the model
-(acoustic only, single process). Coordinates stay `[x, y, z]` lists, y being ignored:
+(acoustic only; no domain decomposition, but the shots can be dealt out to MPI ranks). Coordinates stay `[x, y, z]` lists, y being ignored:
 
 ```python
 from makutu.mesh import CartesianMesh2D
@@ -124,8 +124,13 @@ solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolv
 
 See `apps/modeling/examples/marmousi_2d/` (README: data preparation, mesh choice, modelling).
 
-MPI is supported in 3-D (1-D X-axis domain decomposition) via `mpi4py`; pass a
-communicator to the mesh/solver constructors. A partitioned `StructuredMesh`
+MPI, via `mpi4py`: in 3-D, 1-D X-axis domain decomposition (pass a communicator to the
+mesh/solver constructors); in 2-D and 3-D, shots dealt out to the ranks when the solver
+has no communicator (modelling and FWI, `makutu/forwardBackward/parallel.py`).
+
+**FWI.** `apps/fullWaveformInversion/fwi.py` (README there): SEP initial model, SEG-Y
+observed data, multi-scale, optimisers of `makutu.imaging.Minimizer`, gradient
+conditioning; synthetic examples `anomaly_2d` and `marmousi_2d`. A partitioned `StructuredMesh`
 uses the `ModelUnstruct` backend (`mesh.heterogeneous` is True), so pass
 `MeshType.UNSTRUCT` to the solver.
 
@@ -133,5 +138,5 @@ uses the `ModelUnstruct` backend (`mesh.heterogeneous` is True), so pass
 
 - [`docs/funtides_input_parameters.md`](docs/funtides_input_parameters.md) —
   FUnTiDES solver input parameters.
-- Sphinx source in `docs/source/` — build with `make docs` (needs `sphinx`);
-  output lands in `docs/build/`.
+- Sphinx documentation in `docs/source/` — `pip install sphinx sphinx_rtd_theme sphinx-prompt`,
+  then `make docs`; open `docs/build/index.html` (FUnTiDES is not needed to build it).

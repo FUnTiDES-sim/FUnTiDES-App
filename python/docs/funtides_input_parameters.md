@@ -7,7 +7,7 @@
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `ex, ey, ez` | int | Number of elements per direction |
-| `hx, hy, hz` | float | Element size [m] per direction |
+| `hx, hy, hz` | float | Domain length [m] per direction (named `hx` in the binding, but makutu passes `lx, ly, lz`: see `makutu/mesh/InternalMesh.py`) |
 | `on_nodes` | bool | Physical model on nodes (`True`) or elements (`False`, default) |
 | `is_elastic` | bool | Elastic (`True`) or acoustic (`False`, default) |
 

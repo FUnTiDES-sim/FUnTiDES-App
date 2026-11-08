@@ -8,6 +8,7 @@ from ..imaging import globals as gb
 from ..output.SEGYTraceOutput import SEGYTraceOutput
 from .costFunction import ComputeCostFunction, \
                           ComputeResidual
+from .parallel import localShots, outputComm, shotParallel
 
 
 def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeCostFunction=False, dataDirectory=None, exportResidual=False, model="c", startModelFile=None, ifreq=0, pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy"):
@@ -36,69 +37,68 @@ def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeC
         model : str
             Model to use \
             Default is "c"
-        startModelFile : string hdf5 file
-            File that contains the velocity model to start with \
-            Only needed if you wish to use a model different from the acquisition default
+        startModelFile : str or np.ndarray, optional
+            Model to start with: HDF5 file (dataset "velocity") or array, in the
+            parametrisation ``model``; default None keeps the solver model
         ifreq : int
             Index of the frequency in gb.freqList \
             Default is 0
         pCostDir : str, optional
-            Partial cost function directory \
+            Partial cost function directory (None: no file) \
             Default is `partialCostFunction`
+
+    The shots are dealt out to the MPI ranks when the solver is not decomposed
+    (makutu.forwardBackward.parallel): every rank computes and exports its shots.
+
+    Returns:
+    --------
+        float : cost function of the shots of this rank (0 without computeCostFunction;
+        with the domain decomposition, on rank 0 only)
     """
     comm = pkl5.Intracomm(MPI.COMM_WORLD)
-    rank = comm.Get_rank()
     solver = gb.solver
     low = gb.minModel
     high = gb.maxModel
     freqFilter = gb.freqList[ifreq]
     solver.setModelForGradient(model)
+    if startModelFile is not None:
+        solver.updateModel(startModelFile, low, high)
+    outComm = outputComm(solver)               # its rank 0 writes the outputs of a shot
+    sameShots = not shotParallel(solver)       # every rank works on every shot
 
-    ishot = 0
-    print( f"{rank} IACQ {iacq}" )
-    for shot in gb.listOfAcquisition[iacq].shots:
-        # Reset wavefield for each shot (replaces initialize + applyInitialConditions)
+    cost = 0.0
+    for shot in localShots(gb.listOfAcquisition[iacq].shots, solver):
         solver.resetWaveField()
-
-        if ishot == 0:
-            if startModelFile is not None:
-                solver.updateModel(startModelFile, low, high)
-
         solver.updateSourceAndReceiversFromCoords(shot.getSourceCoords(), shot.getReceiverCoords())
         solver.evaluateSource()
         solver.filterSource(freqFilter)
 
         if computeCostFunction:
-            # set cost function
-            computeCostFunctionObj = ComputeCostFunction( directory=pCostDir,
-                                                          dt=solver.dtSeismoRecorded,
-                                                          rootname="partialCost_"+shot.id
-            ).computePartialCostFunction
-
-            # set computeResidual fonction
+            computeCostFunctionObj = ComputeCostFunction(directory=pCostDir, dt=solver.dtSeismoRecorded,
+                                                         rootname="partialCost_" + shot.id).computePartialCostFunction
             drootname, dformat, dext = dinfo.split(";")
             filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
-
             computeResidual = ComputeResidual(filename, dt=solver.dtSeismoRecorded, fmax=freqFilter).computeResidual
-
         else:
-            exportResidual=False
-            computeCostFunctionObj=None
-            computeResidual=None
+            exportResidual = False
+            computeCostFunctionObj = None
+            computeResidual = None
 
-        forwardComputation(solver, shot, comm, exportSeismicTrace, traceDirectory, computeCostFunctionObj, computeResidual, exportResidual=exportResidual)
+        partial = forwardComputation(solver, shot, outComm, exportSeismicTrace, traceDirectory,
+                                     computeCostFunctionObj, computeResidual, exportResidual=exportResidual)
+        cost += partial or 0.0
 
-        #Update shot flag
         shot.flag = "Done"
-        if rank == 0:
+        if outComm.Get_rank() == 0:
             print("Shot", shot.id, "done\n")
-
-        ishot += 1
-        comm.Barrier()
+        if sameShots:
+            comm.Barrier()
+    return cost
 
 
 def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirectory=".", computeCostFunction=None, computeResidual=None, exportResidual=False):
     """Performs forward simulation and handle exports for one shot using Acoustic Solver.
+
     Parameters:
     -----------
         solver : AcousticSolver
@@ -119,6 +119,10 @@ def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirecto
             Default is None (not computed)
         exportResidual : bool
             Whether or not to export the residual if computeCostFunction is set to True. Default is False
+
+    Returns:
+    --------
+        float or None : cost function of the shot on the rank 0 of comm, None otherwise
     """
     rank = comm.Get_rank()
 
@@ -143,8 +147,7 @@ def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirecto
 
         residual = computeResidual( simulatedData )
 
-        if rank == 0:
-            computeCostFunction( residual )
+        partial = computeCostFunction(residual) if rank == 0 else None
 
         if exportResidual:
             rootname = f"seismoTrace_shot{shot.id}_{int(solver.sourceFreq)}"
@@ -156,6 +159,8 @@ def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirecto
                                sourceCoords=shot.getSourceCoords()[0],
                                dt=solver.dtSeismoRecorded,
                                comm=comm)
+        return partial
+    return None
 
 
 def forward(solver, shot, comm, snapshotStep=None):

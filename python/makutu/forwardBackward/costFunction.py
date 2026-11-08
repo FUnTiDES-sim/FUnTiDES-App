@@ -13,7 +13,7 @@ from ..tools.filter import frequencyFilter
 class ComputeCostFunction:
     """
     Least-squares cost function of one shot, J = dt / 2 * sum(residual^2),
-    written to ``<directory>/<rootname>.txt``.
+    written to ``<directory>/<rootname>.txt`` (not written if directory is None).
     """
     def __init__(self, directory, dt, rootname):
         """
@@ -42,10 +42,11 @@ class ComputeCostFunction:
         --------
             float : the partial cost
         """
-        os.makedirs(self.directory, exist_ok=True)
         partialCost = self.dt * float(np.sum(np.square(residual))) / 2.0
-        with open(os.path.join(self.directory, self.rootname + ".txt"), 'w') as f:
-            f.write(repr(partialCost))
+        if self.directory is not None:
+            os.makedirs(self.directory, exist_ok=True)
+            with open(os.path.join(self.directory, self.rootname + ".txt"), 'w') as f:
+                f.write(repr(partialCost))
         return partialCost
 
 

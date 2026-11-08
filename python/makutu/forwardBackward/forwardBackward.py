@@ -9,7 +9,8 @@ import h5py
 from ..imaging import globals as gb
 from .forward import directSimulation
 from .modelio import writeModel
-from .costFunction import computeFullCostFunction, frequencyTag
+from .costFunction import frequencyTag, writeCostFunction
+from .parallel import checkShotParallel, sumOverShots
 
 iter = 1
 feval = 1
@@ -50,25 +51,23 @@ def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=T
     """
     global feval
 
-    comm = pkl5.Intracomm(MPI.COMM_WORLD)
+    solver = gb.solver
+    checkShotParallel(solver)
     freqFilter = gb.freqList[ifreq]
+    debug = getattr(gb, "mode", "REL") == "DBG"
+    pdir = f"{pCostDir}_{feval}_F" if debug else None          # partial cost files in debug mode
 
-    modelFile = "velocityModel.hdf5"
-    writeModel(modelFile, x, comm)
-
-    pCostDir += f"_{feval}_F"
+    J = 0.0
     for i in range(len(gb.listOfAcquisition)):
-        directSimulation(i, exportSeismicTrace, traceDirectory, True, dataDirectory, exportResidual, model, modelFile, ifreq, pCostDir, dinfo)
+        J += directSimulation(i, exportSeismicTrace, traceDirectory, True, dataDirectory, exportResidual, model,
+                              x, ifreq, pdir, dinfo)
+    J = sumOverShots(J, solver)
 
-    nfiles = len(gb.acquisition.shots)
-
-    save = True if gb.mode == "DBG" else False
-    J = computeFullCostFunction(nfiles, pCostDir, sfile=f"fullCostFunction{frequencyTag(freqFilter)}.txt", save=save)
-
-    if comm.Get_rank() == 0:
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        if debug:
+            writeCostFunction(J, filename=f"fullCostFunction{frequencyTag(freqFilter)}.txt")
         print(f"\nFrequency {freqFilter} - F = {J}\n")
     feval += 1
-    
     return J
 
 

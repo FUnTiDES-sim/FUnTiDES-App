@@ -132,8 +132,10 @@ class Minimizer:
 
 
 def _logCost(it, J):
-    with open("fullCostFunction.txt", "a") as f:
-        f.write(f"{it} \t {str(J)}\n")
+    from mpi4py import MPI
+    if MPI.COMM_WORLD.Get_rank() == 0:                   # the same J on every rank
+        with open("fullCostFunction.txt", "a") as f:
+            f.write(f"{it} \t {str(J)}\n")
 
 
 class _WolfeOptimizer(Minimizer):
@@ -289,7 +291,7 @@ class CGPROptimizer(_WolfeOptimizer):
             Maximum number of iterations \
             Default is 10
         Jtol (or gtol) : float, optional
-            Stop when |J(i) - J(i-1)| < Jtol J(0) \
+            Stop when abs(J(i) - J(i-1)) < Jtol J(0) \
             Default is 1e-4
         fWithGradient : bool, optional
             Compute J with the gradient in the line search (see _WolfeOptimizer) \

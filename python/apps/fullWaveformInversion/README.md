@@ -10,7 +10,13 @@ python <FUnTiDES-App>/python/apps/fullWaveformInversion/fwi.py --param_file fwi_
 python .../fwi.py --param_file fwi_parameters.txt --restart --rfile velocityModel3.hdf5   # restart
 ```
 
-Single process (the model files are not distributed over MPI ranks yet).
+With MPI (`mpirun -np N python .../fwi.py ...`) the shots are dealt out to the ranks: every
+rank holds the whole model and the solver of the whole domain, the cost, the gradient and
+the illumination are summed over the ranks, and every rank takes the same optimisation
+steps; rank 0 prints and writes the model files. It pays with one GPU per rank
+(`CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK` per rank); on one GPU the ranks compete
+and the run is slower (Marmousi 2-D: 95 s per iteration on 4 ranks, 43 s on one). (The
+domain decomposition of makutu is for the modelling; the FWI refuses it.)
 
 ## Inputs
 
@@ -74,8 +80,8 @@ same mesh for the data and the inversion:
 
 | Run | Time (GPU) | J / J0 | Anomalies recovered | Model error above 750 m |
 |---|---|---|---|---|
-| no filter, 15 iterations | 4 min | 0.012 | +92, -104 m/s | 0.71 |
-| `freqFilterList=5,8,12`, 10 iterations each | 6.5 min | 0.05, 0.44, 0.49 | +162, -155 m/s | 0.66 |
+| no filter, 15 iterations | 40 s (4 min with the GPU shared) | 0.012 | +92, -104 m/s | 0.71 |
+| `freqFilterList=5,8,12`, 10 iterations each | 6.5 min (GPU shared) | 0.05, 0.44, 0.49 | +162, -155 m/s | 0.66 |
 
 The anomalies are found at the right place (within 15 m), smeared vertically (surface
 acquisition); part of the traveltime shifts goes into the reflector (velocities up to

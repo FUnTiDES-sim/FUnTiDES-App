@@ -13,17 +13,22 @@ Workflow
    ``makutu.imaging.gradf``), starting from the model of the previous frequency.
 
 The model is a flat array per element in seismic order (z down), in the parametrisation
-``model`` ("c", "1/c" or "1/c2"). Single process (the model files are not distributed).
+``model`` ("c", "1/c" or "1/c2").
+
+With MPI the shots are dealt out to the ranks (every rank holds the whole model and runs the
+same optimisation on the summed cost and gradient; rank 0 writes the model files and prints).
 
 Usage
 -----
     python fwi.py --param_file fwi_parameters.txt [--restart --rfile velocityModel3.hdf5] [--dbg | --dbg+]
+    mpirun -np 4 python fwi.py --param_file fwi_parameters.txt
 
 See README.md for the parameters.
 """
 
 import argparse
 import os
+import sys
 
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
 
@@ -193,8 +198,9 @@ def fullWaveformInversion(minimizer, x, dataDirectory, gradDirectory="partialGra
 def main():
     args = parse_args()
     wf = parse_workflow_parameters(args.pfile)
-    if MPI.COMM_WORLD.Get_size() > 1:
-        raise SystemExit("fwi.py runs in a single process (the model files are not distributed)")
+    rank, nranks = MPI.COMM_WORLD.Get_rank(), MPI.COMM_WORLD.Get_size()
+    if rank > 0:
+        sys.stdout = open(os.devnull, "w")          # rank 0 prints (the ranks take the same steps)
     mode = "DBG" if (args.DBG or args.dbgIO) else "REL"
     exportSeismicTrace = True if args.dbgIO else wf.exportSeismicTrace
     exportResidual = True if args.dbgIO else wf.exportResidual
@@ -212,7 +218,7 @@ def main():
     else:
         ignore = [f for f in wf.filesIgnore.split(",") if f]
         acquisition = SEGYAcquisition(segdir=wf.dataDir, ignore=ignore)
-    print(f"Shots : {len(acquisition.shots)}")
+    print(f"Shots : {len(acquisition.shots)}, over {nranks} MPI rank(s)")
 
     # Parametrisation and bounds
     options = eval(wf.miniOptions)
@@ -241,8 +247,9 @@ def main():
                               exportSeismicTrace=exportSeismicTrace, traceDirectory=wf.traceDir,
                               exportResidual=exportResidual, model=wf.model, pCostDir=wf.pCostDir,
                               dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList)
-    with h5py.File("finalModel.hdf5", "w") as f:
-        f.create_dataset("velocity", data=x)
+    if rank == 0:
+        with h5py.File("finalModel.hdf5", "w") as f:
+            f.create_dataset("velocity", data=x)
     print("Final model written to finalModel.hdf5")
     gb.solver = None              # every Kokkos view must be released before kokkos.finalize
     del solver, m

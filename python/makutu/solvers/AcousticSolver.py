@@ -1,5 +1,6 @@
-import os
 import shutil
+import os
+
 import numpy as np
 import h5py
 
@@ -274,19 +275,24 @@ class AcousticSolver(WaveSolver):
 
     def updateModel(self, filename, low, high, **kwargs):
         """
-        Load a velocity model from HDF5 and apply it.
+        Apply a model given in the parametrisation of the gradient
+        (:meth:`setModelForGradient`), clipped to [low, high].
 
         Parameters
         ----------
-            filename : str
-                Path to .hdf5 file containing a 'velocity' dataset
+            filename : str or np.ndarray
+                Path to an .hdf5 file containing a 'velocity' dataset, or the model itself
+                (flat per element, seismic order)
             low : float
-                Minimum velocity threshold
+                Lower bound (in the parametrisation)
             high : float
-                Maximum velocity threshold
+                Upper bound (in the parametrisation)
         """
-        with h5py.File(filename, "r") as f:
-            x = f["velocity"][:]
+        if isinstance(filename, (str, os.PathLike)):
+            with h5py.File(filename, "r") as f:
+                x = f["velocity"][:]
+        else:
+            x = np.asarray(filename, dtype=np.float64)
 
         x = np.clip(x, low, high)
 
@@ -388,11 +394,11 @@ class AcousticSolver(WaveSolver):
         The residual (observed - simulated) is injected, reversed in time, at the
         receivers with their interpolation weights (adjoint run, same solver); the
         gradient with respect to m = 1 / (vp^2 rho), which weighs the mass matrix,
-        is G_e = sum_n dt sum_(i in e) |J| w_i lambda_i^n d2p_i^n / dt2, then converted.
+        is G_e = sum_n dt sum_(i in e) det(J) w_i lambda_i^n d2p_i^n / dt2, then converted.
         The absorbing terms are not differentiated (exact away from the boundaries).
 
         Also sets ``self.illumination``: energy of the forward field per element,
-        H_e = sum_n dt sum_(i in e) |J| w_i (d2p_i^n / dt2)^2 times (dm/dparam)^2, the
+        H_e = sum_n dt sum_(i in e) det(J) w_i (d2p_i^n / dt2)^2 times (dm/dparam)^2, the
         source side of the diagonal pseudo-Hessian (Shin et al., 2001), seismic order.
 
         The receivers are replaced by the adjoint sources: read the seismograms

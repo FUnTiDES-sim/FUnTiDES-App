@@ -60,3 +60,25 @@ def test_gradient_with_mpi(tmp_path):
     g1, g2 = np.load(tmp_path / "gradient_1.npy"), np.load(tmp_path / "gradient_2.npy")
     assert g1.shape == g2.shape == (30, 30, 30)
     assert np.abs(g1 - g2).max() < 1e-3 * np.abs(g1).max()
+
+
+def test_fwi_shots_dealt_out_to_the_ranks(tmp_path):
+    """Shot parallelism (solver not decomposed): 3 shots on 1, 2 (2 + 1 shots) and 3 ranks
+    give the same J and gradient, the same on every rank; func gives the J of gradf."""
+    script = os.path.join(os.path.dirname(__file__), "mpi_fwi_shots.py")
+    for n in (1, 2, 3):
+        cmd = ["mpirun", "-np", str(n), "--oversubscribe", sys.executable, script, str(tmp_path)]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=dict(os.environ))
+        assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+    ref = np.load(tmp_path / "result_1_0.npz")
+    assert ref["J"] > 0 and ref["Jf"] == pytest.approx(ref["J"], rel=1e-4)
+    for n in (2, 3):
+        runs = [np.load(tmp_path / f"result_{n}_{r}.npz") for r in range(n)]
+        for r in runs:                                   # identical on every rank
+            assert r["J"] == runs[0]["J"] and np.array_equal(r["gradient"], runs[0]["gradient"])
+        g = runs[0]["gradient"]
+        assert np.linalg.norm(g - ref["gradient"]) < 1e-3 * np.linalg.norm(ref["gradient"])
+        # float32 GPU noise between runs (the observed data are recomputed too): 2e-4 seen
+        assert runs[0]["J"] == pytest.approx(ref["J"], rel=1e-3)
+        assert runs[0]["Jf"] == pytest.approx(ref["J"], rel=1e-3)
+        assert np.linalg.norm(runs[0]["illumination"] - ref["illumination"]) < 1e-3 * np.linalg.norm(ref["illumination"])

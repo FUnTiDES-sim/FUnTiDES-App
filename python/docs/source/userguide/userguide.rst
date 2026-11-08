@@ -1,13 +1,14 @@
-User Guide
-############
+User guide
+##########
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-   Input <input/input>
-   Solver <solver/solver>
-   Display <display/display>
-   
-   
-.. Code documentation <documentation/developerguide>
+   conventions
+   mesh
+   acquisition
+   solver
+   modelling
+   fwi
+   parallel
+   display

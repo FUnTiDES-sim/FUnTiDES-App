@@ -1,14 +1,8 @@
-#######################
-Examples and tutorials
-#######################
-
-
-Build your workflow
-#######################
+Examples
+########
 
 .. toctree::
     :maxdepth: 2
-    
-    acous_modeling/acousmodeling.rst
-    fwi/fwi.rst
-    reservoir/reservoir.rst
+
+    shot_modelling
+    fwi

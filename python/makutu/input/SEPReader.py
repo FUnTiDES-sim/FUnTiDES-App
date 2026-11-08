@@ -8,15 +8,15 @@ A SEP dataset consists of two files:
 * **Header** (``.H``): plain-text, ``key=value`` pairs, one or more per line.
   Key fields used here:
 
-  ============  =====================================================
-  ``n1/n2/n3``  Number of samples on axis 1/2/3 (n1 is fastest)
-  ``d1/d2/d3``  Sampling interval [m or s] on each axis
-  ``o1/o2/o3``  Origin of each axis
-  ``in``        Path to the binary data file (relative to header dir)
-  ``data_format`` ``"native_float"`` (default), ``"xdr_float"``,
-                ``"native_double"``, ``"native_int"``
-  ``esize``     Element size in bytes (4 = float32, 8 = float64)
-  ============  =====================================================
+  ===============  =====================================================
+  ``n1/n2/n3``     Number of samples on axis 1/2/3 (n1 is fastest)
+  ``d1/d2/d3``     Sampling interval [m or s] on each axis
+  ``o1/o2/o3``     Origin of each axis
+  ``in``           Path to the binary data file (relative to header dir)
+  ``data_format``  ``"native_float"`` (default), ``"xdr_float"``,
+                   ``"native_double"``, ``"native_int"``
+  ``esize``        Element size in bytes (4 = float32, 8 = float64)
+  ===============  =====================================================
 
 * **Binary** (``.@``): raw binary array, C-order ``[n3][n2][n1]``,
   i.e. n1 varies fastest.

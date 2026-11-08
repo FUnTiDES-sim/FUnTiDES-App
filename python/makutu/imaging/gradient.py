@@ -23,10 +23,10 @@ import h5py
 
 from ..forwardBackward.forward import forward
 from ..forwardBackward.backward import backward
-from ..forwardBackward.modelio import writeModel
-from ..forwardBackward.costFunction import computeFullCostFunction, frequencyTag, \
+from ..forwardBackward.costFunction import frequencyTag, writeCostFunction, \
                                            ComputeCostFunction, \
                                            ComputeResidual
+from ..forwardBackward.parallel import checkShotParallel, localShots, outputComm, shotParallel, sumOverShots
 
 from ..output.SEGYTraceOutput import SEGYTraceOutput
 from ..imaging import globals as gb
@@ -60,9 +60,9 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
         model : str, optional
             Parametrisation: "c", "1/c" or "1/c2" \
             Default is "c"
-        startModelFile : str, optional
-            HDF5 file with the model (dataset "velocity", parametrisation ``model``) \
-            loaded before the first shot; default None keeps the solver model
+        startModelFile : str or np.ndarray, optional
+            Model loaded before the first shot (HDF5 file with a dataset "velocity", or
+            array), in the parametrisation ``model``; default None keeps the solver model
         iterfwi : int, optional
             Index of the FWI iteration, appended to the trace names
         pCostDir : str, optional
@@ -78,14 +78,16 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
             Default: ``solver.snapshotStep``, or ``solver.snapshotStepFor(fmax)`` with the
             filter frequency
 
+    With shot parallelism (makutu.forwardBackward.parallel) only the shots of this rank
+    are computed: the values returned are the sums over these shots.
+
     Returns:
     --------
-        np.ndarray : gradient summed over the shots; the illumination summed over the
-        shots is in the attribute ``gradientComputation.illumination``
+        np.ndarray or None : gradient summed over the shots (None without shot); the
+        illumination and the cost function summed over the shots are in the attributes
+        ``gradientComputation.illumination`` and ``gradientComputation.cost``
     """
     comm = pkl5.Intracomm(MPI.COMM_WORLD)
-    rank = comm.Get_rank()
-
     solver = gb.solver
     freqFilter = gb.freqList[ifreq]
     solver.setModelForGradient(model)
@@ -93,19 +95,21 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
         snapshotStep = getattr(solver, "snapshotStep", None) or \
             solver.snapshotStepFor(None if str(freqFilter) == "all" else float(freqFilter))
     drootname, dformat, dext = dinfo.split(";")
+    if startModelFile is not None:
+        solver.updateModel(startModelFile, gb.minModel, gb.maxModel)
+    outComm = outputComm(solver)               # its rank 0 writes the outputs of a shot
+    sameShots = not shotParallel(solver)       # every rank works on every shot
 
     gradient = None
+    cost = 0.0
     gradientComputation.illumination = None
-    for ishot, shot in enumerate(gb.listOfAcquisition[iacq].shots):
+    for shot in localShots(gb.listOfAcquisition[iacq].shots, solver):
         solver.resetWaveField()
-        if ishot == 0 and startModelFile is not None:
-            solver.updateModel(startModelFile, gb.minModel, gb.maxModel)
-
         solver.updateSourceAndReceiversFromCoords(shot.getSourceCoords(), shot.getReceiverCoords())
         solver.evaluateSource()
         solver.filterSource(freqFilter)
 
-        forward(solver, shot, comm, snapshotStep)
+        forward(solver, shot, outComm, snapshotStep)
         simulated = solver.getPressureAtReceivers()
 
         rootname = f"seismoTrace_shot{shot.id}_{int(solver.sourceFreq)}"
@@ -114,17 +118,17 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
         if exportSeismicTrace:
             SEGYTraceOutput(simulated, rootname=rootname, directory=traceDirectory).export(
                 receiverCoords=shot.getReceiverCoords(), sourceCoords=shot.getSourceCoords()[0],
-                dt=solver.dtSeismoRecorded, comm=comm)
+                dt=solver.dtSeismoRecorded, comm=outComm)
 
         filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
         residual = ComputeResidual(filename, dt=solver.dtSeismoRecorded, fmax=freqFilter).computeResidual(simulated)
         if exportResidual:
             SEGYTraceOutput(residual, rootname=rootname, directory="residual").export(
                 receiverCoords=shot.getReceiverCoords(), sourceCoords=shot.getSourceCoords()[0],
-                dt=solver.dtSeismoRecorded, comm=comm)
-        if computeCF and rank == 0:
-            ComputeCostFunction(directory=pCostDir, dt=solver.dtSeismoRecorded,
-                                rootname="partialCost_" + shot.id).computePartialCostFunction(residual)
+                dt=solver.dtSeismoRecorded, comm=outComm)
+        if outComm.Get_rank() == 0:
+            cost += ComputeCostFunction(directory=pCostDir if computeCF else None, dt=solver.dtSeismoRecorded,
+                                        rootname="partialCost_" + shot.id).computePartialCostFunction(residual)
 
         partial = backward(solver, residual, model)
         gradient = partial if gradient is None else gradient + partial
@@ -134,10 +138,12 @@ def gradientComputation(iacq, dataDirectory, exportSeismicTrace=True, traceDirec
             gradientComputation.illumination = illum if ill is None else ill + illum
 
         shot.flag = "Done"
-        if rank == 0:
+        if outComm.Get_rank() == 0:
             print("Shot", shot.id, "done\n")
-        comm.Barrier()
+        if sameShots:
+            comm.Barrier()
 
+    gradientComputation.cost = cost
     return gradient
 
 
@@ -145,8 +151,9 @@ def gradf(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=
           exportResidual=False, ifreq=0, model="c", pCostDir="partialCostFunction",
           dinfo="seismoTrace_shot;5;.sgy", gDn=0, computeFullCF=False):
     """
-    Gradient of the cost function for the model x (single process: the model file
-    is written by makutu.forwardBackward.modelio.writeModel)
+    Gradient of the cost function for the model x. The model is applied in memory; with
+    several MPI ranks the shots are dealt out to them (shot parallelism, the solver not
+    decomposed) and the gradient, the illumination and J are summed over the ranks.
 
     Parameters
     -----------
@@ -194,31 +201,38 @@ def gradf(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=
     """
     global Nfeval
 
-    comm = pkl5.Intracomm(MPI.COMM_WORLD)
+    solver = gb.solver
+    checkShotParallel(solver)
     if hasattr(gb, "model"):
         gb.model[:] = x[:]
-
-    modelFile = "velocityModel.hdf5"
-    writeModel(modelFile, x, comm)
+    debug = getattr(gb, "mode", "REL") == "DBG"
     pdir = f"{pCostDir}_{Nfeval}_G"
 
-    gradJ, illumination = None, None
+    gradJ, illumination, J = None, None, 0.0
     for i in range(len(gb.listOfAcquisition)):
         g = gradientComputation(i, dataDirectory, exportSeismicTrace, traceDirectory, exportResidual, ifreq,
-                                model, startModelFile=modelFile, iterfwi=Nfeval, pCostDir=pdir,
-                                dinfo=dinfo, computeCF=computeFullCF)
-        gradJ = g if gradJ is None else gradJ + g
+                                model, startModelFile=x if i == 0 else None, iterfwi=Nfeval, pCostDir=pdir,
+                                dinfo=dinfo, computeCF=debug)
+        if g is not None:
+            gradJ = g if gradJ is None else gradJ + g
         ill = gradientComputation.illumination
         if ill is not None:
             illumination = ill if illumination is None else illumination + ill
-    gb.illumination = illumination
+        J += gradientComputation.cost
+    # sums over the ranks (shot parallelism): every rank gets the same values
+    gradJ = sumOverShots(gradJ, solver)
+    if gradJ is None:
+        gradJ = np.zeros(np.shape(x))
+    gb.illumination = sumOverShots(illumination, solver)
+    J = sumOverShots(J, solver)
 
-    if getattr(gb, "mode", "REL") == "DBG" and comm.Get_rank() == 0:
+    rank = MPI.COMM_WORLD.Get_rank()
+    if debug and rank == 0:
         os.makedirs(gradDirectory, exist_ok=True)
         with h5py.File(os.path.join(gradDirectory, f"fullGradient{Nfeval}.hdf5"), "w") as h:
             h.create_dataset("fullGradient", data=gradJ)
-            if illumination is not None:
-                h.create_dataset("illumination", data=illumination)
+            if gb.illumination is not None:
+                h.create_dataset("illumination", data=gb.illumination)
 
     if gDn == 1:
         gradJ = gradJ / np.max(np.abs(gradJ))
@@ -227,9 +241,7 @@ def gradf(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=
 
     Nfeval += 1
     if computeFullCF is True:
-        nfiles = len(gb.acquisition.shots)
-        save = getattr(gb, "mode", "REL") == "DBG"
-        J = computeFullCostFunction(nfiles, pdir, sfile=f"fullCostFunction{frequencyTag(gb.freqList[ifreq])}.txt",
-                                    save=save)
+        if debug and rank == 0:
+            writeCostFunction(J, filename=f"fullCostFunction{frequencyTag(gb.freqList[ifreq])}.txt")
         return gradJ, J
     return gradJ
