@@ -113,6 +113,9 @@ def parse_workflow_parameters(pfile):
     p.add_argument("--dtWaveField", dest="dtWaveField", type=float, default=None,
                    help="Interval between the snapshots of the forward run for the gradient [s] "
                         "(default: from the source frequency)")
+    p.add_argument("--snapshotCompression", dest="snapshotCompression", choices=["none", "int16"],
+                   default="none", help="Storage of the snapshots: float32 (none) or 16-bit integers "
+                                        "with a scale per snapshot (int16: half the memory)")
     # Source
     p.add_argument("--sourceType", dest="sourceType", type=str, default="ricker2", help="Source type")
     p.add_argument("--sourceFreq", dest="sourceFreq", type=float, required=True, help="Source frequency [Hz]")
@@ -183,8 +186,12 @@ def build_solver(wf, vp_file):
     solver.initialize()
     if wf.dtWaveField is not None:
         solver.snapshotStep = max(1, int(round(wf.dtWaveField / dt)))
+    solver.snapshotCompression = None if wf.snapshotCompression == "none" else wf.snapshotCompression
     print(f"Time  : dt {dt * 1e3:.3f} ms, {solver.n_time_steps} steps, seismograms every "
           f"{solver.dtSeismoRecorded * 1e3:.3f} ms, sponge {sponge:g} m")
+    step = getattr(solver, "snapshotStep", None) or solver.snapshotStepFor()
+    print(f"Gradient: snapshot every {step} steps, {solver.snapshotMemory(step) / 2 ** 20:.0f} MiB of host memory "
+          f"per shot ({wf.snapshotCompression})")
     return solver, m
 
 

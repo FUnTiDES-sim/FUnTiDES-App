@@ -317,6 +317,10 @@ class AcousticSolver(WaveSolver):
                 The integrand of the gradient has frequencies up to about twice the
                 highest frequency of the data: snapshotStep * dt < 1 / (5 f0) is safe
                 for a Ricker wavelet of peak frequency f0 (see :meth:`snapshotStepFor`).
+
+        The snapshots are kept in host memory (:meth:`snapshotMemory`); with
+        ``solver.snapshotCompression = "int16"`` each one is stored as 16-bit integers with
+        its own scale (half the memory, relative rounding 1.5e-5 of its maximum).
         """
         n_steps = self.n_time_steps
         self._pdd, self._pddStep = {}, snapshotStep
@@ -330,9 +334,31 @@ class AcousticSolver(WaveSolver):
                 fields[k] = np.array(self.data.get_current_field(0), copy=True)
             n = k - 1
             if n in stored:                              # p^(n-1), p^n, p^(n+1) available
-                self._pdd[n] = (fields[n + 1] - 2.0 * fields[n] + fields[n - 1]) / (self.dt * self.dt)
+                self._pdd[n] = self._packSnapshot(
+                    (fields[n + 1] - 2.0 * fields[n] + fields[n - 1]) / (self.dt * self.dt))
                 for old in [i for i in fields if i < n]:     # later snapshots need indices >= n
                     del fields[old]
+
+    def _packSnapshot(self, pdd):
+        if getattr(self, "snapshotCompression", None) == "int16":
+            scale = float(np.max(np.abs(pdd))) / 32767.0 or 1.0
+            return np.round(pdd / scale).astype(np.int16), scale
+        return pdd
+
+    @staticmethod
+    def _unpackSnapshot(item):
+        if isinstance(item, tuple):
+            q, scale = item
+            return q.astype(np.float32) * np.float32(scale)
+        return item
+
+    def snapshotMemory(self, snapshotStep):
+        """Host memory [bytes] of the snapshots of one shot kept by :meth:`runForward`."""
+        if not snapshotStep:
+            return 0
+        n = len(range(snapshotStep, self.n_time_steps, snapshotStep))
+        size = 2 if getattr(self, "snapshotCompression", None) == "int16" else 4
+        return n * self.n_dof * size
 
     def snapshotStepFor(self, fmax=None):
         """Snapshot step for :meth:`runForward`: (snapshotStep * dt) < 1 / (2.5 fmax),
@@ -462,7 +488,7 @@ class AcousticSolver(WaveSolver):
             m = n_steps - 1 - j
             if m in self._pdd:
                 lam = np.array(self.data.get_current_field(0), copy=False)
-                pdd = self._pdd.pop(m)
+                pdd = self._unpackSnapshot(self._pdd.pop(m))
                 grad_m += step * ((lam * pdd)[table] @ weights)
                 illum_m += step * ((pdd * pdd)[table] @ weights)
         self._pdd, self._pddStep = {}, None

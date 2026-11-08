@@ -16,16 +16,17 @@ Working and tested
   reciprocity, MPI); illumination.
 - FWI: cost and gradient over the shots, multi-scale filtering, optimisers (heuristic and
   Wolfe line searches, scipy), gradient conditioning, shot parallelism over MPI ranks;
-  synthetic inversions of :doc:`example/fwi`.
-- Tests: 139 unit tests (no solver) and 31 integrated tests (GPU, MPI), 2 to 4 min.
+  restart at any frequency; synthetic inversions of :doc:`example/fwi` (2-D, 3-D, Marmousi
+  without inverse crime).
+- Tests: 139 unit tests (no solver) and 32 integrated tests (GPU, MPI), 2 to 4 min.
 
 Limits
 ======
 
 - Field data: not tried yet; the synthetic Marmousi case also runs without inverse crime
   (observed data on a finer mesh).
-- 3-D FWI: the chain is the same, but no complete 3-D inversion has been run; the
-  snapshots of the forward run are kept in host memory.
+- Memory of the gradient: the snapshots of the forward run are kept in host memory (int16
+  compression halves it); a large 3-D model needs checkpointing (not implemented).
 - The absorbing terms are not differentiated (gradient wrong on the edge elements, masked
   by the conditioning).
 - No elastic gradient; elastic solver in 3-D only.

@@ -14,6 +14,7 @@ maxtime=0.6
 #dt=0.0004          # default: CFL condition (cfl=0.3)
 dtSeismo=0.002
 #dtWaveField=0.01   # snapshots of the forward run for the gradient, default from the frequency
+#snapshotCompression=int16   # snapshots as 16-bit integers (half the memory), default none
 
 # Source and frequencies
 sourceType=ricker2

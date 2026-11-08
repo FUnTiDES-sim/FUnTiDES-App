@@ -56,6 +56,28 @@ true model.
     found at the right place, smeared vertically (+92 and -104 m/s). With
     :code:`freqFilterList=5,8,12`: +162 and -155 m/s.
 
+One anomaly in 3-D (anomaly_3d)
+===============================
+
+:file:`apps/fullWaveformInversion/examples/anomaly_3d`: 1 x 1 x 0.6 km, background
+2000 m/s, Gaussian anomaly of +250 m/s at 250 m depth above a reflector at 450 m (known),
+9 shots on a 3 x 3 grid and 81 receivers on a 9 x 9 grid at 25 m depth, Ricker 8 Hz,
+25 m elements of order 2 (321 000 nodes); observed data on the same mesh.
+
+.. code-block:: bash
+
+    python examples/anomaly_3d/make_case.py --outdir run3d          # models and data (10 s)
+    (cd run3d && python ../fwi.py --param_file fwi_parameters.txt)
+    python examples/anomaly_3d/check_result.py --rundir run3d --png result.png
+
+.. figure:: anomaly_3d.png
+    :scale: 60
+    :align: center
+
+    CGPR, 8 iterations (2 min 47 s on an RTX 40xx GPU, 70 MiB of snapshots per shot):
+    J / J0 = 0.054; +114 m/s at the centre of the anomaly, found within 13 m, model error
+    above the reflector 0.59. As in 2-D, part of the update goes into the reflector.
+
 Marmousi 2-D
 ============
 

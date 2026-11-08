@@ -54,6 +54,10 @@ domain decomposition of makutu is for the modelling; the FWI refuses it.)
   absorbing terms are not differentiated: the gradient is exact inside, wrong on the
   edge elements), cosine ramps of `gradTaper`; `illumination=true` divides by the energy
   of the forward field (pseudo-Hessian, source side, stabilised by `illumEps`).
+- Snapshots of the forward run for the gradient: every `dtWaveField` (default from the
+  source frequency), kept in host memory; `fwi.py` prints the memory per shot.
+  `snapshotCompression=int16` stores them as 16-bit integers with a scale per snapshot
+  (half the memory; the gradient changes less than the run-to-run noise of the GPU, 1e-3).
 - Absorbing edges: the absorbing condition of FUnTiDES (about 2 % error on the
   seismograms), and optionally a sponge of width `sponge` [m] on the sides and the bottom
   (not along the free surface), useful from about two wavelengths (0.5 % with two).
@@ -87,6 +91,10 @@ same mesh for the data and the inversion:
 The anomalies are found at the right place (within 15 m), smeared vertically (surface
 acquisition); part of the traveltime shifts goes into the reflector (velocities up to
 2830 m/s there).
+
+`examples/anomaly_3d`: 1 x 1 x 0.6 km, a +250 m/s anomaly above a known reflector, 9 shots,
+81 receivers, 25 m elements of order 2 (321 000 nodes), CGPR, 8 iterations: 2 min 47 s,
+J / J0 = 0.054, +114 m/s at the centre of the anomaly, found within 13 m.
 
 `examples/marmousi_2d`: Marmousi (10 x 3.48 km), initial model smoothed by a 300 m Gaussian
 below the water (kept at 1500 m/s, 440 m deep, not updated), 16 shots, 499 receivers every

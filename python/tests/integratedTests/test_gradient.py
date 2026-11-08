@@ -82,6 +82,40 @@ def test_gradient_2d_matches_finite_differences(order, param):
     assert adjoint == pytest.approx(fd, rel=5e-2)
 
 
+@pytest.mark.skipif(not HAS_2D, reason="FUnTiDES built without COMPILE_SEM_2D")
+def test_snapshot_compression():
+    """int16 snapshots: half the memory, the same gradient within the run-to-run noise."""
+    X, Z = grid_2d()
+    v0 = np.full(X.shape, 2000.0)
+    vtrue = v0 + 300.0 * np.exp(-((X - 600) ** 2 + (Z - 300) ** 2) / 80.0 ** 2)
+    solver = solver_2d(2, v0)
+    src, rcv = [[300.0, 0.0, 100.0]], [[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)]
+    step = solver.snapshotStepFor()
+
+    def gradient():
+        solver.updateVelocityModel(vtrue.ravel())
+        solver.updateSourceAndReceiversFromCoords(src, rcv)
+        solver.evaluateSource()
+        solver.resetWaveField()
+        solver.runForward()
+        obs = solver.getPressureAtReceivers().astype(np.float64)
+        solver.updateVelocityModel(v0.ravel())
+        solver.updateSourceAndReceiversFromCoords(src, rcv)
+        solver.evaluateSource()
+        solver.resetWaveField()
+        solver.runForward(step)
+        return solver.computeGradient(obs - solver.getPressureAtReceivers(), "c")
+
+    full = solver.snapshotMemory(step)
+    g32, g32b = gradient(), gradient()
+    solver.snapshotCompression = "int16"
+    assert solver.snapshotMemory(step) * 2 == full
+    g16 = gradient()
+    noise = np.linalg.norm(g32b - g32) / np.linalg.norm(g32)        # float32 GPU sums between runs
+    print(f"run-to-run {noise:.2e}, int16 {np.linalg.norm(g16 - g32) / np.linalg.norm(g32):.2e}")
+    assert np.linalg.norm(g16 - g32) < max(3 * noise, 1e-4) * np.linalg.norm(g32)
+
+
 def test_gradient_3d_matches_finite_differences():
     ex, ey, ez, order = 20, 20, 10, 2
     c = lambda n, length: (np.arange(n) + 0.5) * length / n
