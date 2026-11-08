@@ -14,8 +14,9 @@ python .../fwi.py --param_file fwi_parameters.txt --restart --rfile velocityMode
 With MPI (`mpirun -np N python .../fwi.py ...`) the shots are dealt out to the ranks: every
 rank holds the whole model and the solver of the whole domain, the cost, the gradient and
 the illumination are summed over the ranks, and every rank takes the same optimisation
-steps; rank 0 prints and writes the model files. It pays with one GPU per rank
-(`CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK` per rank); on one GPU the ranks compete
+steps; rank 0 prints and writes the model files. It pays with one GPU per rank:
+`fwi.py` gives each rank the GPU of its local rank on the node (`makutu.tools.gpu`, among the
+devices of `CUDA_VISIBLE_DEVICES` if the scheduler sets several); on one GPU the ranks compete
 and the run is slower (Marmousi 2-D: 95 s per iteration on 4 ranks, 43 s on one). (The
 domain decomposition of makutu is for the modelling; the FWI refuses it.)
 
@@ -54,6 +55,12 @@ domain decomposition of makutu is for the modelling; the FWI refuses it.)
   absorbing terms are not differentiated: the gradient is exact inside, wrong on the
   edge elements), cosine ramps of `gradTaper`; `illumination=true` divides by the energy
   of the forward field (pseudo-Hessian, source side, stabilised by `illumEps`).
+- Field data (`makutu.forwardBackward.dataprocessing`): selection of the residual by
+  offsets (`offsetMin`, `offsetMax`), top mute (`muteVelocity`, `muteTime`), window after the
+  mute line (`timeWindow`) with cosine ramps (`muteTaper`): the cost is dt/2 |W r|^2 and the
+  adjoint source W^2 r (gradient checked against finite differences); `estimateSource=true`
+  estimates a least-squares filter of the source wavelet on the current model at each
+  filter frequency (scale and delay recovered to 1 % on synthetic data).
 - Snapshots of the forward run for the gradient: every `dtWaveField` (default from the
   source frequency), kept in host memory; `fwi.py` prints the memory per shot.
   `snapshotCompression=int16` stores them as 16-bit integers with a scale per snapshot

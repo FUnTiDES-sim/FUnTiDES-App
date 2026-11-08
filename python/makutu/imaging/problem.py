@@ -40,6 +40,10 @@ class FWIProblem:
             Current model (updated by :meth:`gradf`)
         illumination : np.ndarray or None
             Illumination summed over the shots by the last :meth:`gradf`
+        dataSelection : makutu.forwardBackward.dataprocessing.DataSelection or None
+            Weights of the residual (offsets, mute, time window)
+        sourceCorrection : dict or None
+            Estimated source filter per frequency index (:meth:`estimateSource`)
         iteration : int
             Number of the next model file ``velocityModel<iteration>.hdf5``
         nfunc, ngrad : int
@@ -47,7 +51,7 @@ class FWIProblem:
     """
 
     def __init__(self, solver, acquisition, listOfAcquisition=None, minModel=-math.inf, maxModel=math.inf,
-                 freqList=("all",), mode="REL", model=None, iteration=1):
+                 freqList=("all",), mode="REL", model=None, iteration=1, dataSelection=None):
         if mode not in ("REL", "DBG"):
             raise ValueError(f"mode {mode!r}: 'REL' or 'DBG'")
         self.solver = solver
@@ -58,6 +62,8 @@ class FWIProblem:
         self.mode = mode
         self.model = model
         self.illumination = None
+        self.dataSelection = dataSelection
+        self.sourceCorrection = None
         self.iteration = int(iteration)
         self.nfunc = 1
         self.ngrad = 1
@@ -79,6 +85,11 @@ class FWIProblem:
         """:func:`makutu.forwardBackward.directSimulation` with this problem."""
         from ..forwardBackward.forward import directSimulation
         return directSimulation(self, iacq, *args, **kwargs)
+
+    def estimateSource(self, dataDirectory, ifreq=0, **kwargs):
+        """:func:`makutu.forwardBackward.forward.estimateSource` with this problem."""
+        from ..forwardBackward.forward import estimateSource
+        return estimateSource(self, dataDirectory, ifreq, **kwargs)
 
     def func(self, x, *args, **kwargs):
         """Cost function, :func:`makutu.forwardBackward.func` with this problem."""

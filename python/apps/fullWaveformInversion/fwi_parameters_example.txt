@@ -26,6 +26,15 @@ dataDirectory=obs
 dinfo=seismoTrace_shot;5;.sgy
 #decision=acquisition/survey   # acquisition from a decision file instead of the SEG-Y headers
 
+# Field data: selection of the residual and source estimation
+#offsetMin=0         # offsets kept [m]
+#offsetMax=3000
+#muteVelocity=1800   # top mute: zero before muteTime + offset / muteVelocity
+#muteTime=0.05
+#timeWindow=0.5      # keep only this window [s] after the mute line (early arrivals)
+#muteTaper=0.05      # cosine ramps [s]
+#estimateSource=true # least-squares source filter at each filter frequency
+
 # Inversion
 model=c             # c, 1/c or 1/c2
 method=CGPR         # CGPR, SD2 (Wolfe line search), steepestDescent, CGPR2 (heuristic) or a scipy method

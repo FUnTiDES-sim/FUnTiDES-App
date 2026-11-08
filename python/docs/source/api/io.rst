@@ -7,3 +7,4 @@ Inputs, outputs, tools
 .. automodule:: makutu.tools.filter
 .. automodule:: makutu.display.Hdf5Field
 .. automodule:: makutu.display.SegySeismicTrace
+.. automodule:: makutu.tools.gpu

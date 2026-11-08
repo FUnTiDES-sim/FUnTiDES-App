@@ -23,9 +23,7 @@ The FWI refuses the domain decomposition (the model would be distributed).
 The shot parallelism pays with one GPU per rank. On one GPU the ranks compete for it and
 the run is slower: anomaly_2d 78 s on 2 ranks against 38 s on one, Marmousi 2-D about
 95 s per iteration on 4 ranks against 43 s (same cost history within the float32 noise).
-The applications set :code:`CUDA_VISIBLE_DEVICES=0` when it is not set; on a node with
-several GPUs give each rank its own, e.g. with OpenMPI:
-
-.. code-block:: bash
-
-    mpirun -np 4 bash -c 'CUDA_VISIBLE_DEVICES=$OMPI_COMM_WORLD_LOCAL_RANK python fwi.py --param_file fwi_parameters.txt'
+:file:`fwi.py` and :file:`run_shot_modeling.py` give each rank one GPU before Kokkos starts
+(:func:`makutu.tools.gpu.select_gpu`): the GPU of its rank on the node (OpenMPI, MPICH, Slurm
+variables) among the devices listed in :code:`CUDA_VISIBLE_DEVICES` by the scheduler, or
+among the GPUs of the node; a single device set by the user is kept.

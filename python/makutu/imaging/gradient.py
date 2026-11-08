@@ -20,7 +20,7 @@ from mpi4py import MPI
 from mpi4py.util import pkl5
 
 
-from ..forwardBackward.forward import forward
+from ..forwardBackward.forward import forward, prepareSource
 from ..forwardBackward.backward import backward
 from ..forwardBackward.costFunction import frequencyTag, writeCostFunction, \
                                            ComputeCostFunction, \
@@ -104,8 +104,7 @@ def gradientComputation(problem, iacq, dataDirectory, exportSeismicTrace=True, t
     for shot in localShots(problem.listOfAcquisition[iacq].shots, solver):
         solver.resetWaveField()
         solver.updateSourceAndReceiversFromCoords(shot.getSourceCoords(), shot.getReceiverCoords())
-        solver.evaluateSource()
-        solver.filterSource(freqFilter)
+        prepareSource(problem, solver, ifreq)
 
         forward(solver, shot, outComm, snapshotStep)
         simulated = solver.getPressureAtReceivers()
@@ -120,6 +119,10 @@ def gradientComputation(problem, iacq, dataDirectory, exportSeismicTrace=True, t
 
         filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
         residual = ComputeResidual(filename, dt=solver.dtSeismoRecorded, fmax=freqFilter).computeResidual(simulated)
+        selection = problem.dataSelection
+        if selection is not None:                  # J = dt/2 |W r|^2, adjoint source W^2 r
+            src, rcv = shot.getSourceCoords()[0], shot.getReceiverCoords()
+            residual = selection.apply(residual, solver.dtSeismoRecorded, src, rcv)
         if exportResidual:
             SEGYTraceOutput(residual, rootname=rootname, directory="residual").export(
                 receiverCoords=shot.getReceiverCoords(), sourceCoords=shot.getSourceCoords()[0],
@@ -128,7 +131,9 @@ def gradientComputation(problem, iacq, dataDirectory, exportSeismicTrace=True, t
             cost += ComputeCostFunction(directory=pCostDir if computeCF else None, dt=solver.dtSeismoRecorded,
                                         rootname="partialCost_" + shot.id).computePartialCostFunction(residual)
 
-        partial = backward(solver, residual, model)
+        adjoint = residual if selection is None else \
+            selection.apply(residual, solver.dtSeismoRecorded, src, rcv)
+        partial = backward(solver, adjoint, model)
         gradient = partial if gradient is None else gradient + partial
         illum = getattr(solver, "illumination", None)
         if illum is not None:

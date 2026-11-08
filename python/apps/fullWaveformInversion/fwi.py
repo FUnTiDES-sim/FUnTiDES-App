@@ -38,7 +38,9 @@ import argparse
 import os
 import sys
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+from makutu.tools.gpu import select_gpu  # noqa: E402
+
+select_gpu()                  # one GPU per MPI rank of the node, before Kokkos
 
 import numpy as np
 import h5py
@@ -50,6 +52,7 @@ kokkos.initialize()
 import pyfuntides.solver as FTSolver
 
 from makutu.acquisition import SEGYAcquisition, DecisionAcquisition
+from makutu.forwardBackward import DataSelection
 from makutu.forwardBackward.modelio import writeFields
 from makutu.imaging import FWIProblem, Minimizer, GradientConditioner
 from makutu.mesh import mesh_from_sep
@@ -130,6 +133,18 @@ def parse_workflow_parameters(pfile):
                    help="Files of the data directory to ignore (comma separated)")
     p.add_argument("--decision", dest="decision", type=str, default=None,
                    help="Decision file rootname for the acquisition (default: SEG-Y headers)")
+    # Data selection and source (makutu.forwardBackward.dataprocessing)
+    p.add_argument("--offsetMin", dest="offsetMin", type=float, default=0.0, help="Smallest offset kept [m]")
+    p.add_argument("--offsetMax", dest="offsetMax", type=float, default=float("inf"), help="Largest offset kept [m]")
+    p.add_argument("--muteVelocity", dest="muteVelocity", type=float, default=None,
+                   help="Top mute: samples before muteTime + offset / muteVelocity set to 0 [m/s]")
+    p.add_argument("--muteTime", dest="muteTime", type=float, default=0.0, help="Mute time at zero offset [s]")
+    p.add_argument("--timeWindow", dest="timeWindow", type=float, default=None,
+                   help="Length of the window kept after the mute line [s] (default: to the end)")
+    p.add_argument("--muteTaper", dest="muteTaper", type=float, default=0.05,
+                   help="Cosine ramps of the mute and of the window [s]")
+    p.add_argument("--estimateSource", dest="estimateSource", type=str2bool, default=False,
+                   help="Estimate the source wavelet (least-squares filter) at each filter frequency")
     # Outputs
     p.add_argument("--trace_directory", dest="traceDir", type=str, default="seismicTrace",
                    help="Output directory of the simulated traces")
@@ -197,10 +212,12 @@ def build_solver(wf, vp_file):
 
 def fullWaveformInversion(minimizer, x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=False,
                           traceDirectory=".", exportResidual=False, model="c", pCostDir="partialCostFunction",
-                          dinfo="seismoTrace_shot;5;.sgy", gDn=0, freqList=("all",), firstFreq=0):
+                          dinfo="seismoTrace_shot;5;.sgy", gDn=0, freqList=("all",), firstFreq=0,
+                          problem=None, estimateSource=False):
     """
     Minimisation for every filter frequency from ``freqList[firstFreq]``, each starting from
-    the model of the previous one.
+    the model of the previous one; with ``estimateSource``, the source wavelet of the problem
+    is estimated first on the current model.
 
     Returns
     -------
@@ -212,6 +229,13 @@ def fullWaveformInversion(minimizer, x, dataDirectory, gradDirectory="partialGra
         print("\n", "*" * 80, sep="")
         print(f"Filtering frequency = {freq}  [ {ifreq + 1} / {len(freqList)} ]")
         print("*" * 80, end="\n\n")
+        if estimateSource:
+            problem.solver.setModelForGradient(model)
+            problem.solver.updateModel(x, problem.minModel, problem.maxModel)
+            freqs, c = problem.estimateSource(dataDirectory, ifreq, dinfo=dinfo)
+            band = np.abs(c) > 0.1 * np.abs(c).max()
+            print(f"Source filter estimated: |c| {np.abs(c[band]).min():.3g} - {np.abs(c[band]).max():.3g} "
+                  f"over {freqs[band].min():.3g} - {freqs[band].max():.3g} Hz\n")
         x = minimizer.optimize(x=x, args=(dataDirectory, gradDirectory, exportSeismicTrace, traceDirectory,
                                           exportResidual, ifreq, model, pCostDir, dinfo, gDn))
     return x
@@ -261,8 +285,13 @@ def main():
     else:
         x0 = to_param(solver.getVelocityModel().astype(np.float64))
         firstFreq, iteration = 0, 1
+    selection = None
+    if wf.offsetMin > 0 or np.isfinite(wf.offsetMax) or wf.muteVelocity is not None:
+        selection = DataSelection(offsetMin=wf.offsetMin, offsetMax=wf.offsetMax, muteVelocity=wf.muteVelocity,
+                                  muteTime=wf.muteTime, window=wf.timeWindow, taper=wf.muteTaper)
+        print(selection)
     problem = FWIProblem(solver, acquisition, minModel=minx, maxModel=maxx, freqList=freqFilterList, mode=mode,
-                         model=x0.copy(), iteration=iteration)
+                         model=x0.copy(), iteration=iteration, dataSelection=selection)
 
     precond = None
     if wf.minDepth > 0 or wf.gradEdge > 0 or wf.illumination:
@@ -275,7 +304,8 @@ def main():
     x = fullWaveformInversion(minimizer, x0, wf.dataDir, gradDirectory=wf.gradDir,
                               exportSeismicTrace=exportSeismicTrace, traceDirectory=wf.traceDir,
                               exportResidual=exportResidual, model=wf.model, pCostDir=wf.pCostDir,
-                              dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList, firstFreq=firstFreq)
+                              dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList, firstFreq=firstFreq,
+                              problem=problem, estimateSource=wf.estimateSource)
     if rank == 0:
         writeFields("finalModel.hdf5", {"velocity": x}, solver)
     print("Final model written to finalModel.hdf5")

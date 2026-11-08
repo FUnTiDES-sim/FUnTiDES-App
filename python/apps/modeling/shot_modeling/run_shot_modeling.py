@@ -27,7 +27,9 @@ Usage
 import argparse
 import os
 
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+from makutu.tools.gpu import select_gpu  # noqa: E402
+
+select_gpu()                  # one GPU per MPI rank of the node, before Kokkos
 
 import numpy as np
 

@@ -7,3 +7,4 @@ makutu.forwardBackward
 .. automodule:: makutu.forwardBackward.costFunction
 .. automodule:: makutu.forwardBackward.parallel
 .. automodule:: makutu.forwardBackward.modelio
+.. automodule:: makutu.forwardBackward.dataprocessing

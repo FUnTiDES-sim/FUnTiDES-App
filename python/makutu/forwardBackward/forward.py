@@ -7,7 +7,8 @@ from mpi4py.util import pkl5
 from ..output.SEGYTraceOutput import SEGYTraceOutput
 from .costFunction import ComputeCostFunction, \
                           ComputeResidual
-from .parallel import localShots, outputComm, shotParallel
+from .dataprocessing import applySourceCorrection, sourceCorrection, sourceCorrectionTerms
+from .parallel import localShots, outputComm, shotParallel, sumOverShots
 
 
 def directSimulation(problem, iacq, exportSeismicTrace=True, traceDirectory=".", computeCostFunction=False, dataDirectory=None, exportResidual=False, model="c", startModelFile=None, ifreq=0, pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy"):
@@ -71,15 +72,16 @@ def directSimulation(problem, iacq, exportSeismicTrace=True, traceDirectory=".",
     for shot in localShots(problem.listOfAcquisition[iacq].shots, solver):
         solver.resetWaveField()
         solver.updateSourceAndReceiversFromCoords(shot.getSourceCoords(), shot.getReceiverCoords())
-        solver.evaluateSource()
-        solver.filterSource(freqFilter)
+        prepareSource(problem, solver, ifreq)
 
         if computeCostFunction:
             computeCostFunctionObj = ComputeCostFunction(directory=pCostDir, dt=solver.dtSeismoRecorded,
                                                          rootname="partialCost_" + shot.id).computePartialCostFunction
             drootname, dformat, dext = dinfo.split(";")
             filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
-            computeResidual = ComputeResidual(filename, dt=solver.dtSeismoRecorded, fmax=freqFilter).computeResidual
+            computeResidual = selectedResidual(problem, shot, solver,
+                                               ComputeResidual(filename, dt=solver.dtSeismoRecorded,
+                                                               fmax=freqFilter).computeResidual)
         else:
             exportResidual = False
             computeCostFunctionObj = None
@@ -95,6 +97,68 @@ def directSimulation(problem, iacq, exportSeismicTrace=True, traceDirectory=".",
         if sameShots:
             comm.Barrier()
     return cost
+
+
+def prepareSource(problem, solver, ifreq):
+    """Source wavelet of a shot: evaluated, filtered at the frequency ``problem.freqList[ifreq]``
+    and corrected by the estimated filter of that frequency (``problem.sourceCorrection``)."""
+    solver.evaluateSource()
+    solver.filterSource(problem.freqList[ifreq])
+    correction = (problem.sourceCorrection or {}).get(ifreq)
+    if correction is not None:
+        applySourceCorrection(solver, correction)
+
+
+def selectedResidual(problem, shot, solver, computeResidual):
+    """``computeResidual`` followed by the data selection of the problem (W r), if any."""
+    selection = problem.dataSelection
+    if selection is None:
+        return computeResidual
+    src, rcv = shot.getSourceCoords()[0], shot.getReceiverCoords()
+    return lambda simulated: selection.apply(computeResidual(simulated), solver.dtSeismoRecorded, src, rcv)
+
+
+def estimateSource(problem, dataDirectory, ifreq=0, dinfo="seismoTrace_shot;5;.sgy", eps=1e-3):
+    """
+    Least-squares filter of the source wavelet at the frequency ``problem.freqList[ifreq]``
+    for the current model (makutu.forwardBackward.dataprocessing), over all the shots and
+    the MPI ranks; stored in ``problem.sourceCorrection[ifreq]`` and used by the following
+    runs of that frequency.
+
+    Returns
+    -------
+        (frequencies, c) : the filter
+    """
+    solver = problem.solver
+    freqFilter = problem.freqList[ifreq]
+    drootname, dformat, dext = dinfo.split(";")
+    dt = solver.dtSeismoRecorded
+    terms = None
+    for acq in problem.listOfAcquisition:
+        for shot in localShots(acq.shots, solver):
+            solver.resetWaveField()
+            solver.updateSourceAndReceiversFromCoords(shot.getSourceCoords(), shot.getReceiverCoords())
+            solver.evaluateSource()
+            solver.filterSource(freqFilter)
+            solver.runForward()
+            simulated = np.asarray(solver.getPressureAtReceivers(), dtype=np.float64)
+            filename = os.path.join(dataDirectory, drootname) + f"{int(shot.id):0{dformat}d}{dext}"
+            observed = ComputeResidual(filename, dt=dt, fmax=freqFilter).computeResidual(simulated) + simulated
+            if problem.dataSelection is not None:
+                src, rcv = shot.getSourceCoords()[0], shot.getReceiverCoords()
+                simulated = problem.dataSelection.apply(simulated, dt, src, rcv)
+                observed = problem.dataSelection.apply(observed, dt, src, rcv)
+            freqs, cross, power = sourceCorrectionTerms(simulated, observed, dt)
+            new = np.concatenate([cross.real, cross.imag, power])
+            terms = new if terms is None else terms + new
+    terms = sumOverShots(terms, solver)
+    m = len(terms) // 3
+    freqs = np.fft.rfftfreq(2 * (m - 1), dt)
+    correction = sourceCorrection(freqs, terms[:m] + 1j * terms[m:2 * m], terms[2 * m:], eps)
+    if problem.sourceCorrection is None:
+        problem.sourceCorrection = {}
+    problem.sourceCorrection[ifreq] = correction
+    return correction
 
 
 def forwardComputation(solver, shot, comm, exportSeismicTrace=True, traceDirectory=".", computeCostFunction=None, computeResidual=None, exportResidual=False):
