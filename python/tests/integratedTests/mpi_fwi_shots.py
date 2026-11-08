@@ -24,7 +24,7 @@ import pyfuntides.solver as FTSolver  # noqa: E402
 
 from makutu.acquisition import Acquisition  # noqa: E402
 from makutu.forwardBackward import directSimulation, func  # noqa: E402
-from makutu.imaging import globals as gb  # noqa: E402
+from makutu.imaging import FWIProblem  # noqa: E402
 from makutu.imaging import gradf  # noqa: E402
 from makutu.mesh import CartesianMesh2D  # noqa: E402
 from makutu.solvers import AcousticSolver  # noqa: E402
@@ -46,21 +46,21 @@ def main(workdir):
     solver.initialize()
     acq = Acquisition(sources=[[x, 0.0, 100.0] for x in (250.0, 500.0, 750.0)],
                       receivers=[[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)])
-    gb.initializeGlobalVariables(solver, acq, [acq], 1000.0, 4000.0, 0.0, ["all"])
+    problem = FWIProblem(solver, acq, minModel=1000.0, maxModel=4000.0, freqList=["all"])
 
     obs = f"obs_{size}"
-    directSimulation(0, exportSeismicTrace=True, traceDirectory=obs)          # each rank its shots
+    directSimulation(problem, 0, exportSeismicTrace=True, traceDirectory=obs)          # each rank its shots
     comm.Barrier()
     if rank == 0:
         for shot in acq.shots:
             os.replace(f"{obs}/seismoTrace_shot{shot.id}_10.sgy", f"{obs}/seismoTrace_shot{shot.id}.sgy")
     comm.Barrier()
 
-    g, J = gradf(v0.ravel(), obs, exportSeismicTrace=False, computeFullCF=True)
-    Jf = func(v0.ravel(), obs, exportSeismicTrace=False)
+    g, J = gradf(problem, v0.ravel(), obs, exportSeismicTrace=False, computeFullCF=True)
+    Jf = func(problem, v0.ravel(), obs, exportSeismicTrace=False)
     np.savez(os.path.join(workdir, f"result_{size}_{rank}.npz"), gradient=g, J=J, Jf=Jf,
-             illumination=gb.illumination)
-    gb.solver = None
+             illumination=problem.illumination)
+    problem.release()
     del solver, mesh
 
 

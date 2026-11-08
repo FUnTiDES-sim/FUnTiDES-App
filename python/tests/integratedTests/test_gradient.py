@@ -12,7 +12,7 @@ import pyfuntides.solver as FTSolver
 
 from makutu.acquisition import Acquisition
 from makutu.forwardBackward import directSimulation
-from makutu.imaging import globals as gb
+from makutu.imaging import FWIProblem
 from makutu.imaging import gradf
 from makutu.mesh import CartesianMesh2D
 from makutu.mesh.CartesianUnstructModel import build_cartesian_unstruct_model
@@ -26,11 +26,10 @@ PARAM = {"c": (lambda v: v, lambda m: m),
 
 @pytest.fixture(autouse=True)
 def workdir(tmp_path, monkeypatch):
-    """Run in tmp_path; drop the global solver afterwards (the solvers are built in
-    the tests: fixture values would outlive the Kokkos runtime)."""
+    """Run in tmp_path (the solvers are built in the tests: fixture values would outlive
+    the Kokkos runtime)."""
     monkeypatch.chdir(tmp_path)
     yield
-    gb.solver = None
 
 
 def solver_2d(order, vp):
@@ -113,8 +112,8 @@ def test_gradf_descent():
     solver = solver_2d(2, vtrue)
     acq = Acquisition(sources=[[300.0, 0.0, 100.0], [700.0, 0.0, 100.0]],
                       receivers=[[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)])
-    gb.initializeGlobalVariables(solver, acq, [acq], 1000.0, 4000.0, 0.0, ["all"])
-    directSimulation(0, exportSeismicTrace=True, traceDirectory="obs")           # observed data
+    problem = FWIProblem(solver, acq, minModel=1000.0, maxModel=4000.0, freqList=["all"])
+    directSimulation(problem, 0, exportSeismicTrace=True, traceDirectory="obs")           # observed data
     for i in (1, 2):
         os.replace(f"obs/seismoTrace_shot{i:05d}_10.sgy", f"obs/seismoTrace_shot{i:05d}.sgy")
 
@@ -123,16 +122,16 @@ def test_gradf_descent():
         with segyio.open(f"obs/seismoTrace_shot{i:05d}.sgy", ignore_geometry=True) as f:
             energy += segyio.tools.dt(f) * 1e-6 / 2 * np.sum(f.trace.raw[:].astype(float) ** 2)
 
-    g_true, J_true = gradf(vtrue.ravel(), "obs", exportSeismicTrace=False, computeFullCF=True)
-    g0, J0 = gradf(v0.ravel(), "obs", exportSeismicTrace=False, computeFullCF=True)
-    H = gb.illumination                                           # summed over the 2 shots
+    g_true, J_true = gradf(problem, vtrue.ravel(), "obs", exportSeismicTrace=False, computeFullCF=True)
+    g0, J0 = gradf(problem, v0.ravel(), "obs", exportSeismicTrace=False, computeFullCF=True)
+    H = problem.illumination                                           # summed over the 2 shots
     assert H.shape == g0.shape and np.all(np.isfinite(H)) and H.min() >= 0.0
     top = H.reshape(v0.shape)[:4].max()                           # near the sources (100 m)
     assert top > 10 * H.reshape(v0.shape)[-2:].mean()             # decreases with depth
     assert J_true < 1e-8 * energy                                 # float32 GPU noise
     assert np.abs(g_true).max() < 1e-2 * np.abs(g0).max()
     step = 10.0 / np.abs(g0).max()                                # at most 10 m/s
-    _, J1 = gradf(v0.ravel() - step * g0, "obs", exportSeismicTrace=False, computeFullCF=True)
+    _, J1 = gradf(problem, v0.ravel() - step * g0, "obs", exportSeismicTrace=False, computeFullCF=True)
     assert J1 < J0
 
 
@@ -147,15 +146,15 @@ def test_filtered_stage_vanishes_on_the_true_model():
     solver = solver_2d(2, vtrue)
     acq = Acquisition(sources=[[300.0, 0.0, 100.0], [700.0, 0.0, 100.0]],
                       receivers=[[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)])
-    gb.initializeGlobalVariables(solver, acq, [acq], 1000.0, 4000.0, 0.0, ["all"])
-    directSimulation(0, exportSeismicTrace=True, traceDirectory="obs")          # unfiltered data
+    problem = FWIProblem(solver, acq, minModel=1000.0, maxModel=4000.0, freqList=["all"])
+    directSimulation(problem, 0, exportSeismicTrace=True, traceDirectory="obs")          # unfiltered data
     for i in (1, 2):
         os.replace(f"obs/seismoTrace_shot{i:05d}_10.sgy", f"obs/seismoTrace_shot{i:05d}.sgy")
-    gb.freqList = [6.0]
+    problem.freqList = [6.0]
 
     kw = dict(exportSeismicTrace=False, computeFullCF=True, ifreq=0)
-    _, J_true = gradf(vtrue.ravel(), "obs", **kw)
-    g0, J0 = gradf(v0.ravel(), "obs", **kw)
+    _, J_true = gradf(problem, vtrue.ravel(), "obs", **kw)
+    g0, J0 = gradf(problem, v0.ravel(), "obs", **kw)
     assert J_true < 1e-2 * J0                     # 1.5e-3 measured (0.99 with the former FFT filter)
-    _, J1 = gradf(v0.ravel() - 10.0 / np.abs(g0).max() * g0, "obs", **kw)
+    _, J1 = gradf(problem, v0.ravel() - 10.0 / np.abs(g0).max() * g0, "obs", **kw)
     assert J1 < J0

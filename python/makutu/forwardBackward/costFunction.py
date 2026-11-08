@@ -6,7 +6,6 @@ from mpi4py.util import pkl5
 
 import segyio
 
-from ..imaging import globals as gb
 from ..tools.filter import frequencyFilter
 
 
@@ -113,7 +112,8 @@ class ComputeResidual:
         return observed - simulatedData
 
 
-def computeFullCostFunction(nfiles, pCostDir="partialCostFunction", save=True, sfile="fullCostFunction.txt"):
+def computeFullCostFunction(nfiles, pCostDir="partialCostFunction", save=True, sfile="fullCostFunction.txt",
+                            keep=False):
     """Compute the full cost function by summing the partial cost functions of the shots
 
     Parameters
@@ -130,6 +130,8 @@ def computeFullCostFunction(nfiles, pCostDir="partialCostFunction", save=True, s
         sfile : str, optional
             If save if True, filename of full cost function \
             Default is `fullCostFunction.txt`
+        keep : bool, optional
+            Keep the partial cost files (default: pCostDir is removed)
 
     Returns
     --------
@@ -162,7 +164,7 @@ def computeFullCostFunction(nfiles, pCostDir="partialCostFunction", save=True, s
             error = f"{pCostDir}: no cost function for the shots {missing}"
         else:
             fullCost = sum(costs.values())
-            if getattr(gb, "mode", "REL") != "DBG":
+            if not keep:
                 for filename in os.listdir(pCostDir):
                     os.remove(os.path.join(pCostDir, filename))
                 os.rmdir(pCostDir)

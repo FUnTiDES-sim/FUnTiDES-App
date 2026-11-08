@@ -17,7 +17,6 @@ from scipy.ndimage import gaussian_filter
 import pyfuntides.model as FTModel
 import pyfuntides.solver as FTSolver
 
-from makutu.imaging import globals as gb
 from makutu.mesh import CartesianMesh2D
 from makutu.solvers import AcousticSolver
 
@@ -34,7 +33,6 @@ RCV = [[x, 0.0, 60.0] for x in np.linspace(100, 900, 17)]
 def workdir(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     yield
-    gb.solver = None
 
 
 def background():

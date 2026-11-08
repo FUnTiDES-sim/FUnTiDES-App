@@ -1,8 +1,5 @@
 """Imaging utilities"""
-from .globals import (
-    initializeGlobalVariables,
-    setModelAsGlobal
-)
+from .problem import FWIProblem
 from .gradient import (
     gradientComputation,
     gradf

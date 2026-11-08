@@ -7,7 +7,8 @@ SEM solvers: least-squares cost function, gradient by the adjoint-state method
 ```bash
 # from the run directory, after source <FUnTiDES install>/funtides_env.sh
 python <FUnTiDES-App>/python/apps/fullWaveformInversion/fwi.py --param_file fwi_parameters.txt
-python .../fwi.py --param_file fwi_parameters.txt --restart --rfile velocityModel3.hdf5   # restart
+python .../fwi.py --param_file fwi_parameters.txt --restart --rfile velocityModel23.hdf5 \
+    --restart_freq 3 --restart_iter 24        # resume at the 3rd frequency, next model file 24
 ```
 
 With MPI (`mpirun -np N python .../fwi.py ...`) the shots are dealt out to the ranks: every

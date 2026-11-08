@@ -26,7 +26,7 @@ import pyfuntides.solver as FTSolver  # noqa: E402
 import shots  # noqa: E402
 from makutu.acquisition import Acquisition  # noqa: E402
 from makutu.forwardBackward import computeFullCostFunction, directSimulation  # noqa: E402
-from makutu.imaging import globals as gb  # noqa: E402
+from makutu.imaging import FWIProblem  # noqa: E402
 from makutu.mesh.InternalMesh import StructuredMesh  # noqa: E402
 from makutu.solvers import AcousticSolver  # noqa: E402
 
@@ -49,21 +49,21 @@ def main(workdir):
         **kwargs)
     solver.initialize()
     acq = Acquisition(sources=SOURCES, receivers=RECEIVERS)
-    gb.initializeGlobalVariables(solver, acq, [acq], 1000.0, 3000.0, 0.0, ["all"])
+    problem = FWIProblem(solver, acq, minModel=1000.0, maxModel=3000.0, freqList=["all"])
 
-    directSimulation(0, exportSeismicTrace=True, traceDirectory="obs")
+    directSimulation(problem, 0, exportSeismicTrace=True, traceDirectory="obs")
     if rank == 0:
         for i in (1, 2):
             os.replace(f"obs/seismoTrace_shot{i:05d}_{int(shots.F0)}.sgy", f"obs/seismoTrace_shot{i:05d}.sgy")
     comm.Barrier()
-    directSimulation(0, exportSeismicTrace=False, computeCostFunction=True, dataDirectory="obs", pCostDir="pcost")
+    directSimulation(problem, 0, exportSeismicTrace=False, computeCostFunction=True, dataDirectory="obs", pCostDir="pcost")
     comm.Barrier()
     J = computeFullCostFunction(len(SOURCES), "pcost", save=False)
     if rank == 0:
         with segyio.open("obs/seismoTrace_shot00001.sgy", ignore_geometry=True) as f:
             data = f.trace.raw[:].T
         np.savez("result.npz", data=data, J=J, energy=solver.dtSeismoRecorded * np.sum(data.astype(float) ** 2) / 2)
-    gb.solver = None
+    problem.release()
     del solver, mesh
 
 

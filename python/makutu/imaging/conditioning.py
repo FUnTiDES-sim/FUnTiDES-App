@@ -6,7 +6,7 @@ Conditioning of the FWI gradient: a diagonal preconditioner for makutu.imaging.M
   0 within ``edge`` of the absorbing edges (sides and bottom; their terms are not
   differentiated), with cosine ramps of width ``taper`` towards the inside;
 - H: illumination, energy of the forward field summed over the shots
-  (``gb.illumination``, set by makutu.imaging.gradf), the source side of the diagonal
+  (``problem.illumination``, set by makutu.imaging.gradf), the source side of the diagonal
   pseudo-Hessian (Shin et al., 2001); it compensates the geometrical spreading.
   ``eps`` (relative to max H) bounds the gain where H is small.
 
@@ -14,8 +14,6 @@ The Minimizer line searches still use the true gradient.
 """
 
 import numpy as np
-
-from . import globals as gb
 
 
 def _ramp(d, width):
@@ -44,15 +42,20 @@ class GradientConditioner:
             Width [m] of the cosine ramps of the masks \
             Default is 0
         illumination : bool, optional
-            Divide by the illumination gb.illumination \
+            Divide by the illumination ``problem.illumination`` \
             Default is False
         eps : float, optional
             Stabilisation of the division, relative to the maximum illumination \
             Default is 0.01
+        problem : makutu.imaging.FWIProblem, optional
+            Problem whose illumination is used (required with ``illumination``)
     """
-    def __init__(self, solver, minDepth=0.0, edge=0.0, taper=0.0, illumination=False, eps=0.01):
+    def __init__(self, solver, minDepth=0.0, edge=0.0, taper=0.0, illumination=False, eps=0.01, problem=None):
         self.minDepth, self.edge, self.taper = float(minDepth), float(edge), float(taper)
         self.illumination, self.eps = bool(illumination), float(eps)
+        if self.illumination and problem is None:
+            raise ValueError("GradientConditioner: illumination=True needs the problem (problem.illumination)")
+        self.problem = problem
         self.mask = self.buildMask(solver)
 
     def buildMask(self, solver):
@@ -74,8 +77,8 @@ class GradientConditioner:
     def __call__(self, gradJ):
         p = self.mask * gradJ
         if self.illumination:
-            H = getattr(gb, "illumination", None)
+            H = self.problem.illumination
             if H is None:
-                raise RuntimeError("GradientConditioner: no illumination (gb.illumination is set by gradf)")
+                raise RuntimeError("GradientConditioner: no illumination (problem.illumination is set by gradf)")
             p = p / (H + self.eps * np.max(H))
         return p

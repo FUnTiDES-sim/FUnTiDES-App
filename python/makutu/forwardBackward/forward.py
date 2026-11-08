@@ -4,21 +4,22 @@ import numpy as np
 import mpi4py
 from mpi4py import MPI
 from mpi4py.util import pkl5
-from ..imaging import globals as gb
 from ..output.SEGYTraceOutput import SEGYTraceOutput
 from .costFunction import ComputeCostFunction, \
                           ComputeResidual
 from .parallel import localShots, outputComm, shotParallel
 
 
-def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeCostFunction=False, dataDirectory=None, exportResidual=False, model="c", startModelFile=None, ifreq=0, pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy"):
+def directSimulation(problem, iacq, exportSeismicTrace=True, traceDirectory=".", computeCostFunction=False, dataDirectory=None, exportResidual=False, model="c", startModelFile=None, ifreq=0, pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy"):
     """
-    Performs a direct propagation of Acoustic Solver. Note that you must specify some global variables before being able to use this routine (see globals.py).
+    Forward runs of the shots of an acquisition of the problem.
 
     Parameters:
     -----------
+        problem : makutu.imaging.FWIProblem
+            Solver, acquisitions, model bounds and filter frequencies
         iacq : int
-            Index of Acquisition in gb.listOfAcquisition
+            Index of the acquisition in problem.listOfAcquisition
         exportSeismicTrace : bool
             Whether or not to export seismic trace to .sgy \
             Default is True
@@ -41,7 +42,7 @@ def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeC
             Model to start with: HDF5 file (dataset "velocity") or array, in the
             parametrisation ``model``; default None keeps the solver model
         ifreq : int
-            Index of the frequency in gb.freqList \
+            Index of the frequency in problem.freqList \
             Default is 0
         pCostDir : str, optional
             Partial cost function directory (None: no file) \
@@ -56,10 +57,10 @@ def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeC
         with the domain decomposition, on rank 0 only)
     """
     comm = pkl5.Intracomm(MPI.COMM_WORLD)
-    solver = gb.solver
-    low = gb.minModel
-    high = gb.maxModel
-    freqFilter = gb.freqList[ifreq]
+    solver = problem.solver
+    low = problem.minModel
+    high = problem.maxModel
+    freqFilter = problem.freqList[ifreq]
     solver.setModelForGradient(model)
     if startModelFile is not None:
         solver.updateModel(startModelFile, low, high)
@@ -67,7 +68,7 @@ def directSimulation(iacq, exportSeismicTrace=True, traceDirectory=".", computeC
     sameShots = not shotParallel(solver)       # every rank works on every shot
 
     cost = 0.0
-    for shot in localShots(gb.listOfAcquisition[iacq].shots, solver):
+    for shot in localShots(problem.listOfAcquisition[iacq].shots, solver):
         solver.resetWaveField()
         solver.updateSourceAndReceiversFromCoords(shot.getSourceCoords(), shot.getReceiverCoords())
         solver.evaluateSource()

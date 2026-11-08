@@ -2,7 +2,6 @@
 
 import h5py
 
-from ..imaging import globals as gb
 from .parallel import isDecomposed
 
 
@@ -37,15 +36,15 @@ def writeFields(filename, fields, solver=None):
                 d.attrs[k] = v
 
 
-def writeModel(filename, x, comm):
+def writeModel(filename, x, comm, solver=None):
     """
-    Write the model ``x`` (dataset "velocity") to an HDF5 file, from rank 0 of ``comm``.
+    Write the model ``x`` (dataset "velocity") to an HDF5 file, from rank 0 of ``comm``, with
+    the grid attributes of ``solver`` (:func:`gridAttributes`).
 
     With shot parallelism every rank holds the whole (same) model. With the MPI domain
     decomposition each rank holds its part of the model, which would have to be gathered
     (not implemented).
     """
-    solver = getattr(gb, "solver", None)
     if comm.Get_size() > 1 and isDecomposed(solver):
         raise NotImplementedError("model files (func, callback) with the MPI domain decomposition")
     if comm.Get_rank() == 0:

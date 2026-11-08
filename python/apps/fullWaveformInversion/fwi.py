@@ -20,8 +20,16 @@ same optimisation on the summed cost and gradient; rank 0 writes the model files
 
 Usage
 -----
-    python fwi.py --param_file fwi_parameters.txt [--restart --rfile velocityModel3.hdf5] [--dbg | --dbg+]
+    python fwi.py --param_file fwi_parameters.txt [--dbg | --dbg+]
     mpirun -np 4 python fwi.py --param_file fwi_parameters.txt
+
+Restart (e.g. after velocityModel23.hdf5, written during the 3rd filter frequency):
+
+    python fwi.py --param_file fwi_parameters.txt --restart --rfile velocityModel23.hdf5 \
+        --restart_freq 3 --restart_iter 24
+
+The optimisation of that frequency starts again from the model (the conjugate-gradient
+history is not kept); the next model files are numbered from 24.
 
 See README.md for the parameters.
 """
@@ -42,10 +50,8 @@ kokkos.initialize()
 import pyfuntides.solver as FTSolver
 
 from makutu.acquisition import SEGYAcquisition, DecisionAcquisition
-from makutu.forwardBackward import func, callback
 from makutu.forwardBackward.modelio import writeFields
-from makutu.imaging import initializeGlobalVariables, setModelAsGlobal, gradf, Minimizer, GradientConditioner
-from makutu.imaging import globals as gb
+from makutu.imaging import FWIProblem, Minimizer, GradientConditioner
 from makutu.mesh import mesh_from_sep
 from makutu.solvers import AcousticSolver
 
@@ -59,6 +65,11 @@ def parse_args():
     parser.add_argument("--rfile", "--restart_model_file", type=str, dest="rfile", default=None,
                         help="HDF5 file (dataset 'velocity') with the model for restart, in the "
                              "parametrisation of this run (c, 1/c or 1/c2)")
+    parser.add_argument("--restart_freq", type=int, dest="rfreq", default=1,
+                        help="Restart: number (from 1) of the filter frequency of freqFilterList to "
+                             "start with (default 1)")
+    parser.add_argument("--restart_iter", type=int, dest="riter", default=1,
+                        help="Restart: number of the next model file velocityModel<n>.hdf5 (default 1)")
     parser.add_argument("--dbg", dest="DBG", action="store_true", default=False,
                         help="Debug mode: keep the full gradients, the cost functions and the "
                              "partial cost function files")
@@ -179,15 +190,18 @@ def build_solver(wf, vp_file):
 
 def fullWaveformInversion(minimizer, x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=False,
                           traceDirectory=".", exportResidual=False, model="c", pCostDir="partialCostFunction",
-                          dinfo="seismoTrace_shot;5;.sgy", gDn=0, freqList=("all",)):
+                          dinfo="seismoTrace_shot;5;.sgy", gDn=0, freqList=("all",), firstFreq=0):
     """
-    Minimisation for every filter frequency, each starting from the model of the previous one.
+    Minimisation for every filter frequency from ``freqList[firstFreq]``, each starting from
+    the model of the previous one.
 
     Returns
     -------
         np.ndarray : final model
     """
     for ifreq, freq in enumerate(freqList):
+        if ifreq < firstFreq:
+            continue
         print("\n", "*" * 80, sep="")
         print(f"Filtering frequency = {freq}  [ {ifreq + 1} / {len(freqList)} ]")
         print("*" * 80, end="\n\n")
@@ -230,29 +244,36 @@ def main():
     if args.restart and args.rfile is not None:
         with h5py.File(args.rfile, "r") as f:
             x0 = f["velocity"][:]
-        print(f"Restart model: {args.rfile}")
+        if x0.size != solver.getVelocityModel().size:
+            raise SystemExit(f"{args.rfile}: {x0.size} values, the mesh has {solver.getVelocityModel().size} elements")
+        if not 1 <= args.rfreq <= len(freqFilterList):
+            raise SystemExit(f"--restart_freq {args.rfreq}: freqFilterList has {len(freqFilterList)} frequencies")
+        print(f"Restart model: {args.rfile}, frequency {freqFilterList[args.rfreq - 1]} "
+              f"[{args.rfreq} / {len(freqFilterList)}], next model file velocityModel{args.riter}.hdf5")
+        firstFreq, iteration = args.rfreq - 1, args.riter
     else:
         x0 = to_param(solver.getVelocityModel().astype(np.float64))
-    setModelAsGlobal(x0.copy())
-    initializeGlobalVariables(solver, acquisition, [acquisition], minx, maxx, wf.minDepth, freqFilterList, mode)
+        firstFreq, iteration = 0, 1
+    problem = FWIProblem(solver, acquisition, minModel=minx, maxModel=maxx, freqList=freqFilterList, mode=mode,
+                         model=x0.copy(), iteration=iteration)
 
     precond = None
     if wf.minDepth > 0 or wf.gradEdge > 0 or wf.illumination:
         precond = GradientConditioner(solver, minDepth=wf.minDepth, edge=wf.gradEdge, taper=wf.gradTaper,
-                                      illumination=wf.illumination, eps=wf.illumEps)
+                                      illumination=wf.illumination, eps=wf.illumEps, problem=problem)
         print(f"Gradient conditioning: minDepth {wf.minDepth:g} m, edge {wf.gradEdge:g} m, "
               f"taper {wf.gradTaper:g} m, illumination {wf.illumination} (eps {wf.illumEps:g})")
-    minimizer = Minimizer(func, method=wf.method, jac=gradf, bounds=[[minx, maxx]] * len(x0),
-                          tol=None, callback=callback, options=options, precond=precond)
+    minimizer = Minimizer(problem.func, method=wf.method, jac=problem.gradf, bounds=[[minx, maxx]] * len(x0),
+                          tol=None, callback=problem.callback, options=options, precond=precond)
     x = fullWaveformInversion(minimizer, x0, wf.dataDir, gradDirectory=wf.gradDir,
                               exportSeismicTrace=exportSeismicTrace, traceDirectory=wf.traceDir,
                               exportResidual=exportResidual, model=wf.model, pCostDir=wf.pCostDir,
-                              dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList)
+                              dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList, firstFreq=firstFreq)
     if rank == 0:
         writeFields("finalModel.hdf5", {"velocity": x}, solver)
     print("Final model written to finalModel.hdf5")
-    gb.solver = None              # every Kokkos view must be released before kokkos.finalize
-    del solver, m
+    problem.release()             # every Kokkos view must be released before kokkos.finalize
+    del solver, m, problem, minimizer, precond
 
 
 if __name__ == "__main__":

@@ -1,29 +1,24 @@
-import os
-import numpy as np
+"""Cost function and callback of the optimisers (:class:`makutu.imaging.FWIProblem`)."""
 
-import mpi4py
 from mpi4py import MPI
 from mpi4py.util import pkl5
-import h5py
 
-from ..imaging import globals as gb
 from .forward import directSimulation
 from .modelio import writeModel
 from .costFunction import frequencyTag, writeCostFunction
 from .parallel import checkShotParallel, sumOverShots
 
-iter = 1
-feval = 1
 
-
-def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=True, traceDirectory=".", exportResidual=False, ifreq=0, model="c", pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy",*args):
+def func(problem, x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=True, traceDirectory=".", exportResidual=False, ifreq=0, model="c", pCostDir="partialCostFunction", dinfo="seismoTrace_shot;5;.sgy",*args):
     """
-    Callable function returning the full cost function
+    Cost function over all the shots of the problem (summed over the MPI ranks)
 
     Parameters
     -----------
+        problem : makutu.imaging.FWIProblem
+            State of the inversion
         x : array
-            data
+            Model, flat per element in seismic order, parametrisation ``model``
         dataDirectory : str
             Directory containing data for residual/costFunction computation
         gradDirectory : str
@@ -37,7 +32,7 @@ def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=T
         exportResidual : bool
             Wheter or not to export the residual. Default is False
         ifreq : int
-            Index of the frequency in gb.freqList. Default to 0
+            Index of the frequency in problem.freqList. Default to 0
         model : str
             Model to use
         pCostDir : str, optional
@@ -49,17 +44,15 @@ def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=T
         J : float
             Full cost function
     """
-    global feval
-
-    solver = gb.solver
+    solver = problem.solver
     checkShotParallel(solver)
-    freqFilter = gb.freqList[ifreq]
-    debug = getattr(gb, "mode", "REL") == "DBG"
-    pdir = f"{pCostDir}_{feval}_F" if debug else None          # partial cost files in debug mode
+    freqFilter = problem.freqList[ifreq]
+    debug = problem.debug
+    pdir = f"{pCostDir}_{problem.nfunc}_F" if debug else None  # partial cost files in debug mode
 
     J = 0.0
-    for i in range(len(gb.listOfAcquisition)):
-        J += directSimulation(i, exportSeismicTrace, traceDirectory, True, dataDirectory, exportResidual, model,
+    for i in range(len(problem.listOfAcquisition)):
+        J += directSimulation(problem, i, exportSeismicTrace, traceDirectory, True, dataDirectory, exportResidual, model,
                               x, ifreq, pdir, dinfo)
     J = sumOverShots(J, solver)
 
@@ -67,30 +60,31 @@ def func(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=T
         if debug:
             writeCostFunction(J, filename=f"fullCostFunction{frequencyTag(freqFilter)}.txt")
         print(f"\nFrequency {freqFilter} - F = {J}\n")
-    feval += 1
+    problem.nfunc += 1
     return J
 
 
-def callback(x):
+def callback(problem, x):
     """
-    Create the velocity model HDF5 file corresponding to the iteration done
+    Write the model after an iteration to ``velocityModel<problem.iteration>.hdf5`` and
+    increment ``problem.iteration``.
 
     Parameters
     -----------
+        problem : makutu.imaging.FWIProblem
+            State of the inversion
         x : array
-            Velocity model
+            Model
     """
-    global iter
-
     comm = pkl5.Intracomm(MPI.COMM_WORLD)
     rank = comm.Get_rank()
 
-    modelFile = "velocityModel" + str(iter) + ".hdf5"
-    writeModel(modelFile, x, comm)
-    
-    if rank == 0:
-        print( "*"*80, f"Velocity model {iter} saved as `{modelFile}`", "*"*80, sep="\n"*2 )
+    modelFile = f"velocityModel{problem.iteration}.hdf5"
+    writeModel(modelFile, x, comm, problem.solver)
 
-    iter += 1
-    
+    if rank == 0:
+        print("*" * 80, f"Velocity model {problem.iteration} saved as `{modelFile}`", "*" * 80, sep="\n" * 2)
+
+    problem.iteration += 1
+
     comm.Barrier()

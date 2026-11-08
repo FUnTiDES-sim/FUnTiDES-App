@@ -13,14 +13,33 @@ building blocks are below.
 Cost and gradient
 =================
 
-- :func:`makutu.forwardBackward.func` (x, data directory, ...) returns J;
-- :func:`makutu.imaging.gradf` (x, ..., :code:`computeFullCF=True`) returns the gradient and
-  J (one forward run with snapshots and one adjoint run per shot), and the summed
-  illumination in :code:`makutu.imaging.globals.illumination`.
+The state of an inversion is a :class:`makutu.imaging.FWIProblem`: solver, acquisitions,
+model bounds, filter frequencies, run mode, current model, illumination, and the counters
+that number the output files. Its methods have the signatures of the optimisers:
+
+- :code:`problem.func(x, data directory, ...)` (:func:`makutu.forwardBackward.func`) returns J;
+- :code:`problem.gradf(x, ..., computeFullCF=True)` (:func:`makutu.imaging.gradf`) returns the
+  gradient and J (one forward run with snapshots and one adjoint run per shot), and sums the
+  illumination in :code:`problem.illumination`;
+- :code:`problem.callback(x)` writes :code:`velocityModel<problem.iteration>.hdf5` after an
+  iteration.
 
 Both read the observed data (one SEG-Y file per shot, named by :code:`dinfo`), filter the
-source and the data at the current frequency, and apply the model x in memory. They use the
-solver and the acquisitions given to :func:`makutu.imaging.initializeGlobalVariables`.
+source and the data at the current frequency, and apply the model x in memory.
+
+.. code-block:: python
+
+    from makutu.imaging import FWIProblem, GradientConditioner, Minimizer
+
+    problem = FWIProblem(solver, acquisition, minModel=1400.0, maxModel=5000.0, freqList=[4.0, 6.0])
+    precond = GradientConditioner(solver, minDepth=50.0, illumination=True, problem=problem)
+    minimizer = Minimizer(problem.func, method="CGPR", jac=problem.gradf, callback=problem.callback,
+                          bounds=[[1400.0, 5000.0]] * len(x0), options={"maxiter": 10}, precond=precond)
+
+To resume a run, give the model file, the frequency and the number of the next model file
+(:code:`problem.iteration`); with :file:`fwi.py`: :code:`--restart --rfile velocityModel23.hdf5
+--restart_freq 3 --restart_iter 24`. The optimisation of that frequency starts again from
+the model (the conjugate-gradient history is not kept).
 
 Verified (integrated tests): gradient against finite differences (2-D orders 1 to 3, 3-D,
 the three parametrisations), Taylor test (second-order remainder), source-receiver

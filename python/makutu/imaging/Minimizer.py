@@ -11,8 +11,6 @@ import numpy as np
 
 from scipy import optimize
 
-from . import globals as gb
-
 
 class Minimizer:
     """
@@ -177,14 +175,18 @@ class _WolfeOptimizer(Minimizer):
 
     def _store(self, x, J, gradJ):
         self._cache = [e for e in self._cache if not np.array_equal(e[0], x)][-3:]
-        self._cache.append((np.array(x, copy=True), J, gradJ, getattr(gb, "illumination", None)))
+        self._cache.append((np.array(x, copy=True), J, gradJ, getattr(self._problem(), "illumination", None)))
+
+    def _problem(self):
+        """Problem of the preconditioner (its illumination goes with the cached gradients)."""
+        return getattr(self.precond, "problem", None)
 
     def _fg(self, x, *args):
         """(J, gradient) at x, from the cache or from jac."""
         entry = self._lookup(x)
         if entry is not None and entry[2] is not None:
             if entry[3] is not None:
-                gb.illumination = entry[3]       # for the preconditioner
+                self._problem().illumination = entry[3]       # for the preconditioner
             return entry[1], entry[2]
         gradJ, J = self.jac(x, *args, computeFullCF=True)
         self.nEval["gradient"] += 1

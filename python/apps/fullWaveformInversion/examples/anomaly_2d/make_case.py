@@ -33,7 +33,7 @@ import kokkos                                            # noqa: E402
 
 from makutu.acquisition import Acquisition               # noqa: E402
 from makutu.forwardBackward import directSimulation      # noqa: E402
-from makutu.imaging import globals as gb                 # noqa: E402
+from makutu.imaging import FWIProblem                 # noqa: E402
 from makutu.input.createSepModel import _write_sep       # noqa: E402
 from makutu.mesh import suggest_mesh                     # noqa: E402
 
@@ -86,12 +86,12 @@ def main():
     solver, m = fwi.build_solver(wf, "true.H")
     acq = Acquisition(sources=[[x, 0.0, DEPTH_SRC] for x in SOURCES_X],
                       receivers=[[x, 0.0, DEPTH_RCV] for x in RECEIVERS_X])
-    gb.initializeGlobalVariables(solver, acq, [acq], 0.0, 1e9, 0.0, ["all"])
-    directSimulation(0, exportSeismicTrace=True, traceDirectory="obs")
+    problem = FWIProblem(solver, acq, minModel=0.0, maxModel=1e9, freqList=["all"])
+    directSimulation(problem, 0, exportSeismicTrace=True, traceDirectory="obs")
     for shot in acq.shots:
         os.replace(f"obs/seismoTrace_shot{shot.id}_{int(F0)}.sgy", f"obs/seismoTrace_shot{shot.id}.sgy")
     print(f"Observed data: {len(acq.shots)} shots in {os.path.abspath('obs')}")
-    gb.solver = None
+    problem.release()
     del solver, m
 
 

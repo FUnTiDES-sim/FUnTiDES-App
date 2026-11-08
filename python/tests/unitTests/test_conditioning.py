@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from makutu.imaging import GradientConditioner
-from makutu.imaging import globals as gb
+from makutu.imaging import FWIProblem
 
 SOLVER_2D = SimpleNamespace(dim=2, lx=1000.0, lz=500.0, ex=40, ez=20)          # 25 m elements
 
@@ -37,15 +37,18 @@ def test_edge_mask_3d():
     assert m[0, 5, 10] == 1.0
 
 
-def test_illumination_division(monkeypatch):
+def test_illumination_division():
     H = np.linspace(1.0, 100.0, 800)
-    monkeypatch.setattr(gb, "illumination", H, raising=False)
+    problem = FWIProblem(SOLVER_2D, SimpleNamespace(shots=[]))
+    problem.illumination = H
     g = np.ones(800)
-    p = GradientConditioner(SOLVER_2D, illumination=True, eps=0.01)(g)
+    p = GradientConditioner(SOLVER_2D, illumination=True, eps=0.01, problem=problem)(g)
     assert p == pytest.approx(1.0 / (H + 1.0))
 
 
-def test_illumination_missing(monkeypatch):
-    monkeypatch.setattr(gb, "illumination", None, raising=False)
+def test_illumination_missing():
+    with pytest.raises(ValueError):                                  # no problem given
+        GradientConditioner(SOLVER_2D, illumination=True)
+    problem = FWIProblem(SOLVER_2D, SimpleNamespace(shots=[]))      # gradf not run yet
     with pytest.raises(RuntimeError):
-        GradientConditioner(SOLVER_2D, illumination=True)(np.ones(800))
+        GradientConditioner(SOLVER_2D, illumination=True, problem=problem)(np.ones(800))
