@@ -1,12 +1,19 @@
-# DAS validation
+# DAS validation: analytical solution
 
-- Untar the archive `DAS_validation_data.tar` containing all the data
+`analytical/DAS_verification.py` computes the analytical response of a homogeneous
+isotropic elastic medium (P velocity 4000 m/s, S velocity 2000 m/s, density
+2000 kg/m^3) to an isotropic moment-tensor point source at the origin (Ricker
+wavelet, 10 Hz, dt = 1 ms, 1000 samples), at the point (100, 100, 100) m:
 
-- Execute the script `script_Chengyi/dataview_FX2TX_3D.py` to visualize and save the figure representing all the results
+- displacement: `ux.txt`, `uy.txt`, `uz.txt`;
+- displacement differences between the ends of the DAS gauge: `uxdiff.txt`,
+  `uydiff.txt`, `uzdiff.txt`;
+- DAS signal (strain along the fiber averaged over the gauge length of 8 m, 7
+  quadrature points; dip 30°, azimuth 45°): `dassyn`;
+- strain tensor at the last quadrature point: `strain_ij`.
 
-- This code treats the hawen data in frequency to get the DAS results while the other results (analytical and gar6more) are read directly
+Run it from `analytical/` (numpy, about 5 s) to regenerate these files:
 
-- The other scripts in the folder `script_Chengyi` are pre- or post-treatment codes:
-    - `acqui_DAS.py` : acquisition and DAS projection
-    - `class_FX.py` : IFFT and FFT
-    - `phy_SOL.py` : calculation of the stiffness C
+    cd analytical && python DAS_verification.py
+
+The files are the reference for a DAS simulation with the same parameters.

@@ -19,7 +19,7 @@ before moving here; its history is kept.
 | `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
 | `tests/` | `unitTests` (acquisition, cost, filter, optimisers, conditioning; no solver), `integratedTests` (FUnTiDES on the GPU: shots, 2-D against the exact solution, elastic, gradient, adjoint, FWI functions, MPI) |
 | `docs/` | Sphinx documentation (user guide, examples, API, status) and `funtides_input_parameters.md` |
-| `validation/` | DAS validation scripts (analytical solution, hawen, gar6more) |
+| `validation/` | DAS validation: analytical solution of an elastic point source (displacement and DAS signal) |
 
 The applications import the library, never the reverse. Example data and
 models (SEAM acquisition, Marmousi SEP/Cubit models, …) live in the sibling
