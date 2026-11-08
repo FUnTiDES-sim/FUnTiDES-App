@@ -17,12 +17,13 @@ Working and tested
 - FWI: cost and gradient over the shots, multi-scale filtering, optimisers (heuristic and
   Wolfe line searches, scipy), gradient conditioning, shot parallelism over MPI ranks;
   synthetic inversions of :doc:`example/fwi`.
-- Tests: 124 unit tests (no solver) and 31 integrated tests (GPU, MPI), 3 min.
+- Tests: 139 unit tests (no solver) and 31 integrated tests (GPU, MPI), 2 to 4 min.
 
 Limits
 ======
 
-- The observed data of the examples are computed on the mesh of the inversion.
+- Field data: not tried yet; the synthetic Marmousi case also runs without inverse crime
+  (observed data on a finer mesh).
 - 3-D FWI: the chain is the same, but no complete 3-D inversion has been run; the
   snapshots of the forward run are kept in host memory.
 - The absorbing terms are not differentiated (gradient wrong on the edge elements, masked

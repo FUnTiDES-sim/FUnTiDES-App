@@ -103,3 +103,8 @@ python examples/marmousi_2d/make_case.py --outdir marmousi_2d_run            # m
 (cd marmousi_2d_run && python ../fwi.py --param_file fwi_parameters.txt)
 python examples/marmousi_2d/check_result.py --rundir marmousi_2d_run --png result.png
 ```
+
+Without inverse crime (`make_case.py --data-elem 25`: observed data on 25 m elements, time
+step halved; the two meshes give seismograms 20 to 40 % apart): 13 min, J / J0 per stage
+0.33, 0.84, 0.74 (the modelling error stays in the residual), model error 0.80 (0.79 with
+the inverse crime); the same structures of the upper 2 km are recovered.

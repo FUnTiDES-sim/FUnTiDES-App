@@ -78,4 +78,24 @@ receivers every 20 m, 3 s, Ricker 8 Hz, order 4, 50 m elements; frequencies 4, 6
     0.11, 0.56, 0.49. The faults, the low-velocity wedge and the layers of the upper 2 km are
     recovered; the deep part stays close to the initial model.
 
-Both cases compute the observed data on the mesh of the inversion (inverse crime).
+Without inverse crime
+---------------------
+
+With :code:`--data-elem 25` the observed data are computed on 25 m elements (time step
+halved), the inversion keeping its 50 m elements: the two meshes give seismograms 20 to 40 %
+apart (discretisation of the model and of the wavefield), which the inversion cannot fit.
+
+.. code-block:: bash
+
+    python examples/marmousi_2d/make_case.py --outdir marmousi_nocrime --data-elem 25   # 30 s
+
+.. figure:: marmousi_2d_nocrime.png
+    :scale: 70
+    :align: center
+
+    13 min (the 6 and 9 Hz stages stop after 7 and 8 iterations, Wolfe line search); J / J0
+    per stage 0.33, 0.84, 0.74 (the modelling error stays in the residual); model error
+    below the water 0.80 of the initial one (0.79 with the inverse crime). The same
+    structures of the upper 2 km are recovered.
+
+anomaly_2d computes the observed data on the mesh of the inversion (inverse crime).
