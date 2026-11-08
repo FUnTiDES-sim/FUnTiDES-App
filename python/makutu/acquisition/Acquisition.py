@@ -176,7 +176,7 @@ class Acquisition:
                 MPI communicator
         """
         raise NotImplementedError(
-            "Limited-aperture acquisitions are not implemented (they were a GEOS feature); "
+            "Limited-aperture acquisitions are not implemented; "
             "the shots keep the full mesh (limited_aperture stays False)."
         )
 

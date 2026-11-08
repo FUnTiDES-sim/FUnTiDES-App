@@ -358,9 +358,6 @@ class _HeuristicOptimizer(Minimizer):
         self.miniter = o.get("miniter", 1)
         self.maxiter = max(o.get("maxiter", 10), self.miniter)
         self.nbCFcheck = o.get("nbCFcheck", 5)
-        self.wolfeConditions = o.get("wolfeConditions", False)
-        self.k1 = o.get("k1", 0.2)
-        self.k2 = o.get("k2", 0.8)
 
     def _direction(self, gradJ, it):
         raise NotImplementedError
@@ -413,30 +410,6 @@ class _HeuristicOptimizer(Minimizer):
         else:
             _logCost(self.maxiter, Jup)              # J of the final model
         return x
-
-    def WolfeConditions(self, J, Jup, d, gradJ):
-        """
-        Check Wolfe conditions (Armijo and Goldstein); adapts alpha when they fail.
-
-        Returns
-        --------
-            bool : 0 if conditions not verified, 1 otherwise
-        """
-        if self.armijoCondition(J, Jup, d, gradJ):
-            if self.goldsteinCondition(J, Jup, d, gradJ):
-                return 1
-            self.alpha *= self.p1
-            return 0
-        self.alpha *= self.p2
-        return 0
-
-    def armijoCondition(self, J, Jm, d, gradJ):
-        """Armijo condition: sufficient decrease."""
-        return Jm <= J + self.k1 * self.alpha * np.dot(d, gradJ)
-
-    def goldsteinCondition(self, J, Jm, d, gradJ):
-        """Goldstein condition: step not too short."""
-        return Jm >= J + self.k2 * self.alpha * np.dot(d, gradJ)
 
 
 class SteepestDescentOptimizer(_HeuristicOptimizer):

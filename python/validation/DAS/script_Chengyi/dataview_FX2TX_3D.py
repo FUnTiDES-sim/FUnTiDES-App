@@ -287,15 +287,11 @@ adata_prop['das_milad'] = ('../script_Milad/dassyn', 0, 1)
 adata_prop['ux_milad'] = ('../script_Milad/ux.txt', 0, 1)
 adata_prop['uy_milad'] = ('../script_Milad/uy.txt', 0, 1)
 adata_prop['uz_milad'] = ('../script_Milad/uz.txt', 0, 1)
-adata_prop['das_geosx'] = ('../GEOSX/das.txt', 0, 1)
-adata_prop['ux_geosx'] = ('../GEOSX/ux.txt', 0, 1)
-adata_prop['uy_geosx'] = ('../GEOSX/uy.txt', 0, 1)
-adata_prop['uz_geosx'] = ('../GEOSX/uz.txt', 0, 1)
 adata_prop['ux_gar6more'] = ('../gar6more/Ux.dat', 1, -1)
 adata_prop['uy_gar6more'] = ('../gar6more/Uy.dat', 1, -1)
 adata_prop['uz_gar6more'] = ('../gar6more/Uz.dat', 1, -1)
 
-# time info of ascii data (Milad, Geosx, Gar6more)
+# time info of ascii data (Milad, Gar6more)
 dt = 1e-3
 t_show = 0.25                        # length of time to show
 Nt_show = int(t_show/dt)             # number of time samples to show
@@ -320,10 +316,8 @@ fig, ax = plt.subplots(nrows=2, ncols=1,\
                        sharex=True, sharey=False,\
                        figsize=(17,8))
 keys,labels=['ux_milad', 'uy_milad', 'uz_milad',\
-             'ux_geosx', 'uy_geosx', 'uz_geosx',\
              'ux_gar6more', 'uy_gar6more', 'uz_gar6more'],\
              ['$U_x$ analytic Milad', '$U_y$ analytic Milad', '$U_z$ analytic Milad',\
-              '$U_x$ numerical Geosx', '$U_y$ numerical Geosx', '$U_z$ numerical Geosx',\
               '$U_x$ gar6more', '$U_y$ gar6more', '$U_z$ gar6more']
 
 for i in range(len(keys)):
@@ -332,7 +326,6 @@ ax[0].plot(tlist_haven3D, ux_haven3D, label='$\dot{U_x}$ numerical Haven')
 ax[0].plot(tlist_haven3D, uy_haven3D, label='$\dot{U_y}$ numerical Haven')
 ax[0].plot(tlist_haven3D, uz_haven3D, label='$\dot{U_z}$ numerical Haven')
 ax[1].plot(tsamples, data_ascii['das_milad'][:Nt_show], label='DAS synthetic Milad')
-ax[1].plot(tsamples, data_ascii['das_geosx'][:Nt_show], label='DAS numerical Geosx')
 ax[1].plot(tlist_haven3D, ee_haven3D, label='DAS numerical Haven (Integral on $\dot\epsilon$)')
 ax[1].plot(tlist_haven3D, eu_haven3D, label='DAS numerical Haven (Diff on $\dot{U}$)')
 ax[0].legend(loc=1, fontsize=lgsize, ncol=4)

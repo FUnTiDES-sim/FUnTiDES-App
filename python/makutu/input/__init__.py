@@ -1,2 +1,3 @@
 """Input utilities"""
-from .FUnTiDESParams import FUnTiDESParams, read_funtides_params
+
+from .SEPReader import SEPModel, read_sep, sample_on_elements

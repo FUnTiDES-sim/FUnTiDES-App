@@ -222,7 +222,7 @@ ncomp=3
 #geo=np.reshape(geo,(ncomp,int(geo.shape[0]/ncomp)))
 #geo=np.transpose(geo)
 
-# source wavelet as parameterized in GEOSX
+# source wavelet: Ricker of peak frequency f0, delayed by 1/f0
 dt=0.001 # SPECIFIED BY USER
 f0=10. # SPECIFIED BY USER
 
@@ -244,11 +244,11 @@ x=np.array([100.,100.,100.]) # SPECIFIED BY USER receiver x,y,z location
 
 M=np.identity(3)
 
-geosyn=np.zeros((nt,ncomp))
+syn=np.zeros((nt,ncomp))
 for n in range(ncomp):
     for p in range(3):
       for q in range(3):
-        geosyn[:,n]+=total_field_iso_mt(M[p,q]*w,dt,alpha,beta,rho,x,p,q,n)
+        syn[:,n]+=total_field_iso_mt(M[p,q]*w,dt,alpha,beta,rho,x,p,q,n)
 
 
 # analytical DAS
@@ -274,19 +274,19 @@ print(f"DAS fiber direction: {l}")
 print(f"DAS fiber endpoints: {xstart}, {xend}")
 dassyn = dassyn / Nquad
 np.savetxt("dassyn",dassyn)
-np.savetxt("ux.txt",geosyn[:,0])
-np.savetxt("uy.txt",geosyn[:,1])
-np.savetxt("uz.txt",geosyn[:,2])
+np.savetxt("ux.txt",syn[:,0])
+np.savetxt("uy.txt",syn[:,1])
+np.savetxt("uz.txt",syn[:,2])
 for i in range(3):
   for j in range(3):
     np.savetxt("strain_"+str(i)+str(j),strain[:,i,j])
 #strain at endopoints
-geosyndiff=np.zeros((nt,ncomp))
+syndiff=np.zeros((nt,ncomp))
 for n in range(ncomp):
     for p in range(3):
       for q in range(3):
-        geosyndiff[:,n]+=total_field_iso_mt(M[p,q]*w,dt,alpha,beta,rho,xend,p,q,n)-total_field_iso_mt(M[p,q]*w,dt,alpha,beta,rho,xstart,p,q,n) 
-np.savetxt("uxdiff.txt",geosyndiff[:,0])
-np.savetxt("uydiff.txt",geosyndiff[:,1])
-np.savetxt("uzdiff.txt",geosyndiff[:,2])
+        syndiff[:,n]+=total_field_iso_mt(M[p,q]*w,dt,alpha,beta,rho,xend,p,q,n)-total_field_iso_mt(M[p,q]*w,dt,alpha,beta,rho,xstart,p,q,n) 
+np.savetxt("uxdiff.txt",syndiff[:,0])
+np.savetxt("uydiff.txt",syndiff[:,1])
+np.savetxt("uzdiff.txt",syndiff[:,2])
 

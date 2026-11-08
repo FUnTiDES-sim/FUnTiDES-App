@@ -33,16 +33,22 @@ if __name__ == "__main__":
         _, ext = os.path.splitext(file)
         
         if ext == ".H":
-            fformat = "SEP"
-            from makutu.model import SEPModel
-            sepmodel = SEPModel(file)
-
-            sepmodel.display2d(vmin=args.vmin, vmax=args.vmax, normFactor=args.nf)
-            plt.title(f"Shot {i}", fontsize = 10)
+            # SEP traces: axis 1 is time, the other axes are the traces
+            from makutu.input.SEPReader import read_sep
+            sep = read_sep(file)
+            data = sep.data.reshape(-1, sep.n1).T
+            vmin, vmax = args.vmin, args.vmax
+            if args.nf is not None:
+                vmin = (data.min() if vmin is None else vmin) / args.nf
+                vmax = (data.max() if vmax is None else vmax) / args.nf
+            plt.figure()
+            plt.imshow(data, aspect="auto", vmin=vmin, vmax=vmax,
+                       extent=[0, data.shape[1], sep.o1 + sep.d1 * sep.n1, sep.o1])
+            plt.xlabel("Traces", fontsize=12)
+            plt.ylabel("Time [s]", fontsize=12)
+            plt.title(f"Shot {i}", fontsize=10)
 
         elif ext in (".sgy", ".segy"):
-            fformat = "SEGY"
-            
             segpath, segfile = os.path.split(file)
             seismos = SEGYSeismicTrace(filename=segfile, directory=segpath)
 

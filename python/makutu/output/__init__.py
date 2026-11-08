@@ -1,4 +1,3 @@
 """Outputs"""
 
-
-from .SeismicTraceOutput import SeismicTraceOutput
+from .SEGYTraceOutput import SEGYTraceOutput

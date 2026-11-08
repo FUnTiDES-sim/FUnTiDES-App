@@ -9,7 +9,6 @@ import pyfuntides.solver as FTSolver
 
 from .WaveSolver import WaveSolver
 from ..tools.kokkosarrays import funtides_array
-from .ModelManagement import geos_params_from_model, grad_to_model
 
 
 class AcousticSolver(WaveSolver):

@@ -15,11 +15,11 @@ before moving here; its history is kept.
 
 | Path | Contents |
 |---|---|
-| `makutu/` | the library (`import makutu…`): `mesh`, `model`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
+| `makutu/` | the library (`import makutu…`): `mesh`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
 | `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
 | `tests/` | `unitTests` (acquisition, cost, filter, optimisers, conditioning; no solver), `integratedTests` (FUnTiDES on the GPU: shots, 2-D against the exact solution, elastic, gradient, adjoint, FWI functions, MPI) |
 | `docs/` | Sphinx documentation (user guide, examples, API, status) and `funtides_input_parameters.md` |
-| `scripts/`, `validation/` | developer helper scripts, DAS validation scripts |
+| `validation/` | DAS validation scripts (analytical solution, hawen, gar6more) |
 
 The applications import the library, never the reverse. Example data and
 models (SEAM acquisition, Marmousi SEP/Cubit models, …) live in the sibling
