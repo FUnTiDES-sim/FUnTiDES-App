@@ -43,6 +43,7 @@ import pyfuntides.solver as FTSolver
 
 from makutu.acquisition import SEGYAcquisition, DecisionAcquisition
 from makutu.forwardBackward import func, callback
+from makutu.forwardBackward.modelio import writeFields
 from makutu.imaging import initializeGlobalVariables, setModelAsGlobal, gradf, Minimizer, GradientConditioner
 from makutu.imaging import globals as gb
 from makutu.mesh import mesh_from_sep
@@ -248,8 +249,7 @@ def main():
                               exportResidual=exportResidual, model=wf.model, pCostDir=wf.pCostDir,
                               dinfo=wf.dinfo, gDn=wf.gDn, freqList=freqFilterList)
     if rank == 0:
-        with h5py.File("finalModel.hdf5", "w") as f:
-            f.create_dataset("velocity", data=x)
+        writeFields("finalModel.hdf5", {"velocity": x}, solver)
     print("Final model written to finalModel.hdf5")
     gb.solver = None              # every Kokkos view must be released before kokkos.finalize
     del solver, m

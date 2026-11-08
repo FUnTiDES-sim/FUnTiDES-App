@@ -1,74 +1,75 @@
-import os
+"""
+Display HDF5 gradients of makutu (fullGradient<n>.hdf5, written in debug mode), or the
+illumination (``--fname illumination``).
+
+The files written by makutu carry their shape; older files need ``--n nx nz`` (2-D) or
+``--n nx ny nz`` (3-D). 3-D fields are shown as a slice (``--axis``, ``--index``).
+
+    python showFullGradient.py fullGradient0.hdf5 --png
+"""
+
 import argparse
-import matplotlib.pyplot as plt
+import os
 
-from makutu.display import Hdf5Field
+import matplotlib
 
-  
-if __name__ == "__main__":
-    # Parse parameters
-    parser = argparse.ArgumentParser(description="HDF5 full gradient display")
-    parser.add_argument("files", nargs="*", default=[],
-                        help="Filenames. If >1, should have the same shape and extent")
-    parser.add_argument("--dir",
-                        default=None, type=str,
-                        help="File directory. Should be common to all files")
-    parser.add_argument("--n", nargs=3, type=int,
-                        default=(127,96,122),
-                        help="Shape of the model. Default is (127,96,122)")
-    parser.add_argument("--extent", nargs=4,
-                        default=None, type=int,
-                        help="Extent of the graph. Default is None")
-    parser.add_argument("--axis", "--slice_axis",
-                        dest="axis", default="y",
-                        help="Slice axis")
-    parser.add_argument("--index", "--slice_index",
-                        type=int, dest="index",
-                        default=None,
-                        help="Slice index")
-    parser.add_argument("--fname",
-                        default="fullGradient",
-                        type=str, dest="fkey",
-                        help="Name of the field in the HDF5 file. Default is `fullGradient`")
-    parser.add_argument("--vmin",
-                        default=None, type=float,
-                        help="Graph normalization min bound")
-    parser.add_argument("--vmax",
-                        default=None, type=float,
-                        help="Graph normalization max bound")
-    parser.add_argument("--nf", "--norm_factor",
-                    default=None, type=float,
-                    help="Graph normalization factor")
-    parser.add_argument("--diff",
-                        default=False, action="store_true",
-                        help="Compute and display difference between two fields")
+parser = argparse.ArgumentParser(description="HDF5 gradient display")
+parser.add_argument("files", nargs="+", help="HDF5 files (same shape for --diff)")
+parser.add_argument("--dir", default=None, help="Directory of the files")
+parser.add_argument("--fname", dest="fkey", default="fullGradient",
+                    help="Dataset name: fullGradient (default) or illumination")
+parser.add_argument("--n", nargs="+", type=int, default=None,
+                    help="Numbers of elements nx nz or nx ny nz (files without shape attribute)")
+parser.add_argument("--lengths", nargs="+", type=float, default=None,
+                    help="Domain lengths lx lz or lx ly lz [m] (files without lengths attribute)")
+parser.add_argument("--axis", default="y", choices=("x", "y", "z"), help="3-D: constant axis of the slice")
+parser.add_argument("--index", type=int, default=None, help="3-D: element index of the slice (default middle)")
+parser.add_argument("--extent", nargs=4, type=float, default=None, help="Image extent left right bottom top")
+parser.add_argument("--vmin", type=float, default=None, help="Default -max|g| (symmetric)")
+parser.add_argument("--vmax", type=float, default=None, help="Default +max|g|")
+parser.add_argument("--nf", "--norm_factor", dest="nf", type=float, default=None, help="Divides the colour bounds")
+parser.add_argument("--diff", action="store_true", help="Also show the second field minus the first")
+parser.add_argument("--png", action="store_true", help="Save <file>.png (and diff.png) instead of showing")
 
-    args, _ = parser.parse_known_args()
 
-    if args.diff == True and len(args.files) == 2:
-        diff = True
-        grad = []
-    else:
-        diff = False
+def main(args):
+    if args.png:
+        matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from makutu.display import Hdf5Field
 
-    # Extract and display each field individually
-    for i, file in enumerate(args.files):
-        if args.dir is not None:
-            file = os.path.join(args.dir, file)
-        fullGradient = Hdf5Field(filename=file, fieldname=args.fkey, n=args.n)
-
-        gradSlice = fullGradient.display(axis=args.axis, index=args.index, extent=args.extent, vmin=args.vmin, vmax=args.vmax, normFactor=args.nf)
-
-        if diff:
-            grad.append(gradSlice)
-
-    # Display difference between two if requested
-    if diff:
-        plt.figure()
-        plt.imshow(grad[1]-grad[0],
-                   extent=args.extent,
-                   vmin=args.vmin, vmax=args.vmax)
-        plt.title("difference")
+    fields = []
+    for file in args.files:
+        path = os.path.join(args.dir, file) if args.dir else file
+        g = Hdf5Field(path, fieldname=args.fkey, n=args.n, lengths=args.lengths)
+        vmin, vmax, cmap = args.vmin, args.vmax, None
+        if args.fkey != "illumination":              # signed field: symmetric bounds
+            lim = max(abs(g.getMinValue()), abs(g.getMaxValue()))
+            vmin = -lim if vmin is None else vmin
+            vmax = lim if vmax is None else vmax
+            cmap = "seismic"
+        png = os.path.splitext(os.path.basename(path))[0] + f"_{args.fkey}.png" if args.png else None
+        fields.append((g, g.display(axis=args.axis, index=args.index, extent=args.extent, vmin=vmin,
+                                    vmax=vmax, normFactor=args.nf, cmap=cmap, savefig=png)))
+        if png:
+            print(f"{png} written")
+    if args.diff and len(fields) == 2:
+        (g, a), (_, b) = fields
+        hlabel, hlen, vlabel, vlen = g._axes(args.axis)
+        fig = plt.figure()
+        d = b - a
+        lim = abs(d).max()
+        plt.imshow(d, extent=args.extent or (0.0, hlen, vlen, 0.0), cmap="seismic", vmin=-lim, vmax=lim)
+        plt.xlabel(hlabel)
+        plt.ylabel(vlabel)
+        plt.title(f"{os.path.basename(args.files[1])} - {os.path.basename(args.files[0])}")
         plt.colorbar()
+        if args.png:
+            fig.savefig("diff.png", dpi=150, bbox_inches="tight")
+            print("diff.png written")
+    if not args.png:
+        plt.show()
 
-    plt.show()
+
+if __name__ == "__main__":
+    main(parser.parse_args())

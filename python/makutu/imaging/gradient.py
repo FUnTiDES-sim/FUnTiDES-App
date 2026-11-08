@@ -19,13 +19,13 @@ import numpy as np
 from mpi4py import MPI
 from mpi4py.util import pkl5
 
-import h5py
 
 from ..forwardBackward.forward import forward
 from ..forwardBackward.backward import backward
 from ..forwardBackward.costFunction import frequencyTag, writeCostFunction, \
                                            ComputeCostFunction, \
                                            ComputeResidual
+from ..forwardBackward.modelio import writeFields
 from ..forwardBackward.parallel import checkShotParallel, localShots, outputComm, shotParallel, sumOverShots
 
 from ..output.SEGYTraceOutput import SEGYTraceOutput
@@ -229,10 +229,8 @@ def gradf(x, dataDirectory, gradDirectory="partialGradient", exportSeismicTrace=
     rank = MPI.COMM_WORLD.Get_rank()
     if debug and rank == 0:
         os.makedirs(gradDirectory, exist_ok=True)
-        with h5py.File(os.path.join(gradDirectory, f"fullGradient{Nfeval}.hdf5"), "w") as h:
-            h.create_dataset("fullGradient", data=gradJ)
-            if gb.illumination is not None:
-                h.create_dataset("illumination", data=gb.illumination)
+        writeFields(os.path.join(gradDirectory, f"fullGradient{Nfeval}.hdf5"),
+                    {"fullGradient": gradJ, "illumination": gb.illumination}, solver)
 
     if gDn == 1:
         gradJ = gradJ / np.max(np.abs(gradJ))

@@ -1,25 +1,24 @@
+"""Display of the SEG-Y seismograms written by makutu."""
+
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import segyio
-import matplotlib.pyplot as plt
 
 
 class SEGYSeismicTrace:
     """
-    Class containing methods for SEGY seismic traces reading
+    SEG-Y seismic traces (one file per shot).
 
     Attributes
     -----------
-        rootname : str
-            File rootname
-        format : str
-            Extension of the file
-        directory : str
-            File path
         filename : str
             Full filename
-        data : array-like
-            Seismic traces array
+        data : np.ndarray
+            Traces, shape (n_samples, n_traces), after :meth:`read`
+        dt : float
+            Sample interval [s] (from the binary header), after :meth:`read`
     """
     def __init__(self, filename, directory="./", **kwargs):
         """
@@ -28,111 +27,70 @@ class SEGYSeismicTrace:
             filename : str
                 File containing the data
             directory : str, optional
-                Path to directory\
+                Path to directory \
                 Default is current directory
         """
         self.rootname, self.format = os.path.splitext(filename)
         self.directory = directory
-
-        self.filename = os.path.join(self.directory, self.rootname+self.format)
+        self.filename = os.path.join(self.directory, self.rootname + self.format)
         self.data = None
-
+        self.dt = None
 
     def read(self):
-        """
-        Extract the seismic traces
-        """
-        with segyio.open(self.filename, 'r+', ignore_geometry=True) as f:
-                self.data = np.zeros((len(f.trace[0]),len(f.trace)))
-                for i in range(len(f.trace)):
-                        self.data[:,i] = f.trace[i]
+        """Read the traces and the sample interval."""
+        with segyio.open(self.filename, "r", ignore_geometry=True) as f:
+            self.data = np.stack([np.asarray(t, dtype=np.float64) for t in f.trace[:]], axis=1)
+            self.dt = segyio.tools.dt(f) * 1e-6          # microseconds in the header
+        return self.data
 
-
-    def display(self, vmin=None, vmax=None, normFactor=None, xlabel="Receivers", ylabel="Time [s]"):
+    def display(self, vmin=None, vmax=None, normFactor=None, xlabel="Receivers", ylabel="Time [s]",
+                savefig=None):
         """
-        Generate a graph with the seismic traces
+        Image of the traces, time down.
 
         Parameters
         -----------
-            vmin : float, optional
-                Minimal bound\
-                Default is None
-            vmax : float, optional
-                Maximal bound\
-                Default is None
+            vmin, vmax : float, optional
+                Colour bounds \
+                Default is symmetric, +-max|data|
             normFactor : float, optional
-                Normalization factor\
-                Default is None
-            xlabel : str, optional
-                x label\
-                Default is `Receivers`
-            ylabel : str, optional
-                y label\
-                Default is `Time [s]`
+                Divides the colour bounds
+            xlabel, ylabel : str, optional
+                Axis labels
+            savefig : str, optional
+                Save the figure to this file (and close it) instead of leaving it open
         """
         if self.data is None:
-             self.read()
-
+            self.read()
+        amax = np.max(np.abs(self.data))
+        vmin = -amax if vmin is None else vmin
+        vmax = amax if vmax is None else vmax
         if normFactor is not None:
-            if vmin is None:
-                vmin = self.getMinValue()  
-            if vmax is None:
-                vmax = self.getMaxValue()
-            vmin /= normFactor
-            vmax /= normFactor
-        
-        plt.figure()
-        plt.imshow(self.data,
-                   aspect="auto",
-                   vmin=vmin, vmax=vmax,
-                   )
-        
+            vmin, vmax = vmin / normFactor, vmax / normFactor
+        nt, ntr = self.data.shape
+        fig = plt.figure()
+        plt.imshow(self.data, aspect="auto", cmap="gray", vmin=vmin, vmax=vmax,
+                   extent=(0.5, ntr + 0.5, nt * self.dt, 0.0))
         plt.xlabel(xlabel, fontsize=12)
         plt.ylabel(ylabel, fontsize=12)
-
+        plt.title(os.path.basename(self.filename), fontsize=12)
+        plt.colorbar()
+        if savefig is not None:
+            fig.savefig(savefig, dpi=150, bbox_inches="tight")
+            plt.close(fig)
 
     def getMinValue(self):
-        """
-        Return the global minimal value
-
-        Returns
-        --------
-            float
-                Seismic traces minimal value
-        """
+        """Minimum of the traces."""
         if self.data is None:
             self.read()
-
         return np.min(self.data)
-    
 
     def getMaxValue(self):
-        """
-        Return the global maximal value
-
-        Returns
-        --------
-            float
-                Seismic traces maximal value
-        """
+        """Maximum of the traces."""
         if self.data is None:
             self.read()
-        
         return np.max(self.data)
 
-
     def getMinAndMaxValues(self):
-        """
-        Return the global minimal and maximal values
-
-        Returns
-        --------
-            minValue : float
-                Seismic traces minimal value
-            maxValue : float
-                Seismic traces maximal value
-        """
-        minValue = self.getMinValue()
-        maxValue = self.getMaxValue()
-
-        return minValue, maxValue
+        """(minimum, maximum) of the traces."""
+        return self.getMinValue(), self.getMaxValue()
