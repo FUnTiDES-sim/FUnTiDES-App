@@ -80,3 +80,19 @@ same mesh for the data and the inversion:
 The anomalies are found at the right place (within 15 m), smeared vertically (surface
 acquisition); part of the traveltime shifts goes into the reflector (velocities up to
 2830 m/s there).
+
+`examples/marmousi_2d`: Marmousi (10 x 3.48 km), initial model smoothed by a 300 m Gaussian
+below the water (kept at 1500 m/s, 440 m deep, not updated), 16 shots, 499 receivers every
+20 m, 3 s, Ricker 8 Hz, order 4, 50 m elements (225 000 nodes), `freqFilterList=4,6,9`,
+10 CGPR iterations each, `gradEdge=100`, illumination: 21 min on an RTX 40xx GPU (30
+iterations, about 40 gradients of 16 shots). J / J0 per stage 0.11, 0.56, 0.49; model error
+below the water 0.79 of the initial one. The faults, the low-velocity wedge and the layers of
+the upper 2 km are recovered (the profiles follow the true model down to about 2 km); the
+deep part stays close to the initial model.
+
+```bash
+# from apps/fullWaveformInversion
+python examples/marmousi_2d/make_case.py --outdir marmousi_2d_run            # models and data (10 s)
+(cd marmousi_2d_run && python ../fwi.py --param_file fwi_parameters.txt)
+python examples/marmousi_2d/check_result.py --rundir marmousi_2d_run --png result.png
+```

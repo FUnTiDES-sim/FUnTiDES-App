@@ -81,9 +81,8 @@ python apps/modeling/shot_modeling/run_shot_modeling.py \
 ```
 
 - Mesh: 2-D quadrilaterals, z = 0 at the surface and positive downwards; the free
-  surface is the top edge, the other edges are absorbing (first-order paraxial condition
-  and a sponge of `--sponge` m, default 5 % of the depth, 174 m; `--sponge 0` for the
-  paraxial condition only).
+  surface is the top edge, the other edges are absorbing (first-order paraxial condition;
+  `--sponge` adds a sponge of that width, useful from about two wavelengths).
 - Source: Ricker wavelet (second derivative of a Gaussian) of peak frequency `--f0`,
   point source at `--src-x` (default lx / 2 = 5000 m) and `--src-depth` (default 10 m);
   `--n-shots N` gives a line of N shots.
