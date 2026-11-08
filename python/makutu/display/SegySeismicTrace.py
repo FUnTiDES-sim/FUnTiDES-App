@@ -39,7 +39,7 @@ class SEGYSeismicTrace:
     def read(self):
         """Read the traces and the sample interval."""
         with segyio.open(self.filename, "r", ignore_geometry=True) as f:
-            self.data = np.stack([np.asarray(t, dtype=np.float64) for t in f.trace[:]], axis=1)
+            self.data = f.trace.raw[:].T.astype(np.float64)           # (n_samples, n_traces)
             self.dt = segyio.tools.dt(f) * 1e-6          # microseconds in the header
         return self.data
 

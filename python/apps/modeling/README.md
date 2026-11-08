@@ -33,8 +33,8 @@ Minimal forward shots (acoustic, elastic, MPI) are also in `tests/integratedTest
 | Tool | Content |
 |---|---|
 | `python apps/modeling/tools/create_sep_model.py --output-dir sep_models` | Synthetic 3-D SEP models (layered, salt body) with their densities |
-| `python -m makutu.acquisition.create_equispaced_segy ...` | Regular acquisition: one SEG-Y file per shot (geometry headers, zero traces) and the decision files |
-| `python -m makutu.acquisition.check_acquisition ...` | Summary and map of an acquisition read from SEG-Y files |
-| `python -m makutu.acquisition.decision_create ...` | Decision files from SEG-Y files or from a list of traces |
+| `python apps/acquisition/create_equispaced_segy.py ...` | Regular acquisition: one SEG-Y file per shot (geometry headers, zero traces) and the decision files |
+| `python apps/acquisition/check_acquisition.py ...` | Summary and map of an acquisition read from SEG-Y files |
+| `python apps/acquisition/decision_create.py ...` | Decision files from SEG-Y files or from a list of traces |
 
-The acquisition tools are also library modules (`makutu.acquisition`).
+These command lines are in `apps/acquisition`; their functions are in the library (`makutu.acquisition`).

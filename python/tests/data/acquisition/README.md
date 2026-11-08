@@ -10,7 +10,7 @@ Used by `tests/unitTests/test_Acquisition.py`.
 The decision files were created from the SEG-Y files with (from `FUnTiDES-App/python`):
 
 ```bash
-python3 makutu/acquisition/decision_create.py \
+python3 apps/acquisition/decision_create.py \
     --from-segy tests/data/acquisition/shot_1.sgy tests/data/acquisition/shot_2.sgy \
     --out tests/data/acquisition/decision --index-words 22,23,14
 ```

@@ -49,7 +49,7 @@ decision files, for instance from SEG-Y files:
 
 .. code-block:: bash
 
-    python3 makutu/acquisition/decision_create.py --from-segy shot_1.sgy shot_2.sgy \
+    python3 apps/acquisition/decision_create.py --from-segy shot_1.sgy shot_2.sgy \
         --out acquisition/decision --index-words 22,23,14
 
 .. code-block:: python
@@ -58,9 +58,21 @@ decision files, for instance from SEG-Y files:
 
     acquisition = DecisionAcquisition(decision_filename="acquisition/decision", scalco=1, scalel=1)
 
-:file:`makutu/acquisition/check_acquisition.py` compares an acquisition with SEG-Y files
-and plots it; :file:`makutu/acquisition/create_equispaced_segy.py` writes the SEG-Y headers
-of a regular acquisition. Both print their options with :code:`--help`.
+Command lines (:file:`apps/acquisition`, options with :code:`--help`):
+
+- :file:`create_equispaced_segy.py` writes a regular acquisition: one SEG-Y file per shot
+  (geometry headers, zero traces) and its decision files;
+- :file:`check_acquisition.py` prints a summary of an acquisition (SEG-Y files or decision
+  files) and plots it;
+- :file:`decision_create.py` writes decision files from SEG-Y files (one per shot, or one
+  file grouped by source position) or from a list of traces.
+
+All the SEG-Y files of makutu (:class:`~makutu.output.SEGYTraceOutput.SEGYTraceOutput`,
+:func:`~makutu.acquisition.create_equispaced_segy.write_segy_shot`) carry the geometry in
+the standard trace-header words, in millimetres (:code:`scalco = scalel = -1000`): sx, sy,
+sdepth for the source, gx, gy, gelev for the receiver, depths positive down. The decision
+files store integer metres in their own words (default 22, 23, 14 for the source, 24, 25,
+13 for the receiver).
 
 Regular grids
 =============

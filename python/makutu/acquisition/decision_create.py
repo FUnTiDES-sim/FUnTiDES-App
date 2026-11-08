@@ -40,11 +40,11 @@ Library::
 
 CLI::
 
-    python -m makutu.acquisition.decision_create geometry.traces --out survey
-    python -m makutu.acquisition.decision_create geometry.traces --out survey \\
+    python apps/acquisition/decision_create.py geometry.traces --out survey
+    python apps/acquisition/decision_create.py geometry.traces --out survey \\
         --segy shot_1.segy shot_2.segy
-    python -m makutu.acquisition.decision_create --from-segy survey.segy --out survey
-    python -m makutu.acquisition.decision_create --from-segy shot_1.segy shot_2.segy --out survey
+    python apps/acquisition/decision_create.py --from-segy survey.segy --out survey
+    python apps/acquisition/decision_create.py --from-segy shot_1.segy shot_2.segy --out survey
 
 Traces file format (geometry.traces)::
 
@@ -56,10 +56,8 @@ Coordinates are rounded to the nearest integer (consistent with how
 integer truncation of float coordinates).
 """
 
-import argparse
 import os
 import struct
-import sys
 
 import numpy as np
 
@@ -158,10 +156,10 @@ def write_mapped(rootname, shots, mapped_word_numbers,
 
         for shot_idx, shot in enumerate(shots):
             shot_offsets.append(trace_counter)
-            sx, sy, sz = [int(v) for v in shot["src"]]
+            sx, sy, sz = [int(round(v)) for v in shot["src"]]
 
             for rcv_idx, rcv in enumerate(shot["rcv"]):
-                rx, ry, rz = [int(v) for v in rcv]
+                rx, ry, rz = [int(round(v)) for v in rcv]
 
                 # Build word-value dict for this trace
                 vals = {}
@@ -230,7 +228,7 @@ def write_index(rootname, shots, index_word_numbers,
         _write_header(fh, n_shots, header_wn)
 
         for shot_idx, shot in enumerate(shots):
-            sx, sy, sz = [int(v) for v in shot["src"]]
+            sx, sy, sz = [int(round(v)) for v in shot["src"]]
             vals = {}
             if sw_x in wn_set:
                 vals[sw_x] = sx
@@ -352,98 +350,93 @@ def read_segy_headers(path, word_numbers):
     return rows
 
 
-def shots_from_segy(path,
-                    segy_src_words=(19, 20, 13),
-                    segy_rcv_words=(21, 22, 11),
-                    out_src_words=(22, 23, 14),
-                    out_rcv_words=(24, 25, 13)):
-    """
-    Extract acquisition geometry from a SEG-Y file and return shots.
+def _apply_scalar(value, scalar):
+    """SEG-Y scalar: multiply if > 0, divide by |scalar| if < 0, none if 0."""
+    if scalar > 0:
+        return value * scalar
+    if scalar < 0:
+        return value / -scalar
+    return float(value)
 
-    Reads source/receiver coordinates from the SEG-Y trace headers and
-    remaps them to the output decision-file word numbers.  Traces sharing
-    the same source position are grouped into a single shot.
+
+def read_segy_geometry(path, src_words=(19, 20, 13), rcv_words=(21, 22, 11)):
+    """
+    Source and receiver coordinates [m] of every trace of a SEG-Y file, with the scalars
+    of the trace headers (``scalco`` for x and y, ``scalel`` for z, word 18).
+
+    The default words are those written by makutu: source sx, sy (bytes 73, 77) and
+    sdepth (byte 49); receiver gx, gy (bytes 81, 85) and gelev (byte 41), which holds the
+    receiver depth (positive down).
+
+    Returns
+    -------
+    src, rcv : np.ndarray, shape (n_traces, 3)
+    n_samples : int
+    dt_us : int
+        Sample interval [µs] (binary header)
+    """
+    with open(path, "rb") as fh:
+        data = fh.read()
+    bh = data[3200:3600]
+    dt_us = struct.unpack(">H", bh[16:18])[0]
+    n_samples = struct.unpack(">H", bh[20:22])[0]
+    trace_size = 240 + n_samples * 4
+    n_traces = (len(data) - 3600) // trace_size
+
+    src = np.empty((n_traces, 3))
+    rcv = np.empty((n_traces, 3))
+    for i in range(n_traces):
+        th = data[3600 + i * trace_size: 3600 + (i + 1) * trace_size]
+        word = lambda w: struct.unpack_from(">i", th, (w - 1) * 4)[0]   # noqa: E731
+        scalel, scalco = struct.unpack_from(">hh", th, 68)             # bytes 69-70, 71-72
+        for out, words in ((src, src_words), (rcv, rcv_words)):
+            out[i] = [_apply_scalar(word(words[0]), scalco), _apply_scalar(word(words[1]), scalco),
+                      _apply_scalar(word(words[2]), scalel)]
+    return src, rcv, n_samples, dt_us
+
+
+def shots_from_segy(path, segy_src_words=(19, 20, 13), segy_rcv_words=(21, 22, 11)):
+    """
+    Acquisition geometry of a SEG-Y file holding several shots: the traces sharing the
+    same source position form one shot (in the order of their first trace).
 
     Parameters
     ----------
     path : str
         SEG-Y file path.
-    segy_src_words : tuple of int
-        Header words to read as source (X, Y, Z) from the SEG-Y.
-        Default: 19=sx, 20=sy, 13=sdepth (source depth, positive down).
-    segy_rcv_words : tuple of int
-        Header words to read as receiver (X, Y, Z) from the SEG-Y.
-        Default: 21=gx, 22=gy, 11=gelev, which holds the receiver depth
-        (positive down) in the files written by makutu.
-    out_src_words : tuple of int
-        Decision-file word numbers to assign source (X, Y, Z).
-    out_rcv_words : tuple of int
-        Decision-file word numbers to assign receiver (X, Y, Z).
+    segy_src_words, segy_rcv_words : tuple of int
+        Trace-header words of the source and receiver (x, y, z); see
+        :func:`read_segy_geometry`.
 
     Returns
     -------
     shots : list of dict  {"src": [x,y,z], "rcv": [[x,y,z], ...]}
-    segy_files : list of str  (just [path] – all traces in one file)
+    segy_files : list of str  ([path] for every shot)
     """
-    all_words = list(dict.fromkeys(list(segy_src_words) + list(segy_rcv_words)))
-    raw_rows  = read_segy_headers(path, all_words)
-
-    # Remap SEG-Y words → output decision words
-    remapped = []
-    for row in raw_rows:
-        r = {}
-        for segy_w, out_w in zip(segy_src_words, out_src_words):
-            r[out_w] = row.get(segy_w, 0)
-        for segy_w, out_w in zip(segy_rcv_words, out_rcv_words):
-            r[out_w] = row.get(segy_w, 0)
-        remapped.append(r)
-
-    shots = shots_from_traces(remapped, list(out_src_words) + list(out_rcv_words),
-                              src_words=out_src_words,
-                              rcv_words=out_rcv_words)
-    return shots, [path]
+    src, rcv, _, _ = read_segy_geometry(path, segy_src_words, segy_rcv_words)
+    shots = {}
+    for s, r in zip(src, rcv):
+        shots.setdefault(tuple(s), {"src": list(s), "rcv": []})["rcv"].append(list(r))
+    shots = list(shots.values())
+    return shots, [path] * len(shots)
 
 
-def shots_from_segy_list(paths,
-                         segy_src_words=(19, 20, 13),
-                         segy_rcv_words=(21, 22, 11)):
+def shots_from_segy_list(paths, segy_src_words=(19, 20, 13), segy_rcv_words=(21, 22, 11)):
     """
-    Extract acquisition geometry from multiple SEG-Y files, one shot per file.
-
-    Each file is treated as a single shot: the source position is read from
-    the first trace header, and all traces contribute receiver positions.
-
-    Parameters
-    ----------
-    paths : list of str
-        SEG-Y file paths, one per shot.
-    segy_src_words : tuple of int
-        Header words to read as source (X, Y, Z) from each SEG-Y file.
-    segy_rcv_words : tuple of int
-        Header words to read as receiver (X, Y, Z) from each SEG-Y file.
+    Acquisition geometry from SEG-Y files, one shot per file: the source of the first
+    trace and the receivers of all the traces.
 
     Returns
     -------
     shots : list of dict  {"src": [x,y,z], "rcv": [[x,y,z], ...]}
     segy_files : list of str  (same as *paths*, one entry per shot)
     """
-    all_words = list(dict.fromkeys(list(segy_src_words) + list(segy_rcv_words)))
     shots = []
     for path in paths:
-        raw_rows = read_segy_headers(path, all_words)
-        if not raw_rows:
+        src, rcv, _, _ = read_segy_geometry(path, segy_src_words, segy_rcv_words)
+        if len(src) == 0:
             raise ValueError(f"No traces found in {path}")
-
-        # Source from first trace
-        first = raw_rows[0]
-        src = [first.get(w, 0) for w in segy_src_words]
-
-        # Receivers from all traces
-        rcv = [[row.get(w, 0) for w in segy_rcv_words] for row in raw_rows]
-
-        # Remap to output word numbers (values stay the same, just labelled)
-        shots.append({"src": src, "rcv": rcv})
-
+        shots.append({"src": list(src[0]), "rcv": [list(r) for r in rcv]})
     return shots, list(paths)
 
 
@@ -502,115 +495,3 @@ def shots_from_traces(rows, word_numbers,
         ])
 
     return list(shots_dict.values())
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _build_parser():
-    p = argparse.ArgumentParser(
-        description=__doc__.splitlines()[0],
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    src = p.add_mutually_exclusive_group(required=True)
-    src.add_argument(
-        "traces", nargs="?",
-        help="Traces file: first line = word numbers, subsequent lines = "
-             "one trace per row.",
-    )
-    src.add_argument(
-        "--from-segy", nargs="+", metavar="FILE",
-        help="Read geometry from SEG-Y trace headers.  Pass one file to "
-             "group traces by source position into shots; pass multiple "
-             "files (one per shot) for one-shot-per-file mode.",
-    )
-
-    p.add_argument(
-        "--out", required=True,
-        help="Output rootname (e.g. 'survey' → survey.mapped.data, etc.).",
-    )
-    p.add_argument(
-        "--segy", nargs="+", metavar="FILE",
-        help="SEG-Y files, one per shot (in source-order).  Used as the "
-             "file list in the mapped .list file.  When --from-segy is "
-             "given, defaults to that same file.",
-    )
-
-    # Decision-file word numbers for output
-    p.add_argument("--word-sx", type=int, default=22)
-    p.add_argument("--word-sy", type=int, default=23)
-    p.add_argument("--word-sz", type=int, default=14)
-    p.add_argument("--word-rx", type=int, default=24)
-    p.add_argument("--word-ry", type=int, default=25)
-    p.add_argument("--word-rz", type=int, default=13)
-    p.add_argument(
-        "--index-words", type=lambda s: list(map(int, s.split(","))),
-        default=None,
-        metavar="W1,W2,...",
-        help="Comma-separated word numbers for the index file.  "
-             "Default: source X/Y/Z words.",
-    )
-
-    # SEG-Y header word positions (only used with --from-segy)
-    p.add_argument("--segy-word-sx", type=int, default=19,
-                   help="SEG-Y header word for source X  (default: 19).")
-    p.add_argument("--segy-word-sy", type=int, default=20,
-                   help="SEG-Y header word for source Y  (default: 20).")
-    p.add_argument("--segy-word-sz", type=int, default=13,
-                   help="SEG-Y header word for the source depth (default: 13, sdepth).")
-    p.add_argument("--segy-word-rx", type=int, default=21,
-                   help="SEG-Y header word for receiver X (default: 21).")
-    p.add_argument("--segy-word-ry", type=int, default=22,
-                   help="SEG-Y header word for receiver Y (default: 22).")
-    p.add_argument("--segy-word-rz", type=int, default=11,
-                   help="SEG-Y header word for the receiver depth (default: 11, gelev as written by makutu).")
-    return p
-
-
-def main(argv=None):
-    args = _build_parser().parse_args(argv)
-
-    src_words = (args.word_sx, args.word_sy, args.word_sz)
-    rcv_words = (args.word_rx, args.word_ry, args.word_rz)
-
-    if args.from_segy:
-        segy_src = (args.segy_word_sx, args.segy_word_sy, args.segy_word_sz)
-        segy_rcv = (args.segy_word_rx, args.segy_word_ry, args.segy_word_rz)
-        if len(args.from_segy) == 1:
-            shots, auto_segy = shots_from_segy(
-                args.from_segy[0],
-                segy_src_words=segy_src,
-                segy_rcv_words=segy_rcv,
-                out_src_words=src_words,
-                out_rcv_words=rcv_words,
-            )
-        else:
-            shots, auto_segy = shots_from_segy_list(
-                args.from_segy,
-                segy_src_words=segy_src,
-                segy_rcv_words=segy_rcv,
-            )
-        segy_files = args.segy or auto_segy
-    else:
-        word_numbers, rows = read_traces_file(args.traces)
-        shots = shots_from_traces(rows, word_numbers, src_words, rcv_words)
-        segy_files = args.segy
-
-    create_decision_files(
-        shots,
-        out=args.out,
-        word_sx=args.word_sx,
-        word_sy=args.word_sy,
-        word_sz=args.word_sz,
-        word_rx=args.word_rx,
-        word_ry=args.word_ry,
-        word_rz=args.word_rz,
-        index_words=args.index_words,
-        segy_files=segy_files,
-    )
-
-
-if __name__ == "__main__":
-    main()

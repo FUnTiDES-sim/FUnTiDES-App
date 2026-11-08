@@ -9,8 +9,9 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 |---|---|
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
 | `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
-| `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces and gradients |
-| `fullWaveformInversion/fwi.py` | Full-waveform inversion (acoustic, single process); see its README |
+| `acquisition/` | `create_equispaced_segy.py`, `check_acquisition.py`, `decision_create.py`: regular acquisitions, checks and maps, decision files |
+| `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces, gradients and illumination (`--png` to save them) |
+| `fullWaveformInversion/fwi.py` | Full-waveform inversion (acoustic; shots dealt out to the MPI ranks with `mpirun`); see its README |
 
 ```bash
 python apps/run_funtides.py ../examples/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
@@ -20,24 +21,4 @@ python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file ../../FUnTiDES
 
 ## Status
 
-The modelling path (`makutu.mesh`, `makutu.solvers`, acquisition, outputs) runs on
-FUnTiDES and is covered by `tests/integratedTests` (3-D acoustic and elastic, MPI, 2-D).
-The inversion chain runs on FUnTiDES in makutu (acoustic, model per element):
-- forward part (`makutu.forwardBackward`): shots of an acquisition, SEG-Y export, residual
-  against observed SEG-Y data, cost function, `func` for the optimiser;
-- gradient (adjoint-state method): `solver.runForward(snapshotStep)` keeps the second time
-  derivative of the pressure, `solver.computeGradient(residual, "c" | "1/c" | "1/c2")`
-  runs the adjoint (residual injected at the receivers) and applies the imaging
-  condition; `makutu.forwardBackward.backward` and `makutu.imaging.gradf` use it over the
-  shots. It matches finite differences of the cost function to about 1 % (2-D orders 1-4,
-  3-D) and gives the same result with the MPI domain decomposition.
-
-Tests: `test_forward_cost.py`, `test_gradient.py`, `test_mpi_decomposition.py`.
-Limits: `func`, `callback` and `gradf` write the model to HDF5 in a single process (with
-the MPI decomposition each rank holds its part of the model); the absorbing terms are not
-differentiated (gradient exact away from the absorbing boundaries); elastic gradients are
-not available. `fullWaveformInversion/fwi.py` runs the whole chain (initial SEP model,
-observed SEG-Y data, optimisers of `makutu.imaging.Minimizer`, gradient conditioning); its
-phases are tested separately, and the complete inversion recovers the two anomalies of
-the synthetic 2-D case `fullWaveformInversion/examples/anomaly_2d` (single- and
-multi-scale, see `fullWaveformInversion/README.md`).
+See `../docs/source/status.rst` (or the *Status* page of the documentation).

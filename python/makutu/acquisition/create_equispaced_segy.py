@@ -23,13 +23,14 @@ are placed at y = (ymin + ymax) / 2.
 
 SEG-Y convention
 ----------------
-Coordinates are stored as integers (metres × scale_factor, default 1).
+Geometry in the standard trace-header words (sx, sy, sdepth, gx, gy, gelev), as integers
+in millimetres (scalco = scalel = -1000); depths positive down.
 Trace data: IEEE float-32, big-endian (format code 5).
 Sample interval stored in microseconds.
 
 Usage
 -----
-    python -m makutu.acquisition.create_equispaced_segy \\
+    python apps/acquisition/create_equispaced_segy.py \\
         --xmin 0 --xmax 5000 --ymin 0 --ymax 5000 \\
         --n-src-x 50 --n-src-y 1 \\
         --n-rcv-x 200 --n-rcv-y 1 \\
@@ -46,7 +47,6 @@ Library usage::
     write_survey(shots, out="survey", output_dir="acquisition", ...)
 """
 
-import argparse
 import os
 import struct
 
@@ -88,10 +88,10 @@ def _binary_reel_header(n_samples, dt_us):
     struct.pack_into(">H", buf, 20, min(n_samples, 65535))
     # Bytes 25-26 (offset 24): data sample format code  5 = IEEE float32
     struct.pack_into(">H", buf, 24, 5)
-    # Bytes 29-30 (offset 28): SEG-Y revision (1 = Rev 1)
-    struct.pack_into(">H", buf, 28, 256)   # 0x0100 = revision 1.0
-    # Bytes 31-32 (offset 30): fixed-length trace flag (1 = fixed)
-    struct.pack_into(">H", buf, 30, 1)
+    # Bytes 3501-3502 (offset 300): SEG-Y revision, 0x0100 = rev 1.0
+    struct.pack_into(">H", buf, 300, 256)
+    # Bytes 3503-3504 (offset 302): fixed-length trace flag (1 = fixed)
+    struct.pack_into(">H", buf, 302, 1)
     return bytes(buf)
 
 
@@ -100,30 +100,29 @@ def _word(buf, n, value):
     struct.pack_into(">i", buf, (n - 1) * 4, int(value))
 
 
-def _trace_header(trace_seq, field_record, n_samples, dt_us,
-                  sx, sy, sz, rx, ry, rz,
-                  w_sx=22, w_sy=23, w_sz=14,
-                  w_rx=24, w_ry=25, w_rz=13):
+def _trace_header(trace_seq, field_record, n_samples, dt_us, src, rcv, scalar=-1000):
     """
-    Build a 240-byte SEG-Y trace header.
-
-    Coordinates are written at the decision-file word positions
-    (defaults match :func:`decision_create.create_decision_files`).
+    Build a 240-byte SEG-Y trace header with the geometry words read by makutu
+    (:class:`~makutu.acquisition.SEGYAcquisition`,
+    :func:`~makutu.acquisition.decision_create.read_segy_geometry`): source sx, sy (bytes
+    73, 77) and depth sdepth (byte 49), receiver gx, gy (bytes 81, 85) and depth gelev
+    (byte 41), positive down, scaled by ``scalar`` (scalco and scalel; -1000: millimetres).
     """
     buf = bytearray(_SEGY_TRACE_HEADER_SIZE)
+    factor = float(-scalar) if scalar < 0 else 1.0 / scalar
 
     _word(buf, 1, trace_seq)        # trace sequence number (line)
     _word(buf, 2, trace_seq)        # trace sequence number (file)
     _word(buf, 3, field_record)     # original field record number
     _word(buf, 4, trace_seq)        # trace number within field record
 
-    # Source and receiver coordinates at the configured word positions
-    _word(buf, w_sx, sx)
-    _word(buf, w_sy, sy)
-    _word(buf, w_sz, sz)
-    _word(buf, w_rx, rx)
-    _word(buf, w_ry, ry)
-    _word(buf, w_rz, rz)
+    _word(buf, 11, round(rcv[2] * factor))      # gelev: receiver depth
+    _word(buf, 13, round(src[2] * factor))      # sdepth: source depth
+    struct.pack_into(">hh", buf, 68, scalar, scalar)   # scalel, scalco
+    _word(buf, 19, round(src[0] * factor))      # sx
+    _word(buf, 20, round(src[1] * factor))      # sy
+    _word(buf, 21, round(rcv[0] * factor))      # gx
+    _word(buf, 22, round(rcv[1] * factor))      # gy
 
     # n_samples (bytes 115-116, int16)  and  sample interval µs (bytes 117-118, int16)
     struct.pack_into(">H", buf, 114, min(n_samples, 65535))
@@ -132,12 +131,10 @@ def _trace_header(trace_seq, field_record, n_samples, dt_us,
     return bytes(buf)
 
 
-def write_segy_shot(path, shot, n_samples, dt_us,
-                    w_sx=22, w_sy=23, w_sz=14,
-                    w_rx=24, w_ry=25, w_rz=13,
-                    data=None, field_record=1):
+def write_segy_shot(path, shot, n_samples, dt_us, data=None, field_record=1):
     """
-    Write a single-shot SEG-Y file: zero-amplitude traces, or ``data``.
+    Write a single-shot SEG-Y file: zero-amplitude traces, or ``data``. The geometry is
+    in the standard trace-header words (see :func:`_trace_header`).
 
     Parameters
     ----------
@@ -149,16 +146,12 @@ def write_segy_shot(path, shot, n_samples, dt_us,
         Number of time samples per trace.
     dt_us : int
         Sample interval [µs].
-    w_sx, w_sy, w_sz : int
-        Trace-header word positions for source X, Y, Z.
-    w_rx, w_ry, w_rz : int
-        Trace-header word positions for receiver X, Y, Z.
     data : np.ndarray, shape (n_samples, n_receivers), optional
         Trace data (e.g. a modelled seismogram); zeros when omitted.
     field_record : int
         Field record number written in the trace headers (e.g. the shot number).
     """
-    sx, sy, sz = [int(round(v)) for v in shot["src"]]
+    sx, sy, sz = [float(v) for v in shot["src"]]
     rcv_list = shot["rcv"]
     n_traces = len(rcv_list)
     if data is not None:
@@ -169,7 +162,7 @@ def write_segy_shot(path, shot, n_samples, dt_us,
 
     text_lines = [
         f"C01  SEG-Y shot file: {os.path.basename(path)}",
-        f"C02  Source  : ({sx}, {sy}, {sz})",
+        f"C02  Source  : ({sx:g}, {sy:g}, {sz:g}) m",
         f"C03  Traces  : {n_traces}   Samples: {n_samples}   dt: {dt_us} us",
         "C04  Data format: IEEE float-32",
         "C05  Zero-amplitude placeholder - fill with simulation data" if data is None
@@ -183,17 +176,7 @@ def write_segy_shot(path, shot, n_samples, dt_us,
         fh.write(_binary_reel_header(n_samples, dt_us))
 
         for i, rcv in enumerate(rcv_list):
-            rx, ry, rz = [int(round(v)) for v in rcv]
-            hdr = _trace_header(
-                trace_seq=i + 1,
-                field_record=field_record,
-                n_samples=n_samples,
-                dt_us=dt_us,
-                sx=sx, sy=sy, sz=sz,
-                rx=rx, ry=ry, rz=rz,
-                w_sx=w_sx, w_sy=w_sy, w_sz=w_sz,
-                w_rx=w_rx, w_ry=w_ry, w_rz=w_rz,
-            )
+            hdr = _trace_header(i + 1, field_record, n_samples, dt_us, (sx, sy, sz), rcv)
             fh.write(hdr)
             fh.write(zero_data if data is None else data[:, i].astype(">f4").tobytes())
 
@@ -288,7 +271,8 @@ def write_survey(shots, out, output_dir=".",
     dt_ms : float
         Sample interval [ms].
     w_sx, …, w_rz : int
-        SEG-Y / decision-file word numbers for source/receiver coordinates.
+        Decision-file word numbers of the source / receiver coordinates (the SEG-Y files
+        use the standard trace-header words, see :func:`write_segy_shot`).
     """
     # Lazy import to avoid circular dependency when used as a library
     from makutu.acquisition.decision_create import create_decision_files
@@ -300,9 +284,7 @@ def write_survey(shots, out, output_dir=".",
     for i, shot in enumerate(shots):
         fname = f"{out}_shot_{i + 1:05d}.segy"
         fpath = os.path.join(output_dir, fname)
-        write_segy_shot(fpath, shot, n_samples, dt_us,
-                        w_sx=w_sx, w_sy=w_sy, w_sz=w_sz,
-                        w_rx=w_rx, w_ry=w_ry, w_rz=w_rz)
+        write_segy_shot(fpath, shot, n_samples, dt_us, field_record=i + 1)
         segy_files.append(fname)   # relative name stored in .list
 
     # Decision files reference SEG-Y by relative name so they stay portable
@@ -320,94 +302,3 @@ def write_survey(shots, out, output_dir=".",
           f"  =  {n_traces} traces total")
     print(f"  Samples/trace: {n_samples}   dt: {dt_ms:.3f} ms ({dt_us} µs)")
     print(f"  Output dir   : {os.path.abspath(output_dir)}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _build_parser():
-    p = argparse.ArgumentParser(
-        description=__doc__.splitlines()[0],
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    # Domain
-    p.add_argument("--xmin", type=float, required=True, help="Domain xmin [m]")
-    p.add_argument("--xmax", type=float, required=True, help="Domain xmax [m]")
-    p.add_argument("--ymin", type=float, required=True, help="Domain ymin [m]")
-    p.add_argument("--ymax", type=float, required=True, help="Domain ymax [m]")
-
-    # Depth
-    p.add_argument("--z-src", type=float, default=10.0,
-                   help="Source depth [m] (default: 10)")
-    p.add_argument("--z-rcv", type=float, default=5.0,
-                   help="Receiver depth [m] (default: 5)")
-
-    # Source grid
-    p.add_argument("--n-src-x", type=int, default=20,
-                   help="Number of sources along X (default: 20)")
-    p.add_argument("--n-src-y", type=int, default=1,
-                   help="Number of source lines along Y (default: 1)")
-
-    # Receiver grid
-    p.add_argument("--n-rcv-x", type=int, default=200,
-                   help="Number of receivers along X (default: 200)")
-    p.add_argument("--n-rcv-y", type=int, default=1,
-                   help="Number of receiver lines along Y (default: 1)")
-
-    # Margin
-    p.add_argument("--margin", type=float, default=0.0,
-                   help="Inset margin from domain edges [m] (default: 0)")
-
-    # Trace parameters
-    p.add_argument("--n-samples", type=int, default=1001,
-                   help="Number of time samples per trace (default: 1001)")
-    p.add_argument("--dt", type=float, default=2.0,
-                   help="Sample interval [ms] (default: 2.0)")
-
-    # Decision-file word numbers
-    p.add_argument("--word-sx", type=int, default=22)
-    p.add_argument("--word-sy", type=int, default=23)
-    p.add_argument("--word-sz", type=int, default=14)
-    p.add_argument("--word-rx", type=int, default=24)
-    p.add_argument("--word-ry", type=int, default=25)
-    p.add_argument("--word-rz", type=int, default=13)
-
-    # Output
-    p.add_argument("--out", default="survey",
-                   help="Rootname for SEG-Y files and decision files (default: survey)")
-    p.add_argument("--output-dir", default="acquisition",
-                   help="Output directory (default: acquisition)")
-
-    return p
-
-
-def main(argv=None):
-    args = _build_parser().parse_args(argv)
-
-    print("Building equispaced acquisition geometry ...")
-    shots = equispaced_shots(
-        xmin=args.xmin, xmax=args.xmax,
-        ymin=args.ymin, ymax=args.ymax,
-        n_src_x=args.n_src_x, n_src_y=args.n_src_y,
-        n_rcv_x=args.n_rcv_x, n_rcv_y=args.n_rcv_y,
-        z_src=args.z_src, z_rcv=args.z_rcv,
-        margin=args.margin,
-    )
-
-    print(f"Writing {len(shots)} SEG-Y shot files ...")
-    write_survey(
-        shots=shots,
-        out=args.out,
-        output_dir=args.output_dir,
-        n_samples=args.n_samples,
-        dt_ms=args.dt,
-        w_sx=args.word_sx, w_sy=args.word_sy, w_sz=args.word_sz,
-        w_rx=args.word_rx, w_ry=args.word_ry, w_rz=args.word_rz,
-    )
-    print("Done.")
-
-
-if __name__ == "__main__":
-    main()

@@ -64,15 +64,15 @@ python apps/modeling/shot_modeling/run_shot_modeling.py \
    SEG-Y file per shot:
 
    ```bash
-   python -m makutu.acquisition.create_equispaced_segy \
+   python apps/acquisition/create_equispaced_segy.py \
        --xmin 0 --xmax 1000 --ymin 0 --ymax 1000 --margin 100 \
        --n-src-x 2 --n-rcv-x 40 --output-dir acquisition --out survey
    ```
 
    An existing SEG-Y acquisition is turned into decision files with
-   `python -m makutu.acquisition.decision_create --from-segy ...`.
+   `python apps/acquisition/decision_create.py --from-segy ...`.
 
-2. Check (optional): `python -m makutu.acquisition.check_acquisition --dir acquisition --out survey`.
+2. Check (optional): `python apps/acquisition/check_acquisition.py --dir acquisition --out survey`.
 
 3. Modelling (`--first-shot`/`--last-shot` select a subset):
 

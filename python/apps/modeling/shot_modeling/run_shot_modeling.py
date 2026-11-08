@@ -11,7 +11,7 @@ Workflow
    Free surface on top, absorbing edges elsewhere (optional sponge of ``--sponge`` m).
 3. Acquisition, either
    - a decision file (``--decision``), as written by
-     ``python -m makutu.acquisition.create_equispaced_segy``, or
+     ``python apps/acquisition/create_equispaced_segy.py``, or
    - a line of ``--n-shots`` sources along x (one at ``--src-x`` by default) and
      receivers every ``--rcv-dx``, at y = ly / 2 in 3-D.
 4. Shot loop on the same mesh and solver: one SEG-Y (or HDF5) file per shot, and
@@ -201,10 +201,7 @@ def main():
         base = os.path.join(args.output_dir, f"{root}_{i:05d}")
         if args.format == "segy":
             write_segy_shot(base + ".segy", {"src": src, "rcv": rcv}, gather.shape[0],
-                            max(1, int(round(dt_rec * 1e6))),
-                            w_sx=args.word_sx, w_sy=args.word_sy, w_sz=args.word_sz,
-                            w_rx=args.word_rx, w_ry=args.word_ry, w_rz=args.word_rz,
-                            data=gather, field_record=i)
+                            max(1, int(round(dt_rec * 1e6))), data=gather, field_record=i)
             print(f"  -> {base}.segy ({gather.shape[0]} samples x {gather.shape[1]} traces)")
         else:
             import h5py
