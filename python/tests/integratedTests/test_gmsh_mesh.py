@@ -15,6 +15,7 @@ pytestmark = pytest.mark.skipif(not hasattr(FTModel, "read_gmsh_3d"),
 from makutu.mesh import GmshMesh, generateHexBox, generateQuadRectangle, mshVersion  # noqa: E402
 from makutu.mesh.CartesianUnstructModel import build_cartesian_unstruct_model  # noqa: E402
 from makutu.mesh.gmshmesh import _shape, physicalNames  # noqa: E402
+from makutu.mesh.seismesh import plots  # noqa: E402
 from makutu.solvers import AcousticSolver  # noqa: E402
 
 from test_acoustic_2d import exact_2d  # noqa: E402
@@ -61,7 +62,7 @@ SOURCE_2D, RECEIVER_2D = [1010.0, 0.0, 990.0], [1310.0, 0.0, 690.0]
 
 @pytest.mark.parametrize("order, size, structured, dt", [
     (2, 15.0, True, 1e-3), (2, 15.0, False, 1e-3), (3, 16.0, False, 5e-4)])
-def test_2d_shot_matches_exact_solution(tmp_path, order, size, structured, dt):
+def test_2d_shot_matches_exact_solution(tmp_path, order, size, structured, dt, figure_path):
     """Point source and receiver inside general quadrilaterals (absorbing edges far
     enough for no reflection before the end of the trace)."""
     generateQuadRectangle(tmp_path / "rect.msh", 2000.0, 2000.0, size, structured=structured,
@@ -77,10 +78,14 @@ def test_2d_shot_matches_exact_solution(tmp_path, order, size, structured, dt):
     ref = np.array([exact_2d(n * dt, r, f, dt) for n in range(len(trace))])
     err = np.linalg.norm(trace - ref) / np.linalg.norm(ref)
     print(f"[ gmsh 2-D ] order {order}, {'structured' if structured else 'unstructured'}: error {err:.2e}")
+    if figure_path():
+        plots.plot_gmsh_mesh(figure_path("mesh"), mesh, f"gmsh 2-D {'structuré' if structured else 'non structuré'}")
+        plots.plot_traces(figure_path("trace"), ref[:, None], trace[:, None], dt, ["récepteur"],
+                          f"ordre {order} contre la solution exacte 2-D", ("exacte", "gmsh"))
     assert err < 2e-3
 
 
-def test_2d_free_surface_and_names(tmp_path):
+def test_2d_free_surface_and_names(tmp_path, figure_path):
     """Boundary types from the group names; the top edge (free surface) stays at zero."""
     generateQuadRectangle(tmp_path / "rect.msh", 1000.0, 500.0, 50.0, structured=False)
     assert {name for (_, name) in physicalNames(tmp_path / "rect.msh").items()} \
@@ -90,6 +95,10 @@ def test_2d_free_surface_and_names(tmp_path):
     solver = AcousticSolver(**solver_kwargs(1e-3, 0.3, f0=10.0), **mesh.solver_kwargs())
     d = shot(solver, [500.0, 0.0, 100.0], [[300.0, 0.0, 50.0], [700.0, 0.0, 50.0]])
     assert np.isfinite(d).all() and np.abs(d).max() > 0
+    if figure_path():
+        plots.plot_gmsh_mesh(figure_path("mesh"), mesh, "gmsh 2-D, surface libre en haut")
+        plots.plot_traces(figure_path("traces"), d[:, :1], d[:, 1:], 1e-3, ["x = 300 / x = 700"],
+                          "récepteurs symétriques", ("x = 300 m", "x = 700 m"))
     p = np.array(solver.data.get_current_field(0), copy=False)
     top = [i for i in range(mesh.model.get_number_of_nodes()) if mesh.model.is_free_surface(i)]
     assert len(top) > 0 and np.all(p[top] == 0.0)
@@ -106,7 +115,7 @@ SOURCE_3D = [737.0, 702.0, 655.0]
 RECEIVERS_3D = [[300.0, 410.0, 33.0], [1210.0, 777.0, 501.0], [737.0, 702.0, 1300.0]]
 
 
-def test_3d_box_matches_cartesian_mesh(tmp_path):
+def test_3d_box_matches_cartesian_mesh(tmp_path, figure_path):
     """The same grid read from Gmsh and built by makutu gives the same traces (same point
     source weights), receivers off the nodes, one near the free surface."""
     generateHexBox(tmp_path / "box.msh", (L3, L3, L3), NE3)
@@ -127,10 +136,14 @@ def test_3d_box_matches_cartesian_mesh(tmp_path):
     d_cart = shot(cartesian, SOURCE_3D, RECEIVERS_3D, sourceWeights=mesh.sourceWeights(xi)[None])
     diff = np.linalg.norm(d_gmsh - d_cart, axis=0) / np.linalg.norm(d_cart, axis=0)
     print(f"[ gmsh 3-D ] relative difference with the Cartesian mesh: {diff}")
+    if figure_path():
+        plots.plot_gmsh_mesh(figure_path("mesh"), mesh, "gmsh 3-D, cube structuré")
+        plots.plot_traces(figure_path("traces"), d_cart, d_gmsh, 1e-3, [str(r) for r in RECEIVERS_3D],
+                          "cube gmsh contre maillage cartésien", ("cartésien", "gmsh"))
     assert np.all(diff < 1e-4)
 
 
-def test_3d_unstructured_box(tmp_path):
+def test_3d_unstructured_box(tmp_path, figure_path):
     """Hexahedra with general horizontal faces (MSH 4.1 file, converted on reading):
     location, and a shot close to the one of the structured mesh of the same size
     (h = 50 m: the difference is the discretization error, 42 % on a receiver at
@@ -146,4 +159,8 @@ def test_3d_unstructured_box(tmp_path):
     ref = shot(AcousticSolver(**solver_kwargs(dt, 0.8), **ref_mesh.solver_kwargs()), SOURCE_3D, RECEIVERS_3D)
     diff = np.linalg.norm(d - ref, axis=0) / np.linalg.norm(ref, axis=0)
     print(f"[ gmsh 3-D ] unstructured vs structured: {diff}")
+    if figure_path():
+        plots.plot_gmsh_mesh(figure_path("mesh"), mesh, "gmsh 3-D, hexaèdres non structurés")
+        plots.plot_traces(figure_path("traces"), ref, d, dt, [str(r) for r in RECEIVERS_3D],
+                          "non structuré contre structuré", ("structuré", "non structuré"))
     assert np.all(diff < 0.08)

@@ -74,7 +74,7 @@ def build_mesh_from_sep(vp_file, f0, out_dir, order=4, ppw=5.0, rho_file=None, r
         s = Session(out / "candidates")
         s.grid = grid
         s.set_sizing(p.fmax, order, ppw)
-        res = s.autopilot(tuple(strategies or ("tensor", "doubling", "hybrid", "extrude")), t_sim=t_sim, lts=lts)
+        res = s.autopilot(tuple(strategies or ("tensor", "doubling", "hybrid", "refine3", "extrude")), t_sim=t_sim, lts=lts)
         if not res["best_ok"]:
             raise RuntimeError("aucun maillage 3-D valide (points par longueur d'onde ou jacobien)")
         c = s.candidates[res["best_ok"]]

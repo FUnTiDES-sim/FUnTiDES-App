@@ -1,1 +1,4 @@
 build*/
+
+# control images written by the makutu tests (python/tests/conftest.py)
+python/tests/figures/

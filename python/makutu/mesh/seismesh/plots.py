@@ -1,0 +1,202 @@
+"""Figures de contrôle des maillages seismesh et des tirs (utilisées par les tests et les scripts).
+
+- :func:`plot_quad_mesh` : maillage 2-D (x, profondeur) en trois panneaux, vitesse avec le maillage,
+  taille des éléments, taille / taille requise (au plus 1 : échantillonnage atteint) ;
+- :func:`plot_hex_mesh` : même chose pour un maillage 3-D, sur une coupe y = constante (faces des
+  hexaèdres dans le plan s'il en existe, sinon centres des éléments proches du plan) ;
+- :func:`plot_traces` : traces comparées (référence / calcul, même normalisation) et écart relatif.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.collections import LineCollection, PolyCollection  # noqa: E402
+
+_QUAD_EDGES = [(0, 1), (1, 2), (2, 3), (3, 0)]
+_HEX_EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4), (0, 4), (1, 5), (2, 6), (3, 7)]
+_HEX_FACES = [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]
+
+
+def element_sizes(nodes, cells):
+    """Plus grande arête de chaque élément (quadrangles ou hexaèdres, ordre gmsh)."""
+    X = np.asarray(nodes)[np.asarray(cells)]
+    edges = _QUAD_EDGES if X.shape[1] == 4 else _HEX_EDGES
+    return np.max([np.linalg.norm(X[:, b] - X[:, a], axis=-1) for a, b in edges], axis=0)
+
+
+def required_sizes(grid, h, nodes, cells):
+    """Taille requise de chaque élément : minimum de ``h`` sur les cellules recouvertes par sa boîte."""
+    X = np.asarray(nodes)[np.asarray(cells)]
+    lo, hi = X.min(axis=1), X.max(axis=1)
+    if X.shape[-1] == 2:                                    # (x, depth) -> (x, y0, depth)
+        y0 = np.full((len(X), 1), grid.origin[1])
+        lo, hi = np.hstack([lo[:, :1], y0, lo[:, 1:]]), np.hstack([hi[:, :1], y0, hi[:, 1:]])
+    a, b = grid.box_index(lo, hi)
+    return np.array([h[a[e, 0]:b[e, 0] + 1, a[e, 1]:b[e, 1] + 1, a[e, 2]:b[e, 2] + 1].min() for e in range(len(X))])
+
+
+def _section(grid):
+    """Coupe (x, profondeur) de la grille de vitesse au milieu en y, et son extension."""
+    v = grid.vel[:, grid.shape[1] // 2, :].T
+    (x0, x1), _, (z0, z1) = grid.extent
+    return v, [x0, x1, z1, z0]
+
+
+def _three_panels(path, polys, vp_img, extent, size, ratio, title, lines=None):
+    polys = list(polys)
+    fig, axs = plt.subplots(1, 3, figsize=(19, 5.2))
+    im = axs[0].imshow(vp_img, extent=extent, cmap="viridis", aspect="equal")
+    axs[0].add_collection(LineCollection(lines if lines is not None else [np.vstack([Q, Q[:1]]) for Q in polys],
+                                         colors="w", linewidths=0.3))
+    fig.colorbar(im, ax=axs[0], shrink=0.75, label="vp (m/s)")
+    axs[0].set_title("modèle et maillage")
+    for ax, vals, cmap, lab, clim in [(axs[1], size, "magma", "taille de l'élément (m)", None),
+                                      (axs[2], ratio, "RdYlGn_r", "taille / taille requise (≤ 1)", (0, 1.2))]:
+        pc = PolyCollection(polys, array=vals, cmap=cmap, edgecolors="k", linewidths=0.15)
+        if clim:
+            pc.set_clim(*clim)
+        ax.add_collection(pc)
+        ax.set_xlim(extent[0], extent[1])
+        ax.set_ylim(extent[2], extent[3])
+        ax.set_aspect("equal")
+        fig.colorbar(pc, ax=ax, shrink=0.75, label=lab)
+    axs[1].set_title(f"taille des éléments : {size.min():.0f} à {size.max():.0f} m")
+    axs[2].set_title(f"taille / taille requise : max {ratio.max():.2f}")
+    for ax in axs:
+        ax.set_xlabel("x (m)")
+    axs[0].set_ylabel("profondeur (m)")
+    fig.suptitle(title, fontsize=11)
+    _save(fig, path)
+
+
+def _save(fig, path):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=100, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_quad_mesh(path, grid, h, nodes, quads, title=""):
+    """Maillage 2-D : nœuds (x, profondeur), quadrangles ; ``h`` taille requise de la grille."""
+    nodes, quads = np.asarray(nodes), np.asarray(quads)
+    size = element_sizes(nodes, quads)
+    ratio = size / required_sizes(grid, h, nodes, quads)
+    vp, ext = _section(grid)
+    _three_panels(path, nodes[quads], vp, ext, size, ratio,
+                  f"{title} — {len(quads)} quadrangles, taille / taille requise max {ratio.max():.2f}")
+    return size, ratio
+
+
+def hex_section(nodes, hexes, y):
+    """Coupe d'un maillage d'hexaèdres par le plan y : (polygones (x, z) des traces des éléments coupés,
+    indices de ces éléments). Le plan est légèrement décalé s'il passe par des nœuds."""
+    nodes, hexes = np.asarray(nodes, float), np.asarray(hexes)
+    span = np.ptp(nodes[:, 1]) if np.ptp(nodes[:, 1]) > 0 else 1.0
+    if np.any(np.abs(nodes[:, 1] - y) < 1e-9 * span):
+        y = y + 1e-4 * span
+    X = nodes[hexes]
+    ymin, ymax = X[:, :, 1].min(1), X[:, :, 1].max(1)
+    cut = np.where((ymin < y) & (ymax > y))[0]
+    E = np.array(_HEX_EDGES)
+    A, B = X[cut][:, E[:, 0]], X[cut][:, E[:, 1]]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (y - A[:, :, 1]) / (B[:, :, 1] - A[:, :, 1])
+    ok = (t >= 0) & (t <= 1) & np.isfinite(t)
+    pts = A + np.where(ok, t, 0.0)[..., None] * (B - A)
+    polys, ids = [], []
+    for k in range(len(cut)):
+        q = np.unique(np.round(pts[k][ok[k]][:, [0, 2]], 6), axis=0)
+        if len(q) < 3:
+            continue
+        c = q.mean(0)
+        polys.append(q[np.argsort(np.arctan2(q[:, 1] - c[1], q[:, 0] - c[0]))])
+        ids.append(cut[k])
+    return polys, np.array(ids, dtype=int)
+
+
+def plot_hex_mesh(path, grid, h, nodes, hexes, title="", y=None):
+    """Maillage 3-D : nœuds (x, y, profondeur), hexaèdres ; coupe exacte par le plan y (défaut : milieu)."""
+    nodes, hexes = np.asarray(nodes), np.asarray(hexes)
+    (_, _), (y0, y1), _ = grid.extent
+    y = 0.5 * (y0 + y1) if y is None else y
+    polys, ids = hex_section(nodes, hexes, y)
+    size = element_sizes(nodes, hexes)
+    ratio = size / required_sizes(grid, h, nodes, hexes)
+    vp, ext = _section(grid)
+    _three_panels(path, polys, vp, ext, size[ids], ratio[ids],
+                  f"{title} — {len(hexes)} hexaèdres ({len(ids)} coupés par y = {y:.0f} m), taille / taille requise max "
+                  f"{ratio.max():.2f}")
+    return size, ratio
+
+
+def plot_traces(path, ref, data, dt, labels=None, title="", names=("référence", "calcul")):
+    """Traces (n_t, n_r) comparées, normalisées par trace sur la référence, écart relatif par trace."""
+    ref, data = np.asarray(ref, float), np.asarray(data, float)
+    t = np.arange(len(ref)) * dt
+    diff = np.linalg.norm(data - ref, axis=0) / np.maximum(np.linalg.norm(ref, axis=0), 1e-30)
+    n = ref.shape[1]
+    fig, ax = plt.subplots(figsize=(10, 1.0 + 0.55 * n))
+    for j in range(n):
+        s = 0.45 / max(np.abs(ref[:, j]).max(), 1e-30)
+        ax.plot(t, j + ref[:, j] * s, "k", lw=1.4, label=names[0] if j == 0 else None)
+        ax.plot(t, j + data[:, j] * s, "r--", lw=1.0, label=names[1] if j == 0 else None)
+        lab = labels[j] if labels is not None else f"trace {j}"
+        ax.text(t[-1], j + 0.2, f"{lab} : {100 * diff[j]:.1f} %", ha="right", fontsize=7.5)
+    ax.set_yticks([])
+    ax.set_xlabel("t (s)")
+    ax.legend(loc="lower left", fontsize=8)
+    glob = np.linalg.norm(data - ref) / max(np.linalg.norm(ref), 1e-30)
+    ax.set_title(f"{title} — écart global {100 * glob:.1f} %", fontsize=10)
+    _save(fig, path)
+    return diff
+
+
+def read_funtides_msh(msh):
+    """(nœuds (x, y, hauteur), cellules, numéros de groupe) d'un fichier MSH 2.2 écrit par seismesh."""
+    lines = Path(msh).read_text().split("\n")
+    i = lines.index("$Nodes")
+    n = int(lines[i + 1])
+    nodes = np.array([[float(v) for v in lines[i + 2 + k].split()[1:]] for k in range(n)])
+    j = lines.index("$Elements")
+    rows = [[int(v) for v in lines[j + 2 + k].split()] for k in range(int(lines[j + 1]))]
+    kind = 5 if any(r[1] == 5 for r in rows) else 3
+    cells = np.array([np.array(r[3 + r[2]:]) - 1 for r in rows if r[1] == kind])
+    tags = np.array([r[3] for r in rows if r[1] == kind])
+    return nodes, cells, tags
+
+
+def plot_mesh_file(path, msh, grid, h, title=""):
+    """Figure de contrôle d'un maillage exporté par seismesh (``mesh.msh``), profondeur reconstruite."""
+    nodes, cells, _ = read_funtides_msh(msh)
+    depth = grid.extent[2][1] - nodes[:, 2]                 # height = max depth - depth
+    if cells.shape[1] == 4:
+        return plot_quad_mesh(path, grid, h, np.stack([nodes[:, 0], depth], -1), cells, title)
+    return plot_hex_mesh(path, grid, h, np.stack([nodes[:, 0], nodes[:, 1], depth], -1), cells, title)
+
+
+def plot_gmsh_mesh(path, mesh, title=""):
+    """Maillage d'un :class:`makutu.mesh.GmshMesh` (sans modèle SEP) : 2-D, éléments colorés par taille ;
+    3-D, faces des hexaèdres dans le plan y du milieu s'il en existe."""
+    C = mesh._corners
+    if mesh.dim == 2:
+        polys = C[:, [0, 1, 3, 2], :]
+    else:                                                  # exact section by the middle y plane
+        G = C[:, [0, 1, 3, 2, 4, 5, 7, 6], :]              # vertex bits -> gmsh hexahedron order
+        polys, _ = hex_section(G.reshape(-1, 3), np.arange(G.shape[0] * 8).reshape(-1, 8),
+                               0.5 * (mesh.lower[1] + mesh.upper[1]))
+    size = np.array([np.linalg.norm(np.roll(Q, -1, 0) - Q, axis=1).max() for Q in polys])
+    fig, ax = plt.subplots(figsize=(9, 5))
+    pc = PolyCollection(polys, array=size, cmap="magma", edgecolors="k", linewidths=0.2)
+    ax.add_collection(pc)
+    ax.autoscale()
+    ax.set_aspect("equal")
+    fig.colorbar(pc, ax=ax, shrink=0.8, label="taille de l'élément (m)")
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("z (m), vers le haut")
+    ax.set_title(f"{title} — {mesh.n_elements} éléments" + ("" if mesh.dim == 2 else ", coupe au milieu en y"), fontsize=10)
+    _save(fig, path)

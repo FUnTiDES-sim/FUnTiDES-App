@@ -60,7 +60,11 @@ def _physical_groups(ext):
     free, absorb = [], []
     for _, tag in gmsh.model.getEntities(2):
         bb = gmsh.model.getBoundingBox(2, tag)
-        if abs(bb[2] - z0) < tol and abs(bb[5] - z0) < tol:
+        flat = [(k, v) for k, v in ((0, x0), (0, x1), (1, y0), (1, y1), (2, z0), (2, z1))
+                if abs(bb[k] - v) < tol and abs(bb[k + 3] - v) < tol]
+        if not flat:
+            continue                                   # interior surface (interface between volumes)
+        if flat[0] == (2, z0):
             free.append(tag)
         else:
             absorb.append(tag)
@@ -213,22 +217,29 @@ def mesh_doubling(grid: VelocityGrid, h: np.ndarray, segs_xyz, max_levels=3, tra
 
 # --------------------------------------------------------------- refine3
 def mesh_refine3(grid: VelocityGrid, h: np.ndarray, base_max_segments=(4, 4, 8), lmax=1,
-                 max_grading=2.0, verbose=False, out_msh: str | None = None) -> HexMesh:
-    """Grille de base tensorielle dimensionnée pour h_floor = max(h, 3^lmax·h_min), puis
-    3-raffinement local (gabarits conformes) là où h_req < taille de cellule."""
+                 max_grading=2.0, verbose=False, out_msh: str | None = None, base_size=None) -> HexMesh:
+    """Grille de base tensorielle puis 3-raffinement local (gabarits conformes) là où la taille
+    requise est inférieure à la cellule.
+
+    ``base_size`` (stratégie « du grossier au fin ») : grille de base dimensionnée pour cette taille
+    (en général celle de la vitesse la plus rapide), ``lmax`` déduit (3^lmax >= base / h_min) : les
+    zones rapides gardent la taille de base, les zones lentes sont raffinées 1:3 ou 1:9. Sinon
+    (ancien comportement) base = 3^lmax * h_min."""
     from .refine3 import Refine3Mesh
     from .sizing import segment_all_axes
     from .doubling import _nodes
     hmin = float(h.min())
-    h_floor = np.maximum(h, hmin * 3 ** lmax)
+    if base_size is not None:
+        lmax = max(0, int(np.ceil(np.log(base_size / hmin) / np.log(3.0) - 1e-9)))
+        h_floor = np.maximum(h, base_size)
+    else:
+        h_floor = np.maximum(h, hmin * 3 ** lmax)
     segs = segment_all_axes(grid, h_floor, tuple(base_max_segments), max_grading=max_grading)
     R = Refine3Mesh(*[_nodes(s) for s in segs], lmax=lmax)
-    o, d, n = np.asarray(grid.origin), np.asarray(grid.spacing), np.asarray(grid.shape)
 
     def need(lo, hi, level):
-        a = np.clip(np.ceil((lo - o) / d - 1e-6).astype(int), 0, n - 1)
-        b = np.maximum(a, np.clip(np.floor((hi - o) / d + 1e-6).astype(int), 0, n - 1))
-        hreq = h[a[0]:b[0] + 1, a[1]:b[1] + 1, a[2]:b[2] + 1].min()
+        a, b = grid.box_index(lo, hi)
+        hreq = h[a[0, 0]:b[0, 0] + 1, a[0, 1]:b[0, 1] + 1, a[0, 2]:b[0, 2] + 1].min()
         return bool((hi - lo).max() > hreq * (1 + 1e-9))
 
     n_ref = R.refine_where(need)
@@ -238,7 +249,8 @@ def mesh_refine3(grid: VelocityGrid, h: np.ndarray, base_max_segments=(4, 4, 8),
     if out_msh:
         gmsh.write(out_msh)
     gmsh.finalize()
-    params = {"lmax": lmax, "base_cells": [len(s) for s in segs], "base_max_segments": list(base_max_segments),
+    params = {"lmax": lmax, "base_size": base_size, "base_cells": [len(s) for s in segs],
+              "base_max_segments": list(base_max_segments),
               "refined_cells": n_ref, "balance": bal, **info}
     return HexMesh(nodes, hexes, "refine3", params, 0, phys, out_msh)
 
@@ -253,3 +265,48 @@ def mesh_hybrid(grid: VelocityGrid, h: np.ndarray, segs_xyz, max_levels=3, q_bg=
     gmsh.finalize()
     params = {"max_levels": max_levels, "q_bg": q_bg, "lmax3": lmax3, **info}
     return HexMesh(nodes, hexes, "hybrid", params, 0, phys, out_msh)
+
+# --------------------------------------------------------------- tetsplit
+def mesh_tetsplit(grid: VelocityGrid, h: np.ndarray, size_factor=0.8, honor_interfaces=True, algorithm3d=1,
+                  verbose=False, out_msh: str | None = None) -> HexMesh:
+    """Tétraèdres de gmsh dont la taille suit la vitesse, puis découpe de chaque tétraèdre en 4
+    hexaèdres (``Mesh.SubdivisionAlgorithm = 2``) : maillage tout hexaèdre conforme, taille libre
+    (grands éléments dans les zones rapides, petits dans les lentes), hexaèdres quelconques.
+
+    La taille demandée aux tétraèdres est ``2 * size_factor * h_req`` (la découpe divise les arêtes
+    par deux), ``h_req`` étant pris au minimum sur un demi-élément autour de chaque échantillon. Le
+    domaine est découpé aux interfaces horizontales nettes, qui deviennent des faces du maillage."""
+    from scipy.ndimage import minimum_filter
+    from .sizing import horizontal_interfaces
+    (x0, x1), (y0, y1), (z0, z1) = grid.extent
+    o, d = np.asarray(grid.origin), np.asarray(grid.spacing)
+    reach = [min(n, int(np.ceil(0.5 * float(np.median(h)) / dk)) * 2 + 1) for n, dk in zip(h.shape, d)]
+    hs = 2.0 * size_factor * minimum_filter(h, size=reach, mode="nearest")
+    hi = np.asarray(hs.shape) - 1
+
+    def size_cb(dim, tag, x, y, z, lc):
+        i = np.clip(np.rint((np.array([x, y, z]) - o) / d).astype(int), 0, hi)
+        return float(hs[i[0], i[1], i[2]])
+
+    _init(verbose)
+    cuts = [z0] + ([b for b in horizontal_interfaces(grid) if z0 < b < z1] if honor_interfaces else []) + [z1]
+    occ = gmsh.model.occ
+    boxes = [(3, occ.addBox(x0, y0, a, x1 - x0, y1 - y0, b - a)) for a, b in zip(cuts[:-1], cuts[1:])]
+    if len(boxes) > 1:
+        occ.fragment(boxes[:1], boxes[1:])
+    occ.synchronize()
+    for opt, val in [("Mesh.MeshSizeExtendFromBoundary", 0), ("Mesh.MeshSizeFromPoints", 0),
+                     ("Mesh.MeshSizeFromCurvature", 0), ("Mesh.Algorithm3D", algorithm3d),
+                     ("Mesh.SubdivisionAlgorithm", 2), ("Mesh.Optimize", 1), ("Mesh.OptimizeNetgen", 1)]:
+        gmsh.option.setNumber(opt, val)
+    gmsh.model.mesh.setSizeCallback(size_cb)
+    phys = _physical_groups(grid.extent)
+    gmsh.model.mesh.generate(3)
+    params = {"size_factor": size_factor, "interfaces": cuts[1:-1], "algorithm3d": algorithm3d}
+    hm = _collect("tetsplit", params, phys)
+    if out_msh:
+        gmsh.option.setNumber("Mesh.SaveAll", 0)
+        gmsh.write(out_msh)
+        hm.msh_path = out_msh
+    gmsh.finalize()
+    return hm

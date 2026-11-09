@@ -10,7 +10,7 @@ import numpy as np
 
 from .velocity import VelocityGrid, synthetic_model
 from .sizing import SizingParams, h_required, ideal_element_count, segment_all_axes, segment_axis, axis_profile
-from .mesher import mesh_tensor, mesh_extrude, mesh_doubling, mesh_hybrid
+from .mesher import mesh_tensor, mesh_extrude, mesh_doubling, mesh_hybrid, mesh_refine3, mesh_tetsplit
 from .quality import evaluate, public
 
 
@@ -98,8 +98,14 @@ class Session:
         elif strategy == "hybrid":
             m = mesh_hybrid(self.grid, self.h, segs, max_levels=max_levels, q_bg=q_bg,
                             lmax3=lmax3, out_msh=msh)
+        elif strategy == "refine3":
+            # from the fastest velocity: base grid for size_factor * largest required size, 1:3 refinement
+            m = mesh_refine3(self.grid, self.h, base_max_segments=tuple(max_segments), max_grading=max_grading,
+                             out_msh=msh, base_size=size_factor * float(self.h.max()))
+        elif strategy == "tetsplit":
+            m = mesh_tetsplit(self.grid, self.h, size_factor=size_factor, out_msh=msh)
         else:
-            raise ValueError("strategy ∈ {tensor, extrude, doubling, hybrid}")
+            raise ValueError("strategy ∈ {tensor, extrude, doubling, hybrid, refine3, tetsplit}")
         rep = evaluate(m, self.grid, self.sizing, cfl=cfl, t_sim=t_sim,
                        lts_max_level=self.lts_max_level)
         rep["mesh_time_s"] = round(time.time() - t0, 2)
@@ -107,6 +113,9 @@ class Session:
                          "max_grading": max_grading, "size_factor": size_factor,
                          "quad_algo": quad_algo, "max_levels": max_levels,
                          "trans_layers": trans_layers, "allow_refine": allow_refine, "q_bg": q_bg, "lmax3": lmax3, "sizing": self.sizing.to_dict()}
+        if strategy == "refine3":
+            rep["refine3"] = {k: m.params[k] for k in ("lmax", "base_size", "base_cells", "templates", "leaves_per_level")
+                              if k in m.params}
         if strategy in ("doubling", "hybrid"):
             rep["doubling"] = {k: m.params[k] for k in ("transitions", "nx_ny_fine", "nz_layers")}
         if strategy == "hybrid":
@@ -168,6 +177,15 @@ class Session:
                 for lev in (2, 3):
                     tried.append(self.generate_mesh("hybrid", (mxy, mxy, 10), 2.0,
                                                     max_levels=lev, t_sim=t_sim))
+        if "refine3" in strategies:
+            for sf in (1.0, 0.9, 0.8, 0.7):            # base size: fraction of the largest required size
+                tried.append(self.generate_mesh("refine3", (1, 1, 10), 2.0, size_factor=sf, t_sim=t_sim))
+        if "tetsplit" in strategies:
+            for sf in (0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35):   # tetrahedron size: fraction of 2 h_req, until sampled
+                r = self.generate_mesh("tetsplit", (6, 6, 8), 2.0, size_factor=sf, t_sim=t_sim)
+                tried.append(r)
+                if r["ok"]:
+                    break
         if "extrude" in strategies:
             for sf in (0.8, 0.7, 0.6):
                 r = self.generate_mesh("extrude", (6, 6, 8), 2.0, size_factor=sf, t_sim=t_sim)

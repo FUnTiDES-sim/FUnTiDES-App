@@ -11,6 +11,7 @@ from makutu.mesh.seismesh import build_mesh_from_sep, grid_from_sep
 from makutu.mesh.seismesh.funtides import material_classes, write_funtides_msh
 from makutu.mesh.seismesh.plane import evaluate_2d, mesh_doubling_2d, mesh_tensor_2d, segments_2d
 from makutu.mesh.seismesh.sizing import SizingParams, h_required
+from makutu.mesh.seismesh import plots
 
 
 def gradient_sep(path, nx=200, nz=100, d=20.0, v0=1500.0, gradient=2.0):
@@ -56,7 +57,7 @@ def test_sep_grid_orientation(tmp_path):
 
 
 @pytest.mark.parametrize("refine", [False, True])
-def test_doubling_2d_is_conforming(tmp_path, refine):
+def test_doubling_2d_is_conforming(tmp_path, refine, figure_path):
     """Doubling (and re-refinement under a slow layer): convex quads, no hanging node, the
     rectangle is covered, the horizontal step doubles at depth."""
     nz = 100
@@ -70,6 +71,8 @@ def test_doubling_2d_is_conforming(tmp_path, refine):
     h = h_required(grid, p)
     m = mesh_doubling_2d(grid, h, segments_2d(grid, h, (2, 6)), max_levels=2, allow_refine=refine)
     rep = evaluate_2d(m, grid, p)
+    if figure_path():
+        plots.plot_quad_mesh(figure_path(), grid, h, m.nodes, m.quads, f"doubling 2-D, re-raffinement {refine}")
     assert rep["scaled_jacobian"]["min"] > 0.3                             # 0.49 with re-refinement
     assert rep["frac_undersampled"] == 0
     kinds = [k for k, _, _ in m.params["plan"]]
@@ -118,11 +121,14 @@ def test_export_z_up_and_material_classes(tmp_path):
     assert np.all(xyz[faces[tags_face == 1][0], 2] == 1.0)                  # depth 0 face is on top
 
 
-def test_build_from_sep_selects_doubling(tmp_path):
+def test_build_from_sep_selects_doubling(tmp_path, figure_path):
     """Velocity tripling with depth: the 2:1 doubling mesh is cheaper than the tensor grid."""
     gradient_sep(tmp_path / "v.H")
     r = build_mesh_from_sep(tmp_path / "v.H", f0=5.0, out_dir=tmp_path / "out", order=4, ppw=5, verbose=False)
     sel = r["selected"]
+    if figure_path():
+        g = grid_from_sep(tmp_path / "v.H")
+        plots.plot_mesh_file(figure_path(), r["msh"], g, h_required(g, SizingParams(12.5, 4, 5)), "build_mesh_from_sep, gradient")
     assert r["dim"] == 2 and sel["strategy"] == "doubling" and sel["ok"]
     assert sel["ppw_effective"]["min"] >= 5 * 0.98
     assert (tmp_path / "out" / "mesh.msh").exists() and (tmp_path / "out" / "report.json").exists()
@@ -137,12 +143,15 @@ def layered_sep(path, d=10.0):
     return path
 
 
-def test_element_faces_follow_horizontal_interfaces(tmp_path):
+def test_element_faces_follow_horizontal_interfaces(tmp_path, figure_path):
     """Faces at the sharp horizontal interfaces (cell boundaries): one velocity per layer, no mixed element."""
     from makutu.mesh.seismesh.sizing import horizontal_interfaces
     layered_sep(tmp_path / "v.H")
     assert horizontal_interfaces(grid_from_sep(tmp_path / "v.H")) == [500.0, 1000.0]
     r = build_mesh_from_sep(tmp_path / "v.H", f0=5.0, out_dir=tmp_path / "out", order=4, ppw=8, verbose=False)
+    if figure_path():
+        g = grid_from_sep(tmp_path / "v.H")
+        plots.plot_mesh_file(figure_path(), r["msh"], g, h_required(g, SizingParams(12.5, 4, 8)), "3 couches, faces sur les interfaces")
     zs = []
     for t0, t1, n in r["selected"]["params"]["segments"][1]:
         zs += list(np.linspace(t0, t1, n + 1))
@@ -166,7 +175,7 @@ def test_slowness_average(tmp_path):
     assert slow < vmean
 
 
-def test_hybrid_2d_local_refinement_is_conforming(tmp_path):
+def test_hybrid_2d_local_refinement_is_conforming(tmp_path, figure_path):
     """3 layers + slow inclusion: doubling at depth and local 1:3 refinement around the inclusion
     (vertex and edge transition templates), conforming, covering the domain, sampled everywhere."""
     from makutu.mesh.seismesh.plane import mesh_hybrid_2d
@@ -181,6 +190,8 @@ def test_hybrid_2d_local_refinement_is_conforming(tmp_path):
     grid = grid_from_sep(tmp_path / "v.H")
     p = SizingParams(fmax=12.5, order=4, ppw=8)
     m = mesh_hybrid_2d(grid, h_required(grid, p), max_levels=1, q_bg=0.3)
+    if figure_path():
+        plots.plot_quad_mesh(figure_path(), grid, h_required(grid, p), m.nodes, m.quads, "hybrid 2-D, inclusion lente")
     assert m.params["refined_zones"]
     rep = evaluate_2d(m, grid, p)
     assert rep["ok"] and rep["scaled_jacobian"]["min"] > 0.3
@@ -203,7 +214,7 @@ def salt_sep(path, d=20.0):
     return path
 
 
-def test_quadtree_coarsens_fast_body_and_refines_slow_zones(tmp_path):
+def test_quadtree_coarsens_fast_body_and_refines_slow_zones(tmp_path, figure_path):
     """From the fastest velocity: 2:1 quadtree, conforming, covering the domain, sampled everywhere;
     the salt keeps the largest elements, the water layer the smallest."""
     from makutu.mesh.seismesh.plane import mesh_quadtree_2d
@@ -212,6 +223,8 @@ def test_quadtree_coarsens_fast_body_and_refines_slow_zones(tmp_path):
     grid = grid_from_sep(salt_sep(tmp_path / "v.H"))
     p = SizingParams(fmax=12.5, order=4, ppw=8)
     m = mesh_quadtree_2d(grid, h_required(grid, p), max_block_elements=0.75 * h_required(grid, p).max())
+    if figure_path():
+        plots.plot_quad_mesh(figure_path(), grid, h_required(grid, p), m.nodes, m.quads, "quadtree 2-D, sel")
     rep = evaluate_2d(m, grid, p)
     assert rep["ok"] and rep["scaled_jacobian"]["min"] > 0.5
     assert set(edge_counts(m.quads)) <= {1, 2}
@@ -223,3 +236,39 @@ def test_quadtree_coarsens_fast_body_and_refines_slow_zones(tmp_path):
     water = c[:, 1] < 150
     assert np.median(size[salt]) >= 1.9 * np.median(size[~salt & ~water])   # coarser in the salt
     assert np.median(size[water]) < np.median(size[~salt & ~water])          # finer in the water
+
+
+def test_tetsplit_3d_all_hex_adapted(tmp_path, figure_path):
+    """3-D salt-like model: gmsh tetrahedra sized by the velocity split into hexahedra: all hex,
+    positive jacobian, conforming (every interior face shared by two hexahedra), larger elements
+    in the fast body, free surface on top."""
+    from makutu.mesh.seismesh.mesher import boundary_quads, mesh_tetsplit
+    from makutu.mesh.seismesh.quality import evaluate
+    d, n = 50.0, (20, 20, 12)                                   # 1000 x 1000 x 600 m
+    z = (np.arange(n[2])[:, None, None] + 0.5) * d * np.ones((1, n[1], n[0]))
+    y = (np.arange(n[1])[None, :, None] + 0.5) * d * np.ones((n[2], 1, n[0]))
+    x = (np.arange(n[0])[None, None, :] + 0.5) * d * np.ones((n[2], n[1], 1))
+    v = np.where(z < 100, 1500.0, 2200.0)
+    v[((x - 500) / 300) ** 2 + ((y - 500) / 300) ** 2 + ((z - 350) / 150) ** 2 < 1] = 4500.0
+    _write_sep(str(tmp_path / "v.H"), v.astype(np.float32), d, d, d)
+    grid = grid_from_sep(tmp_path / "v.H")
+    p = SizingParams(fmax=5.0, order=3, ppw=6)
+    m = mesh_tetsplit(grid, h_required(grid, p), size_factor=0.5)
+    if figure_path():
+        plots.plot_hex_mesh(figure_path(), grid, h_required(grid, p), m.nodes, m.hexes, "tetsplit 3-D, sel")
+    rep = evaluate(m, grid, p)
+    assert m.n_non_hex == 0 and rep["scaled_jacobian"]["min"] > 0
+    faces = np.sort(m.hexes[:, [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]]
+                    .reshape(-1, 4), axis=1)
+    _, cnt = np.unique(faces, axis=0, return_counts=True)
+    assert set(cnt) <= {1, 2}
+    bq = boundary_quads(m.hexes)
+    B = m.nodes[bq]
+    on_box = np.zeros(len(bq), bool)
+    for k, (a, b) in enumerate(grid.extent):
+        on_box |= np.all(np.isclose(B[:, :, k], a), 1) | np.all(np.isclose(B[:, :, k], b), 1)
+    assert on_box.all()                                         # no internal boundary (interfaces conform)
+    X = m.nodes[m.hexes]
+    c, size = X.mean(1), np.linalg.norm(X[:, 1] - X[:, 0], axis=1)
+    salt = ((c[:, 0] - 500) / 250) ** 2 + ((c[:, 1] - 500) / 250) ** 2 + ((c[:, 2] - 350) / 120) ** 2 < 1
+    assert np.median(size[salt]) > 1.5 * np.median(size[~salt])
