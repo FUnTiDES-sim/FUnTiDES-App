@@ -24,3 +24,13 @@ python apps/mesh/gmsh_mesh.py info box.msh box.csv --order 2
 Modelling on a Gmsh mesh: `makutu.mesh.GmshMesh(file, order, materials)` and
 `AcousticSolver(..., **mesh.solver_kwargs())` (see the *Mesh and model* page of the
 documentation and `tests/integratedTests/test_gmsh_mesh.py`).
+
+## Meshes adapted to a SEP model (seismesh)
+
+```bash
+python apps/mesh/seismesh_from_sep.py --vp-file vp.H --f0 8 --order 4 --ppw 5 --out mesh_dir
+```
+
+Element size `order * v / (2.5 f0 * ppw)`; writes `mesh_dir/mesh.msh` (z up, free surface on
+top), `materials.csv` (one class per element) and `report.json`. See
+`makutu/mesh/seismesh/README.md`.
