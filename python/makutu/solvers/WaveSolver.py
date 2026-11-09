@@ -132,6 +132,7 @@ class WaveSolver(Solver):
                  lx=None, ly=None, lz=None,
                  ex=None, ey=None, ez=None,
                  origin_x=0.0,
+                 locator=None,
                  **kwargs):
         """
         Parameters
@@ -165,6 +166,12 @@ class WaveSolver(Solver):
                 X-coordinate of this rank's subdomain origin [m].
                 Used for coordinate → local-index conversion with MPI domain
                 decomposition.  Default 0.0 (no decomposition).
+            locator : object, optional
+                Point location in a mesh that is not a Cartesian grid (e.g.
+                :class:`~makutu.mesh.gmshmesh.GmshMesh`): methods ``locate(x, y, z)``
+                -> (element, xi), ``sourceWeights(xi)``, ``receiverWeights(xi)``.
+                Used by :meth:`updateSourceAndReceiversFromCoords` instead of
+                lx/ex. Default None (Cartesian grid)
             kwargs : passed to Solver.__init__
         """
         super().__init__(**kwargs)
@@ -176,6 +183,7 @@ class WaveSolver(Solver):
         self.ey = ey
         self.ez = ez
         self.origin_x = float(origin_x)
+        self.locator = locator
 
         self.boundary_comm = None  # set in initialize() when comm is active
 
@@ -707,6 +715,9 @@ class WaveSolver(Solver):
             sourceWeights : array-like, optional
                 Interpolation weights per source.
         """
+        if self.locator is not None:
+            self._placeWithLocator(source_coords, receiver_coords, sourceWeights)
+            return
         self._check_mesh_params()
         src_elements = []
         src_active = []
@@ -748,6 +759,27 @@ class WaveSolver(Solver):
             for i, active in enumerate(src_active):
                 if not active:
                     weights[i, :] = 0.0
+
+    def _placeWithLocator(self, source_coords, receiver_coords, sourceWeights=None):
+        """Sources and receivers located by ``self.locator`` (point sources with Lagrange
+        weights; single process: a point outside the mesh is an error)."""
+        def locate(kind, coords):
+            located = []
+            for x, y, z in coords:
+                elem, xi = self.locator.locate(x, y, z)
+                if elem < 0:
+                    raise ValueError(f"{kind} ({x}, {y}, {z}) is outside the mesh")
+                located.append((elem, xi))
+            return located
+
+        sources = locate("source", source_coords)
+        receivers = locate("receiver", receiver_coords)
+        if sourceWeights is None:
+            sourceWeights = np.array([self.locator.sourceWeights(xi) for _, xi in sources],
+                                     dtype=np.float32)
+        self.receiverElementIndices = [e for e, _ in receivers]
+        self.receiverWeights = [self.locator.receiverWeights(xi) for _, xi in receivers]
+        self.updateSourceAndReceivers([e for e, _ in sources], [0] * len(receivers), sourceWeights)
 
     def applyInitialConditions(self):
         """Reset wavefield to zero (equivalent to applying zero initial conditions)."""

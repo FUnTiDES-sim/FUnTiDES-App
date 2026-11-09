@@ -9,6 +9,7 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 |---|---|
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
 | `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
+| `mesh/gmsh_mesh.py` | Gmsh meshes: conversion to MSH 2.2, Hex8 box and Q4 rectangle generators, description through FUnTiDES; see its README |
 | `acquisition/` | `create_equispaced_segy.py`, `check_acquisition.py`, `decision_create.py`: regular acquisitions, checks and maps, decision files |
 | `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces, gradients and illumination (`--png` to save them) |
 | `fullWaveformInversion/fwi.py` | Full-waveform inversion (acoustic; shots dealt out to the MPI ranks with `mpirun`); see its README |

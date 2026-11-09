@@ -38,3 +38,35 @@ Classes
 :code:`mesh.solver_kwargs()` gives the arguments of the solvers (model, order, domain,
 element counts, Kokkos views of the model). The top of the mesh is a free surface by
 default; the other sides have the absorbing (paraxial) condition of FUnTiDES.
+
+Gmsh meshes
+===========
+
+:class:`makutu.mesh.GmshMesh` reads a Gmsh mesh through the FUnTiDES readers: linear
+quadrilaterals Q4 of the (x, z) plane in 2-D, hexahedra Hex8 in 3-D, any shape (not only a
+grid). The GLL nodes are built at the solver order. A file in another format than MSH 2.2
+ASCII is converted on reading (:code:`gmsh` Python module).
+
+.. code-block:: python
+
+    from makutu.mesh import GmshMesh
+    mesh = GmshMesh("model.msh", order=2,
+                    materials={10: (1500.0, 1000.0), 20: (3000.0, 2200.0)},   # tag: (vp, rho)
+                    boundaries={1: "surface", 2: "damping"})                  # optional
+    solver = AcousticSolver(implem_type=..., mesh_type=FTSolver.MeshType.UNSTRUCT,
+                            dt=..., maxTime=..., **mesh.solver_kwargs())
+
+- Each cell physical group is one material; :code:`materials` can also be a CSV file
+  :code:`physical_tag,vp,rho`.
+- Each boundary group (lines in 2-D, surfaces in 3-D) is a free surface or absorbing; without
+  :code:`boundaries`, a group whose name contains "free" or "surface" is a free surface, any
+  other one absorbing. Every outer face must be in a boundary group.
+- Coordinates: makutu depth z (down) is placed at the mesh height :code:`mesh.top - z`
+  (:code:`top`: highest node). Sources and receivers are located in their element by
+  inverting its bilinear / trilinear map (point sources and receivers with Lagrange weights).
+- Distorted elements need a smaller time step than a grid of the same size.
+- Modelling only for now: the gradient, the conditioning and the model updates of the FWI
+  assume a Cartesian grid.
+
+Tools (:code:`apps/mesh/gmsh_mesh.py`): :code:`convert` (to MSH 2.2), :code:`box` (Hex8
+box, structured or not), :code:`rectangle` (2-D Q4 rectangle), :code:`info`.

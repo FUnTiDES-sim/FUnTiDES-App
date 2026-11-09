@@ -8,7 +8,8 @@ Working and tested
 
 - Meshes and models: 2-D (:class:`~makutu.mesh.CartesianMesh2D`) and 3-D
   (:class:`~makutu.mesh.StructuredMesh`, MPI domain decomposition along x), from SEP files,
-  sizing for a source frequency.
+  sizing for a source frequency; Gmsh meshes (2-D Q4, 3-D Hex8, general shapes) for the
+  modelling (:class:`~makutu.mesh.GmshMesh`).
 - Acquisitions: coordinates, SEG-Y headers, decision files, regular grids; DAS geometry.
 - Acoustic modelling, 2-D and 3-D, on one or several MPI ranks (domain decomposition or
   shots dealt out to the ranks); elastic modelling in 3-D.
@@ -18,7 +19,7 @@ Working and tested
   Wolfe line searches, scipy), gradient conditioning, shot parallelism over MPI ranks;
   restart at any frequency; data selection and source estimation; one GPU per MPI rank; synthetic inversions of :doc:`example/fwi` (2-D, 3-D, Marmousi
   without inverse crime).
-- Tests: 146 unit tests (no solver) and 34 integrated tests (GPU, MPI), 2 to 4 min.
+- Tests: 152 unit tests (no solver) and 40 integrated tests (GPU, MPI), 3 to 6 min.
 
 Limits
 ======
