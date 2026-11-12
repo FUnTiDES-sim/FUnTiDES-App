@@ -217,14 +217,25 @@ def mesh_doubling(grid: VelocityGrid, h: np.ndarray, segs_xyz, max_levels=3, tra
 
 # --------------------------------------------------------------- refine3
 def mesh_refine3(grid: VelocityGrid, h: np.ndarray, base_max_segments=(4, 4, 8), lmax=1,
-                 max_grading=2.0, verbose=False, out_msh: str | None = None, base_size=None) -> HexMesh:
+                 max_grading=2.0, verbose=False, out_msh: str | None = None, base_size=None,
+                 templates: str = "schneiders", optimize: bool = True) -> HexMesh:
     """Grille de base tensorielle puis 3-raffinement local (gabarits conformes) là où la taille
     requise est inférieure à la cellule.
 
     ``base_size`` (stratégie « du grossier au fin ») : grille de base dimensionnée pour cette taille
     (en général celle de la vitesse la plus rapide), ``lmax`` déduit (3^lmax >= base / h_min) : les
     zones rapides gardent la taille de base, les zones lentes sont raffinées 1:3 ou 1:9. Sinon
-    (ancien comportement) base = 3^lmax * h_min."""
+    (ancien comportement) base = 3^lmax * h_min.
+
+    ``templates`` : ``"schneiders"`` (gabarits sommet / arête / face, les motifs concaves forcent un
+    raffinement, un îlot grossier ne survit pas) ou ``"tz"`` (gabarits de H. Tong et Y. J. Zhang,
+    « Element-saving hexahedral 3-refinement templates », CAGD 2026, doi:10.1016/j.cagd.2026.102550 ;
+    les 256 codes de sommets sont admissibles : les zones rapides gardent la taille de base).
+
+    ``optimize`` (gabarits ``"tz"``) : les nœuds propres aux hexaèdres de transition sont déplacés pour
+    minimiser le conditionnement des jacobiens aux coins (Knupp, régularisation d'Escobar et al.,
+    :mod:`.smoothing`) ; les nœuds des cellules régulières, du bord du domaine et des interfaces
+    horizontales restent fixes."""
     from .refine3 import Refine3Mesh
     from .sizing import segment_all_axes
     from .doubling import _nodes
@@ -243,16 +254,54 @@ def mesh_refine3(grid: VelocityGrid, h: np.ndarray, base_max_segments=(4, 4, 8),
         return bool((hi - lo).max() > hreq * (1 + 1e-9))
 
     n_ref = R.refine_where(need)
-    bal = R.balance()
-    nodes, hexes, info = R.to_hexes()
+    if templates == "tz":
+        bal = R.balance_touch()
+        nodes, hexes, info = R.to_hexes_tz()
+        if optimize:
+            nodes, info["optimization"] = _optimize_transitions(grid, h, nodes, hexes, info.pop("hex_class"))
+        else:
+            info.pop("hex_class")
+    else:
+        bal = R.balance()
+        nodes, hexes, info = R.to_hexes()
     phys = inject_into_gmsh(nodes, hexes, grid.extent[2][0], verbose)
     if out_msh:
         gmsh.write(out_msh)
     gmsh.finalize()
     params = {"lmax": lmax, "base_size": base_size, "base_cells": [len(s) for s in segs],
               "base_max_segments": list(base_max_segments),
-              "refined_cells": n_ref, "balance": bal, **info}
-    return HexMesh(nodes, hexes, "refine3", params, 0, phys, out_msh)
+              "refined_cells": n_ref, "balance": bal, "templates": templates, **info}
+    return HexMesh(nodes, hexes, "refine3tz" if templates == "tz" else "refine3", params, 0, phys, out_msh)
+
+
+def _optimize_transitions(grid, h, nodes, hexes, hex_class, max_rounds=6):
+    """Optimisation des nœuds de transition ; un élément qui dépasse sa taille requise après coup voit ses
+    nœuds fixés (position d'origine) et l'optimisation est relancée."""
+    from .smoothing import optimize_nodes
+    from .sizing import horizontal_interfaces
+    from .plots import element_sizes, required_sizes
+    trans = (hex_class >= 2) & (hex_class <= 14)
+    if not trans.any():
+        return nodes, {"n_free": 0}
+    fixed = np.zeros(len(nodes), bool)
+    fixed[hexes[~trans].ravel()] = True
+    span = max(b - a for a, b in grid.extent)
+    for k, (a, b) in enumerate(grid.extent):
+        fixed |= np.isclose(nodes[:, k], a, atol=1e-9 * span) | np.isclose(nodes[:, k], b, atol=1e-9 * span)
+    for z in horizontal_interfaces(grid):
+        fixed |= np.isclose(nodes[:, 2], z, atol=1e-9 * span)
+    T = np.where(trans)[0]
+    req = required_sizes(grid, h, nodes, hexes[T])
+    ok0 = element_sizes(nodes, hexes[T]) <= req * (1 + 1e-9)
+    for rnd in range(max_rounds):
+        out, rep = optimize_nodes(nodes, hexes, ~fixed, p=2.0, maxiter=2000)
+        if not rep["valid"]:
+            return nodes, {**rep, "applied": False}
+        bad = (element_sizes(out, hexes[T]) > req * (1 + 1e-9)) & ok0
+        if not bad.any():
+            return out, {**rep, "applied": True, "rounds": rnd + 1, "n_fixed_for_size": int(fixed.sum())}
+        fixed[hexes[T[bad]].ravel()] = True
+    return nodes, {**rep, "applied": False, "reason": "taille requise dépassée"}
 
 
 def mesh_hybrid(grid: VelocityGrid, h: np.ndarray, segs_xyz, max_levels=3, q_bg=0.1, lmax3=1,

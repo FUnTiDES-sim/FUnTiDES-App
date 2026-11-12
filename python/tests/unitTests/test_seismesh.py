@@ -152,10 +152,12 @@ def test_element_faces_follow_horizontal_interfaces(tmp_path, figure_path):
     if figure_path():
         g = grid_from_sep(tmp_path / "v.H")
         plots.plot_mesh_file(figure_path(), r["msh"], g, h_required(g, SizingParams(12.5, 4, 8)), "3 couches, faces sur les interfaces")
-    zs = []
-    for t0, t1, n in r["selected"]["params"]["segments"][1]:
-        zs += list(np.linspace(t0, t1, n + 1))
-    assert np.any(np.isclose(zs, 500.0)) and np.any(np.isclose(zs, 1000.0))
+    nodes, cells, _ = plots.read_funtides_msh(r["msh"])     # any strategy: no element across an interface
+    depth = nodes[:, 2].max() - nodes[:, 2]
+    zmin, zmax = depth[cells].min(1), depth[cells].max(1)
+    for zi in (500.0, 1000.0):
+        assert not np.any((zmin < zi - 1e-6) & (zmax > zi + 1e-6))
+        assert np.any(np.isclose(depth, zi))
     rows = list(csv.DictReader(open(r["materials"])))
     assert sorted(float(row["vp"]) for row in rows) == [1800.0, 3000.0, 4000.0]
 
@@ -272,3 +274,196 @@ def test_tetsplit_3d_all_hex_adapted(tmp_path, figure_path):
     c, size = X.mean(1), np.linalg.norm(X[:, 1] - X[:, 0], axis=1)
     salt = ((c[:, 0] - 500) / 250) ** 2 + ((c[:, 1] - 500) / 250) ** 2 + ((c[:, 2] - 350) / 120) ** 2 < 1
     assert np.median(size[salt]) > 1.5 * np.median(size[~salt])
+
+
+def _salt_grid(tmp_path, d=50.0, n=(20, 20, 12), rz=150.0):
+    z = (np.arange(n[2])[:, None, None] + 0.5) * d * np.ones((1, n[1], n[0]))
+    y = (np.arange(n[1])[None, :, None] + 0.5) * d * np.ones((n[2], 1, n[0]))
+    x = (np.arange(n[0])[None, None, :] + 0.5) * d * np.ones((n[2], n[1], 1))
+    v = np.where(z < 100, 1500.0, 2200.0)
+    v[((x - 500) / 300) ** 2 + ((y - 500) / 300) ** 2 + ((z - 350) / rz) ** 2 < 1] = 4500.0
+    _write_sep(str(tmp_path / "v.H"), v.astype(np.float32), d, d, d)
+    return grid_from_sep(tmp_path / "v.H")
+
+
+def _conforming_on_box(m, grid):
+    faces = np.sort(m.hexes[:, [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]]
+                    .reshape(-1, 4), axis=1)
+    _, cnt = np.unique(faces, axis=0, return_counts=True)
+    from makutu.mesh.seismesh.mesher import boundary_quads
+    B = m.nodes[boundary_quads(m.hexes)]
+    on_box = np.zeros(len(B), bool)
+    for k, (a, b) in enumerate(grid.extent):
+        on_box |= np.all(np.isclose(B[:, :, k], a), 1) | np.all(np.isclose(B[:, :, k], b), 1)
+    return set(cnt) <= {1, 2} and on_box.all()
+
+
+def test_refine3tz_keeps_coarse_salt(tmp_path, figure_path):
+    """3-D salt-like model, strategy « du grossier au fin » with the Tong & Zhang (2026) templates
+    (H. Tong, Y. J. Zhang, Element-saving hexahedral 3-refinement templates, CAGD 102550): base grid
+    from the fastest velocity, 1:3 refinement in the slow zones; conforming, positive jacobian,
+    sampling reached everywhere, coarse regular cells kept inside the salt."""
+    from makutu.mesh.seismesh.mesher import mesh_refine3
+    from makutu.mesh.seismesh.quality import evaluate
+    grid = _salt_grid(tmp_path, rz=220.0)
+    p = SizingParams(fmax=25.0, order=3, ppw=6)        # salt ~ 6 base cells wide: a coarse core needs >= 3
+    h = h_required(grid, p)
+    m = mesh_refine3(grid, h, base_max_segments=(1, 1, 10), base_size=float(h.max()), templates="tz")
+    if figure_path():
+        plots.plot_hex_mesh(figure_path("y"), grid, h, m.nodes, m.hexes, "refine3tz 3-D, sel")
+        plots.plot_hex_mesh(figure_path("z"), grid, h, m.nodes, m.hexes, "refine3tz 3-D, sel", y=350.0, axis=2)
+    rep = evaluate(m, grid, p)
+    assert rep["scaled_jacobian"]["min"] > 0.15 and rep["frac_undersampled"] == 0.0
+    assert _conforming_on_box(m, grid)
+    assert m.params["leaves_per_level"].get(0, 0) > 0                 # coarse cells survive
+    X = m.nodes[m.hexes]
+    c, size = X.mean(1), np.linalg.norm(X[:, 1] - X[:, 0], axis=1)
+    coarse = size > 0.95 * size.max()                                 # untouched base cells
+    salt = ((c[:, 0] - 500) / 300) ** 2 + ((c[:, 1] - 500) / 300) ** 2 + ((c[:, 2] - 350) / 220) ** 2 < 1
+    assert coarse.sum() >= 8 and salt[coarse].all()
+    assert size.max() > 2.5 * np.median(size[~salt])
+
+
+def test_refine3tz_two_levels_conforming(figure_path):
+    """Two refinement levels (1/3, 1/9) driven by a point: touch balance (leaves that touch differ by at
+    most one level) and Tong & Zhang templates give a conforming mesh with positive jacobian."""
+    from makutu.mesh.seismesh.refine3 import Refine3Mesh
+    from makutu.mesh.seismesh.mesher import HexMesh
+    R = Refine3Mesh(*[np.linspace(0, 270.0, 4)] * 3, lmax=2)
+    target = np.array([100.0, 100.0, 100.0])
+    R.refine_where(lambda lo, hi, level: bool(np.all(lo - 1e-9 <= target) and np.all(target <= hi + 1e-9)))
+    bal = R.balance_touch()
+    nodes, hexes, info = R.to_hexes_tz()
+    m = HexMesh(nodes, hexes, "refine3tz", info)
+    assert set(info["leaves_per_level"]) == {0, 1, 2}
+    from makutu.mesh.seismesh.quality import element_metrics
+    sj = element_metrics(m)[0]
+    assert sj.min() > 0.15
+
+    class _Box:
+        extent = [(0.0, 270.0)] * 3
+    assert _conforming_on_box(m, _Box)
+    vol = 0.0
+    X = nodes[hexes]
+    for f in [(0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]:
+        fc = X[:, f].mean(1)
+        for a, b in zip(f, np.roll(f, -1)):
+            vol += np.einsum("ij,ij->i", np.cross(X[:, a] - fc, X[:, b] - fc), X.mean(1) - fc).sum() / 6.0
+    assert abs(abs(vol) - 270.0 ** 3) < 1e-6 * 270.0 ** 3
+    if figure_path():
+        from matplotlib.collections import PolyCollection
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(7, 6))
+        polys, ids = plots.hex_section(nodes, hexes, 101.0)
+        pc = PolyCollection(polys, array=sj[ids], cmap="viridis", edgecolors="k", linewidths=0.3)
+        pc.set_clim(0, 1)
+        ax.add_collection(pc)
+        ax.set_xlim(0, 270)
+        ax.set_ylim(270, 0)
+        ax.set_aspect("equal")
+        fig.colorbar(pc, ax=ax, shrink=0.8, label="jacobien normalisé")
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("z (m)")
+        ax.set_title(f"Deux niveaux (90 m → 30 m → 10 m) autour du point (100, 100, 100)\n"
+                     f"coupe y = 101 m — {len(hexes)} hexaèdres, jacobien min {sj.min():.2f}, "
+                     f"{bal['forced_splits']} raffinements d'équilibrage", fontsize=9)
+        plots._save(fig, figure_path())
+
+
+
+def test_element_values_on_real_geometry(tmp_path):
+    """Codex, point 3: a trapezoid (0,0), (2,0), (1,2), (0,2) on 2 x 2 unit cells, 1500 m/s except the cell
+    [1,2] x [1,2] at 4500 m/s: slowness average on the real element 1588.24 m/s (0.25 of its area 3 in the
+    fast cell), 1800 m/s on its bounding box; rectangles stay exact."""
+    from makutu.mesh.seismesh.elements2d import element_stats_2d, element_box_stats_2d
+    v = np.full((2, 2), 1500.0)                                   # (depth, x)
+    v[1, 1] = 4500.0
+    _write_sep(str(tmp_path / "v.H"), v.astype(np.float32)[None], 1.0, 1.0, 1.0)
+    grid = grid_from_sep(tmp_path / "v.H")
+    nodes = np.array([[0, 0], [2, 0], [1, 2], [0, 2], [2, 2], [1, 0]], float)
+    st = element_stats_2d(grid, nodes, np.array([[0, 1, 2, 3]]))
+    assert st["harmonic"][0] == pytest.approx(3.0 / (2.75 / 1500 + 0.25 / 4500), rel=0.01)
+    assert st["min"][0] == 1500.0 and st["max"][0] == 4500.0
+    assert element_box_stats_2d(grid, nodes, np.array([[0, 1, 2, 3]]))[1][0] == 4500.0
+    rect = element_stats_2d(grid, nodes, np.array([[5, 1, 4, 2]]))    # (1,0) (2,0) (2,2) (1,2): exact
+    assert rect["harmonic"][0] == pytest.approx(2.0 / (1 / 1500 + 1 / 4500))
+
+
+def test_strict_sampling_validity(tmp_path):
+    """Codex, point 2: one undersampled element out of many invalidates the mesh."""
+    from makutu.mesh.seismesh.plane import QuadMesh
+    grid = grid_from_sep(gradient_sep(tmp_path / "v.H", nx=200, nz=100, gradient=0.0))   # 1500 m/s, 4 x 2 km
+    p = SizingParams(fmax=12.5, order=4, ppw=8)                   # required size 60 m
+    xs, zs = np.linspace(0, 4000, 81), np.linspace(0, 2000, 41)     # 50 m squares: valid
+    X, Z = np.meshgrid(xs, zs, indexing="ij")
+    nodes = np.stack([X.ravel(), Z.ravel()], -1)
+    n = lambda i, k: i * len(zs) + k
+    quads = np.array([[n(i, k), n(i + 1, k), n(i + 1, k + 1), n(i, k + 1)] for i in range(80) for k in range(40)])
+    assert evaluate_2d(QuadMesh(nodes, quads, "tensor", {}), grid, p)["ok"]
+    nodes2 = nodes.copy()
+    nodes2[n(40, 20)] += [30.0, 30.0]                             # one node moved: its elements become too large
+    rep = evaluate_2d(QuadMesh(nodes2, quads, "tensor", {}), grid, p)
+    assert not rep["ok"] and 1 <= rep["n_undersampled"] <= 4 and rep["frac_undersampled"] < 1e-3
+
+
+def test_bands_regular_layers_with_deformed_transitions(tmp_path, figure_path):
+    """``bands``: regular depth bands, each with its own number of columns, joined in the coarser band by
+    a row of 3 -> 1 templates and morphing rows; conforming, covering, sampled in every element, mostly
+    rectangles, fewer elements than ``tensor`` on a layered model; selected by the 2-D search."""
+    from makutu.mesh.seismesh.bands2d import mesh_bands_2d
+    from makutu.mesh.seismesh.elements2d import axis_aligned
+    from makutu.mesh.seismesh.plane import autopilot_2d
+    grid = grid_from_sep(salt_sep(tmp_path / "v.H"))
+    p = SizingParams(fmax=12.5, order=4, ppw=8)
+    h = h_required(grid, p)
+    m = mesh_bands_2d(grid, h, max_segments=8, coarsen=1.1)
+    rep = evaluate_2d(m, grid, p)
+    if figure_path():
+        plots.plot_quad_mesh_detail(figure_path(), grid, h, m.nodes, m.quads, "bands 2-D, sel", (1000, 3000, 0, 1500))
+    assert rep["ok"] and rep["n_undersampled"] == 0 and rep["scaled_jacobian"]["min"] > 0.3
+    assert set(edge_counts(m.quads)) <= {1, 2}
+    X = m.nodes[m.quads]
+    area = 0.5 * np.abs(np.sum(X[:, :, 0] * np.roll(X[:, :, 1], -1, 1) - np.roll(X[:, :, 0], -1, 1) * X[:, :, 1], 1))
+    assert area.sum() == pytest.approx(4000.0 * 2000.0)
+    assert axis_aligned(X).mean() > 0.7
+    assert len(m.params["bands"]) >= 2 and all(t["columns"][0] > t["columns"][1] for t in m.params["transitions"])
+    tensor = mesh_tensor_2d(grid, h, segments_2d(grid, h, (6, 8)))
+    assert evaluate_2d(tensor, grid, p)["ok"] and rep["n_elements"] < len(tensor.quads)
+    (best, brep), _ = autopilot_2d(grid, p)
+    assert brep["strategy"] == "bands"
+
+
+def test_cfl_reaches_the_evaluation(tmp_path):
+    """Codex, point 1: ``cfl`` of build_mesh_from_sep reaches the evaluation and the report; for a fixed
+    mesh, half the cfl gives half the time step."""
+    sep = gradient_sep(tmp_path / "v.H")
+    grid = grid_from_sep(sep)
+    p = SizingParams(fmax=12.5, order=4, ppw=5)
+    h = h_required(grid, p)
+    m = mesh_tensor_2d(grid, h, segments_2d(grid, h, (3, 5)))
+    r1, r2 = evaluate_2d(m, grid, p, cfl=0.5), evaluate_2d(m, grid, p, cfl=0.25)
+    assert r2["dt_cfl"] == pytest.approx(0.5 * r1["dt_cfl"]) and r2["cost_index"] == pytest.approx(2 * r1["cost_index"])
+    a = build_mesh_from_sep(sep, f0=5.0, out_dir=tmp_path / "a", order=4, ppw=5, cfl=0.5, verbose=False)
+    b = build_mesh_from_sep(sep, f0=5.0, out_dir=tmp_path / "b", order=4, ppw=5, cfl=0.25, verbose=False)
+    import json
+    ra, rb = json.loads(open(a["report"]).read()), json.loads(open(b["report"]).read())
+    assert ra["cfl"] == 0.5 and rb["cfl"] == 0.25 and rb["selected"]["cfl"] == 0.25
+
+
+def test_meshes_crossing_a_sharp_interface_are_rejected(tmp_path):
+    """Codex, point 5: an interface at 50 m in a 1000 m deep model is too close to the surface for the
+    quadtree blocks: it is reported as ignored, and the candidates crossing it are rejected."""
+    from makutu.mesh.seismesh.plane import mesh_quadtree_2d, autopilot_2d
+    from makutu.mesh.seismesh.sizing import horizontal_interfaces
+    z = (np.arange(100)[:, None] + 0.5) * 10.0 * np.ones((1, 200))
+    _write_sep(str(tmp_path / "v.H"), np.where(z < 50, 1500.0, 3000.0).astype(np.float32)[None], 10.0, 10.0, 1.0)
+    grid = grid_from_sep(tmp_path / "v.H")
+    assert horizontal_interfaces(grid) == [50.0]
+    p = SizingParams(fmax=12.5, order=4, ppw=8)
+    h = h_required(grid, p)
+    m = mesh_quadtree_2d(grid, h)
+    rep = evaluate_2d(m, grid, p)
+    assert m.params["ignored_interfaces"] == [50.0]
+    assert not rep["ok"] and rep["interfaces_crossed"].get(50.0, 0) > 0
+    (best, brep), _ = autopilot_2d(grid, p)                      # the search keeps a mesh with a face at 50 m
+    assert brep["ok"] and not brep["interfaces_crossed"]

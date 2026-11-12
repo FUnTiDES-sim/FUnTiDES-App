@@ -93,6 +93,78 @@ de la grille de base. Validation : modèle SEG/EAGE 2-D sel (f0 = 5 Hz, ordre 4)
 cartésien de makutu (20 m) : 15 % d'écart global à 8 pts/λ (3 663 éléments), 5,5 % à 16 pts/λ ;
 modèle synthétique à sel (tests) : 9,6 % puis 4,1 %.
 
+## 3-D : du grossier au fin (stratégie `refine3tz`)
+Grille de base dimensionnée pour la vitesse la plus rapide (`size_factor` × plus grande taille
+requise), 3-raffinement (arbre 27) des cellules dont la taille dépasse la taille requise (1/3, 1/9),
+puis transitions conformes par les gabarits « à économie d'éléments » de **Hua Tong et Yongjie
+Jessica Zhang** :
+
+> H. Tong, Y. J. Zhang, *Element-saving hexahedral 3-refinement templates*, Computer Aided Geometric
+> Design (2026) 102550, doi:[10.1016/j.cagd.2026.102550](https://doi.org/10.1016/j.cagd.2026.102550).
+> Code d'origine : [CMU-CBML/Element-Saving-Hexahedral-3-Refinement-Templates](https://github.com/CMU-CBML/Element-Saving-Hexahedral-3-Refinement-Templates)
+> (licence MIT, Copyright (c) 2026 CMU-CBML).
+
+`templates3_es.py` en est une traduction en Python (méthode 3, par sommets : un sommet est « noir »
+quand une cellule plus fine le touche ; 256 codes, 15 classes). Contrairement aux gabarits de
+Schneiders (`refine3`, où une cellule bordée par deux ou trois faces raffinées doit être raffinée,
+d'où une cascade), tous les codes sont admissibles : un **îlot grossier** (sel) garde ses cellules
+de base, les transitions occupant ses cellules de bord. Conditions : équilibrage par contact (deux
+feuilles qui se touchent diffèrent d'au plus un niveau, `Refine3Mesh.balance_touch`) ; le corps
+rapide doit faire au moins 3 cellules de base d'épaisseur pour qu'une cellule reste intacte.
+Qualité : jacobien normalisé min ≈ 0,23 dans les transitions, 1 ailleurs.
+
+Modèle `salt3d` (2 × 2 × 1,5 km, eau 200 m à 1500 m/s, sédiments 2000 + 0,3 (z − 200) m/s, ellipsoïde
+de sel 1400 × 1400 × 700 m à 4500 m/s ; f0 = 5 Hz, ordre 3, 8 pts/λ) : 73 540 hexaèdres (tailles 44 m
+hors du sel, 133 m dans le sel), 19 s de maillage, contre 657 096 hexaèdres irréguliers pour
+`tetsplit`.
+
+## 2-D : comparaison avec gmsh (10 novembre 2026)
+Modèles de référence de `FUnTiDES-data/SEP` (seg2d, Marmousi, Sigsbee 2A), f0 = 5 Hz, ordre 4, 8 pts/λ ;
+coût = éléments / pas de temps (`cost_index`) ; meilleur maillage valide de chaque approche :
+
+| modèle (éléments idéaux) | seismesh retenu | gmsh, quadrangles frontaux + recombinaison | gmsh, triangles subdivisés |
+|---|---|---|---|
+| seg2d (1 704) | `quadtree` 3 663, dt 1,3 ms, coût 0,18 | 5 326, dt 0,45 ms, coût 0,77 | 6 120, coût 0,93 |
+| Marmousi (3 513) | `tensor` 7 348, dt 1,1 ms, coût 0,43 | 11 590, dt 0,55 ms, coût 1,36 | 9 904, coût 1,11 |
+| Sigsbee 2A (31 106) | `doubling` 49 440, dt 1,1 ms, coût 2,88 | 89 468, dt 0,20 ms, coût 28,1 | 104 884, coût 17,4 |
+
+gmsh suit la taille demandée à ±40 % près : pour échantillonner partout, il faut lui demander 0,6 fois
+la taille requise (taille médiane obtenue 0,6 fois la taille requise, contre 0,73 à 0,91 pour
+seismesh), et ses éléments irréguliers ont des arêtes courtes qui divisent le pas de temps par 2 à 5.
+L'algorithme quasi structuré de gmsh (11) ne suit pas la carte de taille. → En 2-D on garde les
+stratégies structurées ; la recherche automatique choisit `quadtree` quand un corps rapide occupe
+peu de place (seg2d), `tensor` / `doubling` quand la vitesse croît surtout avec la profondeur.
+
+### Essais sans suite
+- Tolérance au bord des corps rapides (laisser un bloc grossier déborder dans les sédiments) : le
+  contraste sel / sédiments (≈ 2,2) l'interdit sans descendre sous 4 pts/λ.
+- Maillage gmsh par régions suivant les interfaces principales (seuils de vitesse, contours
+  simplifiés) : mêmes défauts que gmsh ci-dessus.
+- Quadtree dont les nœuds sont collés sur les interfaces (Zhang et Bajaj 2006) puis optimisés
+  (Knupp) : sur seg2d 4 544 éléments, dt 0,70 ms, écart au tir 16,0 %, contre 3 663 éléments,
+  1,3 ms et 15,1 % pour le quadtree simple. Il reste un anneau d'éléments fins dans le sel (blocs 2 x 2).
+- Maillage structuré + gmsh dans les corps rapides (trou autour du sel, nœuds du bord imposés, raccord
+  conforme) : gmsh grossit bien le sel, mais ses éléments irréguliers divisent le pas de temps par 2
+  à 4 (seg2d : coût 0,28 à 0,33 contre 0,18 ; Sigsbee : 10,9 contre 2,9) ; même avec le pas local,
+  pas mieux que le quadtree seul (0,19 contre 0,17).
+- Déplacement des nœuds du quadtree vers la taille requise (r-adaptation, matrice cible de Knupp) :
+  à nombre d'éléments fixé, il ne fait qu'égaliser la finesse (gain de 5 % sur le pas de temps) et
+  n'arrive pas à rendre valide un quadtree plus grossier (connectivité figée).
+- Régions maillées en grilles régulières raccordées par des bandes gmsh (`patches`, d'abord en
+  quadrangles recombinés, puis en triangles subdivisés comme la validation du pas local de FUnTiDES) :
+  sur le bicouche de cette validation (SEP à 10 m), 1 847 éléments dont certains 1,36 fois trop
+  grands, contre 1 716 pour le quadtree, valide ; les raccords sont larges et gmsh n'y tient pas la taille.
+- Bandes de profondeur à pas horizontal propre raccordées par des rangées de gabarits 3 -> 1 (`bands`) :
+  pour un rapport de taille inférieur à 2 entre bandes, les cellules du raccord se cisaillent (jusqu'à
+  1,6 fois trop grandes).
+L'extraction des interfaces (`interfaces.py`) et l'optimisation des nœuds en 2-D (`smoothing.py`)
+sont gardées. Ce qui a été retenu : la recherche balaie aussi des tailles de base du quadtree au-delà
+de la plus grande taille requise (1,2 à 1,6) et ``ppw_min`` (option ``--ppw-min``) accepte un
+échantillonnage un peu inférieur à la cible dans quelques éléments. La stratégie 2-D `hybrid`
+(doublement + 3-raffinement local) n'est plus essayée par défaut : jamais retenue (coût 2 à 5 fois celui
+de la meilleure) et lente (140 s sur Marmousi contre 6 s pour les autres) ; elle reste disponible par
+``strategies`` / ``--strategies``.
+
 ## Maillages 2-D (plane.py)
 - `tensor` : grille à pas constant par morceaux en x et en z ;
 - `doubling` : le pas horizontal double en profondeur par une couche de transition conforme

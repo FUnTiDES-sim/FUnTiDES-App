@@ -47,9 +47,9 @@ class Session:
         return s
 
     def set_sizing(self, fmax: float, order: int = 4, ppw: float = 5.0, safety: float = 1.0,
-                   hmin: float = 0.0, hmax: float | None = None):
+                   hmin: float = 0.0, hmax: float | None = None, ppw_min: float | None = None):
         self._need_grid()
-        self.sizing = SizingParams(fmax, order, ppw, safety, hmin, np.inf if hmax is None else hmax)
+        self.sizing = SizingParams(fmax, order, ppw, safety, hmin, np.inf if hmax is None else hmax, ppw_min)
         self.h = h_required(self.grid, self.sizing)
         lam = self.grid.vel.min() / fmax
         return {"sizing": self.sizing.to_dict(), "lambda_min": float(lam),
@@ -73,7 +73,7 @@ class Session:
     def generate_mesh(self, strategy="tensor", max_segments=(6, 6, 8), max_grading=2.0,
                       min_elems_per_segment=2, size_factor=0.8, quad_algo="blossom",
                       max_levels=3, trans_layers=1, allow_refine=True, q_bg=0.1, lmax3=1,
-                      cfl=0.5, t_sim=4.0):
+                      cfl=None, t_sim=4.0):
         self._need_h()
         t0 = time.time()
         h_seg = self.h
@@ -98,14 +98,17 @@ class Session:
         elif strategy == "hybrid":
             m = mesh_hybrid(self.grid, self.h, segs, max_levels=max_levels, q_bg=q_bg,
                             lmax3=lmax3, out_msh=msh)
-        elif strategy == "refine3":
-            # from the fastest velocity: base grid for size_factor * largest required size, 1:3 refinement
+        elif strategy in ("refine3", "refine3tz"):
+            # from the fastest velocity: base grid for size_factor * largest required size, 1:3 refinement;
+            # refine3tz = Tong & Zhang (2026) templates, coarse islands (salt) are kept
             m = mesh_refine3(self.grid, self.h, base_max_segments=tuple(max_segments), max_grading=max_grading,
-                             out_msh=msh, base_size=size_factor * float(self.h.max()))
+                             out_msh=msh, base_size=size_factor * float(self.h.max()),
+                             templates="tz" if strategy == "refine3tz" else "schneiders")
         elif strategy == "tetsplit":
             m = mesh_tetsplit(self.grid, self.h, size_factor=size_factor, out_msh=msh)
         else:
-            raise ValueError("strategy ∈ {tensor, extrude, doubling, hybrid, refine3, tetsplit}")
+            raise ValueError("strategy ∈ {tensor, extrude, doubling, hybrid, refine3, refine3tz, tetsplit}")
+        cfl = getattr(self, "cfl", 0.5) if cfl is None else cfl
         rep = evaluate(m, self.grid, self.sizing, cfl=cfl, t_sim=t_sim,
                        lts_max_level=self.lts_max_level)
         rep["mesh_time_s"] = round(time.time() - t0, 2)
@@ -113,8 +116,9 @@ class Session:
                          "max_grading": max_grading, "size_factor": size_factor,
                          "quad_algo": quad_algo, "max_levels": max_levels,
                          "trans_layers": trans_layers, "allow_refine": allow_refine, "q_bg": q_bg, "lmax3": lmax3, "sizing": self.sizing.to_dict()}
-        if strategy == "refine3":
-            rep["refine3"] = {k: m.params[k] for k in ("lmax", "base_size", "base_cells", "templates", "leaves_per_level")
+        if strategy in ("refine3", "refine3tz"):
+            rep["refine3"] = {k: m.params[k] for k in ("lmax", "base_size", "base_cells", "templates", "classes",
+                                                       "leaves_per_level")
                               if k in m.params}
         if strategy in ("doubling", "hybrid"):
             rep["doubling"] = {k: m.params[k] for k in ("transitions", "nx_ny_fine", "nz_layers")}
@@ -159,8 +163,9 @@ class Session:
         Path(f"{base}_report.json").write_text(json.dumps(public(rep), indent=2, default=float))
         return {"files": [f"{base}.msh", f"{base}_sem.npz", f"{base}.vtk", f"{base}_report.json"]}
 
-    def autopilot(self, strategies=("tensor", "extrude", "doubling", "hybrid"), t_sim=4.0, lts=None):
+    def autopilot(self, strategies=("tensor", "extrude", "doubling", "hybrid"), t_sim=4.0, lts=None, cfl=0.5):
         """Recherche déterministe : minimise cost_index sous contraintes de qualité."""
+        self.cfl = cfl                                    # used by generate_mesh (Codex, point 1)
         self._need_h()
         tried = []
         # balayage resserré (les variantes redondantes donnent des maillages identiques)
@@ -180,6 +185,9 @@ class Session:
         if "refine3" in strategies:
             for sf in (1.0, 0.9, 0.8, 0.7):            # base size: fraction of the largest required size
                 tried.append(self.generate_mesh("refine3", (1, 1, 10), 2.0, size_factor=sf, t_sim=t_sim))
+        if "refine3tz" in strategies:
+            for sf in (1.0, 0.9, 0.8, 0.7):
+                tried.append(self.generate_mesh("refine3tz", (1, 1, 10), 2.0, size_factor=sf, t_sim=t_sim))
         if "tetsplit" in strategies:
             for sf in (0.9, 0.8, 0.7, 0.6, 0.5, 0.45, 0.4, 0.35):   # tetrahedron size: fraction of 2 h_req, until sampled
                 r = self.generate_mesh("tetsplit", (6, 6, 8), 2.0, size_factor=sf, t_sim=t_sim)

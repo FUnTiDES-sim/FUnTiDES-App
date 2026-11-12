@@ -267,6 +267,91 @@ class Refine3Mesh:
         return nodes, _orient(nodes, hexes), {"templates": counts, "leaves_per_level": levels}
 
 
+    # ------------------------------------------- gabarits de Tong & Zhang (2026)
+    def _leaf_ancestor(self, c):
+        """Feuille de niveau <= c[0] qui contient la cellule c (ou None si c est subdivisée)."""
+        l, i, j, k = c
+        for m in range(l, -1, -1):
+            f = 3 ** (l - m)
+            a = (m, i // f, j // f, k // f)
+            if a in self.leaves:
+                return a
+        return None
+
+    def balance_touch(self, max_iter=500) -> dict:
+        """Équilibrage par contact : deux feuilles qui se touchent (même par un coin) diffèrent d'au
+        plus un niveau. C'est la condition des gabarits de Tong & Zhang : le voisinage de chaque
+        sommet noir est alors fait de cellules d'un seul niveau plus fin. Tous les codes de sommets
+        sont admissibles : pas de raffinement forcé pour un motif interdit."""
+        stats = {"iterations": 0, "forced_splits": 0}
+        for it in range(max_iter):
+            to_split = set()
+            for (l, i, j, k) in self.leaves:
+                if l < 2:
+                    continue
+                p = (l - 1, i // 3, j // 3, k // 3)
+                for a in (-1, 0, 1):
+                    for b in (-1, 0, 1):
+                        for d in (-1, 0, 1):
+                            q = (l - 1, p[1] + a, p[2] + b, p[3] + d)
+                            n = 3 ** (l - 1)
+                            if not all(0 <= q[1 + e] < self.n0[e] * n for e in range(3)):
+                                continue
+                            anc = self._leaf_ancestor(q)
+                            if anc is not None and anc[0] < l - 1:
+                                to_split.add(anc)
+            stats["iterations"] = it + 1
+            if not to_split:
+                return stats
+            for c in to_split:
+                self.split(c)
+            stats["forced_splits"] += len(to_split)
+        raise RuntimeError("équilibrage non convergé")
+
+    def to_hexes_tz(self, decimals=6):
+        """Hexaèdres avec les gabarits de Tong & Zhang (module ``templates3_es``) : chaque feuille
+        reçoit le gabarit de son code de sommets (sommet noir = coin d'une feuille plus fine). Les
+        gabarits sont évalués en coordonnées du réseau (réels), puis envoyés dans l'espace physique
+        (affine dans chaque cellule de base) ; nœuds fusionnés sur coordonnées arrondies."""
+        from . import templates3_es as tz
+        m = self._node_maxlevel()
+        blocks, cls_count, hex_cls = [], {}, []
+        for c in self.leaves:
+            l = c[0]
+            cs = self.corners(c)
+            black = [m[key] > l for key in cs]
+            code = tz.cell_code(black)
+            lo = np.array(cs[0], float)
+            size = np.array(cs[6], float) - lo
+            hx = np.array(tz.cell_hexes(lo, size, code))
+            blocks.append(hx)
+            cls = tz.ROTATIONS[code][0]
+            hex_cls.append(np.full(len(hx), cls))
+            cls_count[cls] = cls_count.get(cls, 0) + 1
+        K = np.concatenate(blocks)                               # (ne, 8, 3) lattice coordinates
+        key = np.round(K.reshape(-1, 3), decimals)
+        uniq, inv = np.unique(key, axis=0, return_inverse=True)
+        nodes = self._phys_float(uniq)
+        hexes = inv.reshape(-1, 8)
+        levels = {}
+        for c in self.leaves:
+            levels[c[0]] = levels.get(c[0], 0) + 1
+        return nodes, _orient(nodes, hexes), {"templates": "tong-zhang-2026",
+                                               "classes": dict(sorted(cls_count.items())),
+                                               "leaves_per_level": levels,
+                                               "hex_class": np.concatenate(hex_cls)}
+
+    def _phys_float(self, keys):
+        out = np.empty(keys.shape, float)
+        for a in range(3):
+            q = keys[:, a]
+            b = np.clip(np.floor(q / self.R + 1e-12).astype(int), 0, self.n0[a] - 1)
+            f = (q - b * self.R) / self.R
+            ax = self.axes[a]
+            out[:, a] = ax[b] + f * (ax[b + 1] - ax[b])
+        return out
+
+
 def _orient(nodes, hexes):
     X = nodes[hexes]
     det = np.einsum("ij,ij->i", np.cross(X[:, 1] - X[:, 0], X[:, 3] - X[:, 0]), X[:, 4] - X[:, 0])

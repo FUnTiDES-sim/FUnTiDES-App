@@ -283,7 +283,8 @@ def mesh_quadtree_2d(grid, h, max_block_elements=None, honor_interfaces=True, of
     (:mod:`quadtree_2d`) : blocs de base dimensionnés pour la plus grande taille requise (2 x 2
     éléments de cette taille), découpés tant que leurs éléments dépassent la taille requise ;
     zones rapides à grands éléments, zones lentes à petits, transitions 2:1 conformes.
-    Les rangées de blocs de base passent par les interfaces horizontales nettes."""
+    Les rangées de blocs de base passent par les interfaces horizontales nettes.
+    """
     from .quadtree_2d import Quadtree2D
     h2 = h[:, 0, :]
     s0 = float(h2.max()) if max_block_elements is None else float(max_block_elements)
@@ -291,10 +292,12 @@ def mesh_quadtree_2d(grid, h, max_block_elements=None, honor_interfaces=True, of
     (x0, x1), _, (z0, z1) = grid.extent
     block = 2.0 * s0
     xs = np.array(_offset_edges(x0, x1, block, offset[0]))
-    cuts = [z0]
+    cuts, ignored = [z0], []
     for b in (horizontal_interfaces(grid) if honor_interfaces else []):
         if b - cuts[-1] >= 0.5 * block and z1 - b >= 0.5 * block:     # no thin row of blocks
             cuts.append(b)
+        else:
+            ignored.append(float(b))                                # reported; the evaluation rejects a crossing
     cuts.append(z1)
     zs = [z0]
     for j, (a, b) in enumerate(zip(cuts[:-1], cuts[1:])):
@@ -306,7 +309,8 @@ def mesh_quadtree_2d(grid, h, max_block_elements=None, honor_interfaces=True, of
     nodes, quads, levels = T.to_quads()
     counts = np.bincount(levels, minlength=lmax + 1)
     info = {"base_element_size": s0, "lmax": lmax, "base_blocks": [len(xs) - 1, len(zs) - 1], "offset": list(offset),
-            "elements_per_level": counts.tolist(), "forced_splits": forced, "interfaces": cuts[1:-1]}
+            "elements_per_level": counts.tolist(), "forced_splits": forced, "interfaces": cuts[1:-1],
+            "ignored_interfaces": ignored}
     return QuadMesh(nodes, quads, "quadtree", info)
 
 
@@ -328,24 +332,32 @@ def evaluate_2d(m: QuadMesh, grid: VelocityGrid, p: SizingParams, cfl=0.5, t_sim
     sj = np.where(convex, sj.min(axis=1), -1.0)
     edges = np.linalg.norm(e_next, axis=2)
     hmin, hmax = edges.min(axis=1), edges.max(axis=1)
-    lo2, hi2 = X.min(axis=1), X.max(axis=1)
-    y0 = grid.origin[1]
-    lo = np.stack([lo2[:, 0], np.full(len(lo2), y0), lo2[:, 1]], -1)
-    hi = np.stack([hi2[:, 0], np.full(len(hi2), y0), hi2[:, 1]], -1)
-    vmin, vmax, vmean = grid.box_minmax(lo, hi)
+    from .elements2d import element_stats_2d, element_box_stats_2d
+    from .sizing import PPW_TOLERANCE
+    st = element_stats_2d(grid, m.nodes, m.quads)              # on the real element (Codex, point 3)
+    vmin, vmax, vmean = st["min"], st["max"], st["mean"]
     ppw = p.order * vmin / (p.fmax * hmax)
-    under = ppw < p.ppw * 0.98
+    under = ppw < p.ppw_accept * (1.0 - PPW_TOLERANCE)        # every element (Codex, point 2)
+    ppw_box = p.order * element_box_stats_2d(grid, m.nodes, m.quads)[0] / (p.fmax * hmax)
+    # sharp horizontal interfaces must be element faces (Codex, point 5)
+    zmin_e, zmax_e = X[:, :, 1].min(1), X[:, :, 1].max(1)
+    tol_z = 1e-6 * float(np.ptp(m.nodes[:, 1]))
+    cross = {float(zi): int(np.sum((zmin_e < zi - tol_z) & (zmax_e > zi + tol_z))) for zi in horizontal_interfaces(grid)}
+    n_cross = sum(cross.values())
     dt_e = cfl * hmin * gll_min_fraction(p.order) / vmax
     dt = float(dt_e.min())
     ne = len(m.quads)
     levels = np.floor(np.log2(dt_e / dt))
     rep = {
-        "ok": bool(sj.min() > 0.2 and under.mean() < 1e-3),
+        "ok": bool(sj.min() > 0.2 and not under.any() and n_cross == 0),
         "strategy": m.strategy, "dim": 2, "n_elements": int(ne), "n_nodes": int(len(m.nodes)),
         "scaled_jacobian": {"min": float(sj.min()), "mean": float(sj.mean())},
+        "frac_irregular": float((sj < 0.99).mean()),          # not a right-angled rectangle (transitions)
         "ppw_effective": {"min": float(ppw.min()), "median": float(np.median(ppw)), "target": p.ppw},
-        "frac_undersampled": float(under.mean()),
-        "dt_cfl": dt, "n_steps": int(np.ceil(t_sim / dt)),
+        "frac_undersampled": float(under.mean()), "n_undersampled": int(under.sum()),
+        "interfaces_crossed": {z: n for z, n in cross.items() if n},
+        "ppw_box_min": float(ppw_box.min()),                   # conservative estimate on bounding boxes
+        "dt_cfl": dt, "cfl": cfl, "n_steps": int(np.ceil(t_sim / dt)),
         "cost_index": float(ne * p.order ** 2 * t_sim / dt / 1e9),
         "cost_index_lts": float(p.order ** 2 * t_sim * np.sum(1.0 / (dt * 2.0 ** levels)) / 1e9),
         "params": m.params,
@@ -354,48 +366,80 @@ def evaluate_2d(m: QuadMesh, grid: VelocityGrid, p: SizingParams, cfl=0.5, t_sim
     return rep
 
 
+REGULARITY_WEIGHT = 0.5
+
+
+def mesh_score(rep, rank="elements"):
+    """Score de classement d'un candidat valide (plus petit = meilleur).
+
+    ``"elements"`` (défaut) : la taille des éléments est fixée par l'ordre du schéma et la fréquence de la
+    source (taille requise) ; on cherche le maillage qui la respecte avec le moins d'éléments, en
+    préférant les mailles régulières : nombre d'éléments x (1 + 0,5 x part d'éléments non rectangulaires).
+    ``"cost"`` / ``"lts"`` : coût de calcul (éléments / pas de temps global, ou pas local idéal)."""
+    if rank == "cost":
+        return rep["cost_index"]
+    if rank == "lts":
+        return rep["cost_index_lts"]
+    return rep["n_elements"] * (1 + REGULARITY_WEIGHT * rep.get("frac_irregular", 0.0))
+
+
 def autopilot_2d(grid: VelocityGrid, p: SizingParams, t_sim=4.0, lts=False,
-                 strategies=("tensor", "doubling", "hybrid", "quadtree")):
-    """Recherche déterministe : candidats tensoriels et à doublements ; renvoie
-    (meilleur (maillage, rapport) valide, liste des rapports)."""
+                 strategies=("tensor", "doubling", "quadtree", "bands"), rank="elements", cfl=0.5):
+    """Recherche déterministe parmi les stratégies ``strategies`` ; classement par :func:`mesh_score`
+    (``rank``, ``lts=True`` équivaut à ``rank="lts"``). Renvoie (meilleur (maillage, rapport) valide,
+    liste des rapports)."""
     h = h_required(grid, p)
     tried = []
     for ms in [(2, 3), (3, 5), (4, 6), (6, 8), (8, 12)]:
         segs = segments_2d(grid, h, ms)
         if "tensor" in strategies:
             m = mesh_tensor_2d(grid, h, segs)
-            tried.append((m, evaluate_2d(m, grid, p, t_sim=t_sim)))
+            tried.append((m, evaluate_2d(m, grid, p, cfl=cfl, t_sim=t_sim)))
         if "doubling" in strategies:
             for levels in (1, 2, 3):
                 for refine in (False, True):
                     m = mesh_doubling_2d(grid, h, segs, levels, refine)
-                    rep = evaluate_2d(m, grid, p, t_sim=t_sim)
+                    rep = evaluate_2d(m, grid, p, cfl=cfl, t_sim=t_sim)
                     rep["params"] = {**rep["params"], "max_levels": levels, "allow_refine": refine,
                                      "max_segments": list(ms)}
                     tried.append((m, rep))
     if "quadtree" in strategies:
-        # base element size: the largest required size, or smaller so that the levels (base / 2^l)
-        # fall closer to the required sizes of the model
-        for k in (1.0, 0.9, 0.8, 0.75, 0.7, 0.6, 0.5):
+        # base element size: around the largest required size (larger: the levels base / 2^l may fall
+        # just under the required sizes, the coarse body is then split once and kept below them; smaller:
+        # the levels fall closer to the required sizes of the model)
+        for k in (1.6, 1.4, 1.2, 1.0, 0.9, 0.8, 0.75, 0.7, 0.6, 0.5):
             for off in ((0.0, 0.0), (0.5, 0.0), (0.0, 0.5), (0.5, 0.5)):   # base grid shift (block fraction)
                 m = mesh_quadtree_2d(grid, h, max_block_elements=k * float(h.max()), offset=off)
-                rep = evaluate_2d(m, grid, p, t_sim=t_sim)
+                rep = evaluate_2d(m, grid, p, cfl=cfl, t_sim=t_sim)
                 rep["params"] = {**rep["params"], "base_factor": k, "offset": off}
+                tried.append((m, rep))
+    if "bands" in strategies:
+        from .bands2d import mesh_bands_2d
+        for ms in (4, 8, 12):                     # vertical segments per regular part
+            for coarsen in (1.1, 1.2):            # least gain to start a coarser band
+                try:
+                    m = mesh_bands_2d(grid, h, max_segments=ms, coarsen=coarsen)
+                except RuntimeError:
+                    continue
+                rep = evaluate_2d(m, grid, p, cfl=cfl, t_sim=t_sim)
+                rep["params"] = {**rep["params"], "max_segments": ms, "coarsen": coarsen}
                 tried.append((m, rep))
     if "hybrid" in strategies:
         for levels in (1, 2, 3):
             for q_bg in (0.1, 0.3, 0.5):          # background: lateral quantile of h_req per depth
                 m = mesh_hybrid_2d(grid, h, max_levels=levels, q_bg=q_bg)
-                rep = evaluate_2d(m, grid, p, t_sim=t_sim)
+                rep = evaluate_2d(m, grid, p, cfl=cfl, t_sim=t_sim)
                 rep["params"] = {**rep["params"], "max_levels": levels, "q_bg": q_bg}
                 tried.append((m, rep))
     if "adaptive" in strategies:
         for sf in (0.9, 0.8, 0.7):
             m = mesh_adaptive_2d(grid, h, sf)
-            rep = evaluate_2d(m, grid, p, t_sim=t_sim)
+            rep = evaluate_2d(m, grid, p, cfl=cfl, t_sim=t_sim)
             tried.append((m, rep))
             if rep["ok"]:
                 break
-    key = "cost_index_lts" if lts else "cost_index"
-    tried.sort(key=lambda t: (not t[1]["ok"], t[1][key]))
+    rank = "lts" if lts else rank
+    for _, r in tried:
+        r["score"] = mesh_score(r, rank) if r.get("ok") else None
+    tried.sort(key=lambda t: (not t[1]["ok"], mesh_score(t[1], rank)))
     return (tried[0] if tried and tried[0][1]["ok"] else None), [r for _, r in tried]

@@ -43,7 +43,8 @@ def evaluate(m: HexMesh, grid: VelocityGrid, p: SizingParams, cfl: float = 0.5,
     sj, hmin_e, hmax_e, lo, hi = element_metrics(m)
     vmin, vmax, vmean = grid.box_minmax(lo, hi)
     ppw_eff = p.order * vmin / (p.fmax * hmax_e)
-    under = ppw_eff < p.ppw * 0.98
+    from .sizing import PPW_TOLERANCE
+    under = ppw_eff < p.ppw_accept * (1.0 - PPW_TOLERANCE)    # every element (Codex, point 2)
     over = ppw_eff > 2.0 * p.ppw                          # sur-échantillonnage (gaspillage)
     dt_e = cfl * hmin_e * gll_min_fraction(p.order) / vmax
     dt = float(dt_e.min())
@@ -53,8 +54,8 @@ def evaluate(m: HexMesh, grid: VelocityGrid, p: SizingParams, cfl: float = 0.5,
     rep = {
         # hexahedra split from tetrahedra are general: a positive jacobian is enough (threshold 0.1)
         "ok": bool(m.n_non_hex == 0 and sj.min() > (0.1 if m.strategy == "tetsplit" else 0.2)
-                   and under.mean() < 1e-3),
-        "strategy": m.strategy,
+                   and not under.any()),
+        "strategy": m.strategy, "cfl": cfl,
         "n_elements": int(ne), "n_nodes": int(len(m.nodes)), "n_non_hex": int(m.n_non_hex),
         "n_gll_points_approx": int(n_gll),
         "scaled_jacobian": {"min": float(sj.min()), "p01": float(np.percentile(sj, 1)),

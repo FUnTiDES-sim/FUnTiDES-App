@@ -13,6 +13,12 @@ import numpy as np
 from .velocity import VelocityGrid
 
 
+# Tolérance numérique de l'échantillonnage : un élément est sous-échantillonné si ppw_effectif <
+# ppw_min x (1 - PPW_TOLERANCE). Elle n'absorbe que les arrondis (bords des cellules SEP, positions des
+# nœuds) ; un maillage n'est valide que si *aucun* élément n'est sous-échantillonné.
+PPW_TOLERANCE = 0.01
+
+
 @dataclass
 class SizingParams:
     fmax: float = 15.0          # Hz
@@ -21,6 +27,11 @@ class SizingParams:
     safety: float = 1.0         # facteur <1 pour marge
     hmin: float = 0.0           # bornes optionnelles
     hmax: float = np.inf
+    ppw_min: float | None = None  # échantillonnage minimal accepté (validité ; défaut : ppw)
+
+    @property
+    def ppw_accept(self) -> float:
+        return self.ppw if self.ppw_min is None else min(self.ppw, self.ppw_min)
 
     def to_dict(self):
         d = asdict(self)
@@ -43,6 +54,12 @@ def axis_profile(h: np.ndarray, k: int) -> np.ndarray:
     """Espacement admissible le long de l'axe k : min sur le plan orthogonal."""
     other = tuple(a for a in range(3) if a != k)
     return h.min(axis=other)
+
+
+# Tolérance numérique de l'échantillonnage : un élément est sous-échantillonné si ppw_effectif <
+# ppw_min x (1 - PPW_TOLERANCE). Elle n'absorbe que les arrondis (bords des cellules SEP, positions des
+# nœuds) ; un maillage n'est valide que si *aucun* élément n'est sous-échantillonné.
+PPW_TOLERANCE = 0.01
 
 
 @dataclass

@@ -37,7 +37,7 @@ fig, axs = plt.subplots(3, 1, figsize=(12, 13))
 im = axs[0].imshow(c10.T, extent=[0, 5120, 2560, 0], cmap="viridis")
 axs[0].add_collection(LineCollection([np.vstack([Q, Q[:1]]) for Q in P], colors="w", linewidths=0.25))
 fig.colorbar(im, ax=axs[0], label="vp (m/s)", shrink=0.8); axs[0].set_title("SEG/EAGE 2-D sel et maillage seismesh quadtree")
-for ax, vals, cmap, lab, clim in [(axs[1], size, "magma", "taille de l'élément (m)", None),
+for ax, vals, cmap, lab, clim in [(axs[1], size, "viridis", "taille de l'élément (m)", None),
                                   (axs[2], ratio, "RdYlGn_r", "taille / taille requise (≤ 1 : 8 pts/λ)", (0, 1.2))]:
     pc = PolyCollection(P, array=vals, cmap=cmap, edgecolors="k", linewidths=0.15)
     if clim: pc.set_clim(*clim)

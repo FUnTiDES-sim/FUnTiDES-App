@@ -28,16 +28,21 @@ def main():
     parser.add_argument("--out", type=Path, default=Path("seismesh_out"), help="output directory")
     parser.add_argument("--order", type=int, default=4, help="SEM polynomial order")
     parser.add_argument("--ppw", type=float, default=5.0, help="GLL points per shortest wavelength")
+    parser.add_argument("--rank", choices=["elements", "cost", "lts"], default="elements",
+                        help="2-D ranking: fewest elements preferring regular ones (default), or computing cost")
+    parser.add_argument("--ppw-min", type=float, default=None,
+                        help="lowest sampling accepted in an element (default: --ppw), e.g. 7.5 for --ppw 8")
     parser.add_argument("--rho-file", type=Path, help="SEP density (default: constant --rho)")
     parser.add_argument("--rho", type=float, default=1.0)
     parser.add_argument("--t-sim", type=float, default=4.0, help="simulated time for the cost index [s]")
     parser.add_argument("--lts", action="store_true", help="rank the meshes by their cost with local time stepping")
-    parser.add_argument("--strategies", nargs="+", choices=["tensor", "doubling", "hybrid", "extrude"],
+    parser.add_argument("--strategies", nargs="+", choices=["tensor", "doubling", "hybrid", "refine3", "refine3tz", "tetsplit", "extrude",
+                                                             "quadtree", "bands"],
                         help="strategies to try (default: all those of the dimension)")
     args = parser.parse_args()
 
     from makutu.mesh.seismesh import build_mesh_from_sep
-    result = build_mesh_from_sep(args.vp_file, args.f0, args.out, order=args.order, ppw=args.ppw,
+    result = build_mesh_from_sep(args.vp_file, args.f0, args.out, order=args.order, ppw=args.ppw, ppw_min=args.ppw_min, rank=args.rank,
                                  rho_file=args.rho_file, rho=args.rho, t_sim=args.t_sim, lts=args.lts,
                                  strategies=args.strategies)
     sel = result["selected"]
