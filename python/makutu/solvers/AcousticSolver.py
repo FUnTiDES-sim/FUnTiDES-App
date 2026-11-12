@@ -443,12 +443,18 @@ class AcousticSolver(WaveSolver):
         """
         if not getattr(self, "_pddStep", None):
             raise RuntimeError("computeGradient needs runForward(snapshotStep=...) first")
-        vp = np.array(self.kk_model_vp, copy=False).astype(np.float64)
-        table, weights = self._elementNodeTable()
-        if vp.size != table.shape[0]:
-            raise NotImplementedError("gradient: the model must be defined on the elements")
-        rho = (np.array(self.kk_model_rho, copy=False).astype(np.float64)
-               if self.kk_model_rho is not None else np.ones_like(vp))
+        # Model owned by the mesh (makutu.mortar.BlocksMesh2D): gradient at the nodes, then mapped
+        # by the mesh onto its model grid
+        nodal = hasattr(self.locator, "nodeGradient")
+        if nodal:
+            table = None
+        else:
+            vp = np.array(self.kk_model_vp, copy=False).astype(np.float64)
+            table, weights = self._elementNodeTable()
+            if vp.size != table.shape[0]:
+                raise NotImplementedError("gradient: the model must be defined on the elements")
+            rho = (np.array(self.kk_model_rho, copy=False).astype(np.float64)
+                   if self.kk_model_rho is not None else np.ones_like(vp))
 
         # Adjoint sources: the receivers of this rank, with their weights
         residual = np.asarray(residual, dtype=np.float64)
@@ -480,8 +486,9 @@ class AcousticSolver(WaveSolver):
 
         # Adjoint run; lambda^n = current field after execute(N - 1 - n)
         self.resetWaveField()
-        grad_m = np.zeros(table.shape[0])
-        illum_m = np.zeros(table.shape[0])
+        size = self.model.get_number_of_nodes() if nodal else table.shape[0]
+        grad_m = np.zeros(size)
+        illum_m = np.zeros(size)
         step = self._pddStep * self.dt
         for j in range(n_steps):
             self.execute(j)
@@ -489,9 +496,17 @@ class AcousticSolver(WaveSolver):
             if m in self._pdd:
                 lam = np.array(self.data.get_current_field(0), copy=False)
                 pdd = self._unpackSnapshot(self._pdd.pop(m))
-                grad_m += step * ((lam * pdd)[table] @ weights)
-                illum_m += step * ((pdd * pdd)[table] @ weights)
+                if nodal:
+                    grad_m += step * lam * pdd
+                    illum_m += step * pdd * pdd
+                else:
+                    grad_m += step * ((lam * pdd)[table] @ weights)
+                    illum_m += step * ((pdd * pdd)[table] @ weights)
         self._pdd, self._pddStep = {}, None
+        if nodal:
+            g, h = self.locator.nodeGradient(grad_m, illum_m, parametrization)
+            self.illumination = h
+            return g
 
         if parametrization == "c":
             dm = -2.0 / (vp ** 3 * rho)

@@ -50,6 +50,7 @@ class Solver:
                  surface_sponge=False,
                  taper_delta=0.01,
                  comm=None,
+                 solver_setup=None,
                  **kwargs):
         """
         Parameters
@@ -77,6 +78,10 @@ class Solver:
                 MPI communicator for 1-D X domain decomposition.  When
                 provided and ``size > 1``, the mass matrix boundaries are
                 synchronised after ``compute_fe_init``.
+            solver_setup : callable, optional
+                Called as ``solver_setup(fun_solver)`` after each ``compute_fe_init`` (for example
+                to give the interface operator of a mesh of non-conforming blocks,
+                :class:`makutu.mortar.BlocksMesh2D`).
         """
         self.model = model
         self.order = order
@@ -92,6 +97,7 @@ class Solver:
         self.surface_sponge = surface_sponge
         self.taper_delta = taper_delta
         self.comm = comm
+        self.solver_setup = solver_setup
 
         self.alreadyInitialized = False
         self.solver = None
@@ -115,6 +121,8 @@ class Solver:
         self.solver.compute_fe_init(
             self.model, self.sponge_size, self.surface_sponge, self.taper_delta
         )
+        if self.solver_setup is not None:
+            self.solver_setup(self.solver)
 
         # Synchronise mass-matrix boundary nodes once (domain decomposition)
         if self._mpi_active():
@@ -127,6 +135,8 @@ class Solver:
         self.solver.compute_fe_init(
             self.model, self.sponge_size, self.surface_sponge, self.taper_delta
         )
+        if self.solver_setup is not None:
+            self.solver_setup(self.solver)
         if self._mpi_active():
             self._sync_mass_matrix()
 

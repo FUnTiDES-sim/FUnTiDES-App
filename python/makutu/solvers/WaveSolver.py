@@ -458,6 +458,10 @@ class WaveSolver(Solver):
                 surface, see :meth:`getVelocityModel`). Only positions where
                 vel > 0 are updated.
         """
+        if hasattr(self.locator, "setVelocityModel"):     # model owned by the mesh (makutu.mortar)
+            self.locator.setVelocityModel(vel)
+            self.reinitSolver()
+            return
         assert self.kk_model_vp is not None, \
             "kk_model_vp must be provided at construction time to use updateVelocityModel"
         vp = np.array(self.kk_model_vp, copy=False)
@@ -495,6 +499,8 @@ class WaveSolver(Solver):
                 Flat element (or node) values in seismic order: x fastest, then
                 y, then z from the surface downwards (reshape to (ez, [ey,] ex)).
         """
+        if hasattr(self.locator, "getVelocityModel"):
+            return self.locator.getVelocityModel()
         assert self.kk_model_vp is not None
         return self._flip_z(np.array(self.kk_model_vp, copy=True))
 
