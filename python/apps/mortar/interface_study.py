@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .solver2d import Mortar2D, Patch, ricker
+from makutu.mortar.solver2d import Mortar2D, Patch, ricker
 
 
 def plane_wave_case(c, order=4, ppw=5.0, f0=8.0, v1=2000.0, rho=1000.0, mesh="blocs", width=None,

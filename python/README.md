@@ -15,9 +15,9 @@ before moving here; its history is kept.
 
 | Path | Contents |
 |---|---|
-| `makutu/` | the library (`import makutu…`): `mesh`, `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
-| `apps/` | applications: `modeling` (examples and tools), `fullWaveformInversion`, `display`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
-| `tests/` | `unitTests` (acquisition, cost, filter, optimisers, conditioning; no solver), `integratedTests` (FUnTiDES on the GPU: shots, 2-D against the exact solution, elastic, gradient, adjoint, FWI functions, MPI) |
+| `makutu/` | the library (`import makutu…`): `mesh` (including `seismesh`), `mortar` (2-D blocks glued by SIPG, hybrid SEM + DG triangles; see its README), `solvers` (acoustic/elastic SEM), `input`, `acquisition`, `output`, `imaging`, `forwardBackward`, `display`, `tools` |
+| `apps/` | applications and their examples and documents: `modeling` (examples and tools), `mesh`, `mortar` (comparisons, meshes and costs, FUnTiDES shots, reference document, `reproduce.py`), `fullWaveformInversion`, `display`, and `run_funtides.py` (YAML launcher of the C++ drivers of `../examples`) |
+| `tests/` | `unitTests` (acquisition, cost, filter, optimisers, conditioning, seismesh, mortar and hybrid prototypes; no FUnTiDES solver), `integratedTests` (FUnTiDES on the GPU: shots, 2-D against the exact solution, mortar blocks, elastic, gradient, adjoint, FWI functions, MPI) |
 | `docs/` | Sphinx documentation (user guide, examples, API, status) and `funtides_input_parameters.md` |
 | `validation/` | DAS validation: analytical solution of an elastic point source (displacement and DAS signal) |
 
@@ -123,6 +123,17 @@ solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolv
 ```
 
 See `apps/modeling/examples/marmousi_2d/` (README: data preparation, mesh choice, modelling).
+
+**2-D blocks and hybrid SEM + DG.** `makutu.mortar` tiles a SEP model with regular blocks, each at the
+size N v / (fmax ppw), glued by a symmetric interior penalty (run on the GPU by the FUnTiDES 2-D SEM
+solver of the `dev-2d` branch), and has a Python prototype that adds DG triangles along the model
+interfaces. Applications, the reference document and the reproduction of the modelling cases on the
+SEP models are in `apps/mortar/` (README there):
+
+```bash
+python apps/mortar/reproduce.py --list
+python apps/mortar/reproduce.py --model seg2d disque
+```
 
 MPI, via `mpi4py`: in 3-D, 1-D X-axis domain decomposition (pass a communicator to the
 mesh/solver constructors); in 2-D and 3-D, shots dealt out to the ranks when the solver

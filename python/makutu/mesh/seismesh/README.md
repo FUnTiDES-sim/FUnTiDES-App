@@ -5,6 +5,12 @@ d'élément suit le modèle de vitesses et la fréquence de la source ; export p
 de FUnTiDES et modélisation avec makutu (`GmshMesh`, `AcousticSolver`). Issu de `seismesh_agent`
 (sans la partie agent LLM).
 
+> **Suite en 2-D (11-12 novembre 2026).** Un maillage conforme de quadrangles ne peut pas à la fois suivre
+> la vitesse localement et rester régulier (niveaux dyadiques : 2,16 fois l'idéal). L'option retenue en
+> 2-D est le pavage en blocs réguliers non conformes recollés par SIPG, avec une variante hybride à
+> triangles DG le long des interfaces : bibliothèque `makutu.mortar`, applications et résultats dans
+> `apps/mortar/`. seismesh reste la voie conforme (2-D et 3-D) pour les lecteurs gmsh de FUnTiDES.
+
 ## Utilisation : modèle SEP + fréquence de la source
 ```bash
 python apps/mesh/seismesh_from_sep.py --vp-file vp.H --f0 8 --order 4 --ppw 5 --out maillage   # [--rho-file rho.H] [--lts]

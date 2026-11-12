@@ -14,7 +14,10 @@ from pathlib import Path
 
 import numpy as np
 
-from makutu.mortar.interface_study import plane_wave_case, window_errors
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from interface_study import plane_wave_case, window_errors  # noqa: E402  (apps/mortar)
 
 
 def main():

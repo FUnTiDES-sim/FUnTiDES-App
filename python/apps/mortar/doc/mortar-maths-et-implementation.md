@@ -1,7 +1,9 @@
 # Blocs réguliers non conformes recollés par pénalité intérieure : mathématiques et implémentation
 
-État au 12 novembre 2026. Code : `makutu/mortar/` (FUnTiDES-App, branche `makutu`) et solveur SEM 2-D de
-FUnTiDES (branche `dev-2d`). Rien n'est commité ; FUnTiDES modifié est installé dans `FUnTiDES-install`.
+État au 12 novembre 2026. Bibliothèque : `makutu/mortar/` ; applications, exemples et ce document :
+`apps/mortar/` (FUnTiDES-App, branche `makutu`) ; solveur SEM 2-D de
+FUnTiDES (branche `dev-2d`). Commits : FUnTiDES-App `69643bb` (branche `makutu`), FUnTiDES `4e001b9` (branche `dev-2d`, installé
+dans `FUnTiDES-install`).
 
 ## 1. Point d'étape
 
@@ -198,9 +200,14 @@ demi-cellule à l'intérieur de leur bloc : le saut est exact, chaque côté voi
 | `blocks2d.py` | `plan_blocks`, `plan_blocks_global`, `uniform_plan`, `grid_sampler`, `sharp_interfaces`, `gll_cfl` |
 | `funtides2d.py` | `funtides_model` (ModelUnstruct 2-D à nœuds dupliqués), `set_interface_operator`, `FuntidesBlocks2D` (tir direct, `dt_max` par itération de puissance sur GPU) |
 | `mesh2d.py` | `BlocksMesh2D` : maillage pour `AcousticSolver` de makutu (localisateur, crochet `solver_setup`) |
-| `interface_study.py` | onde plane sur une interface : erreur due à la non-conformité |
 | `plots2d.py` | figures des pavages |
 | `lts2d.py` | prototype de pas de temps par bloc (abandonné) |
+| `hybrid2d.py`, `hybrid_plan.py` | hybride SEM + triangles DG (§ 9) |
+
+Applications (`apps/mortar/`) : `hybrid_compare_2d.py`, `mesh_cost_2d.py`, `hybrid_disk_2d.py`,
+`interface_error_study.py` (avec `interface_study.py` : onde plane sur une interface), `blocks_shots_2d.py`,
+`blocks_convergence_2d.py` ; `reproduce.py` relance les modélisations du registre `cases.py` et contrôle
+les valeurs obtenues.
 
 Numérotation : les nœuds d'un bloc sont numérotés ligne par ligne, les blocs à la suite. Un nœud
 géométrique situé sur une interface existe une fois par bloc.
@@ -464,20 +471,20 @@ moins que la grille uniforme. Le pas de temps reste pénalisé par les triangles
 (hybride mortar), 0,6 ms (CG + DG).
 
 **Maillages et temps de calcul** (`apps/mortar/mesh_cost_2d.py`). Prototypes NumPy / SciPy sur un
-cœur : chaque maillage avance à son propre pas, $0{,}8\,\Delta t_{\max}$. Le temps par pas est mesuré
+cœur ; seg2d à 8 Hz, Sigsbee à 4 Hz ; chaque maillage avance à son propre pas, $0{,}8\,\Delta t_{\max}$. Le temps par pas est mesuré
 sur 300 pas. Ces temps comparent les approches entre elles. Ils ne prédisent pas ceux d'un noyau GPU, où
 les blocs SEM coûtent bien moins que des produits matrice creuse–vecteur.
 
-| modèle | maillage | éléments | inconnues | construction | pas stable | temps par pas | ns / inconnue / pas | pas | durée simulée : temps |
-|---|---|---|---|---|---|---|---|---|---|
-| seg2d, 8 Hz | hybride mortar | 2 745 | 43 086 | 0,3 s | 1,20 ms | 0,90 ms | 21 | 3 130 | 3 s : 3 s |
-| | CG + DG | 3 037 | 46 481 | 0,2 s | 0,91 ms | 0,85 ms | 18 | 4 142 | 3 s : 4 s |
-| | blocs en escalier | 2 610 | 43 290 | 0,5 s | 1,42 ms | 0,51 ms | 12 | 2 640 | 3 s : 1 s |
-| | grille uniforme | 3 698 | 59 685 | 0,1 s | 1,39 ms | 0,51 ms | 9 | 2 701 | 3 s : 1 s |
-| Sigsbee, 4 Hz | hybride mortar | 11 967 | 181 890 | 2,2 s | 1,41 ms | 5,6 ms | 31 | 5 303 | 6 s : 30 s |
-| | CG + DG | 12 618 | 189 814 | 1,4 s | 0,57 ms | 5,7 ms | 30 | 13 253 | 6 s : 76 s |
-| | blocs en escalier | 10 586 | 173 661 | 2,6 s | 2,42 ms | 2,2 ms | 12 | 3 100 | 6 s : 7 s |
-| | grille uniforme | 16 960 | 272 529 | 0,7 s | 2,65 ms | 3,7 ms | 13 | 2 826 | 6 s : 10 s |
+| modèle | maillage | éléments | constr. | dt stable | temps/pas (ns/inc.) | pas | temps total |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| seg2d (3 s) | hybride mortar | 2 745 | 0,3 s | 1,20 ms | 0,90 ms (21) | 3 130 | 3 s |
+|  | CG + DG | 3 037 | 0,2 s | 0,91 ms | 0,85 ms (18) | 4 142 | 4 s |
+|  | blocs | 2 610 | 0,5 s | 1,42 ms | 0,51 ms (12) | 2 640 | 1 s |
+|  | uniforme | 3 698 | 0,1 s | 1,39 ms | 0,51 ms (9) | 2 701 | 1 s |
+| Sigsbee (6 s) | hybride mortar | 11 967 | 2,2 s | 1,41 ms | 5,6 ms (31) | 5 303 | 30 s |
+|  | CG + DG | 12 618 | 1,4 s | 0,57 ms | 5,7 ms (30) | 13 253 | 76 s |
+|  | blocs | 10 586 | 2,6 s | 2,42 ms | 2,2 ms (12) | 3 100 | 7 s |
+|  | uniforme | 16 960 | 0,7 s | 2,65 ms | 3,7 ms (13) | 2 826 | 10 s |
 
 Les triangles coûtent deux fois plus par inconnue et par pas (masse pleine par triangle, faces DG), et
 ils réduisent le pas de temps. Sur Sigsbee, l'hybride mortar est 4 fois plus lent que les blocs pour un
@@ -503,7 +510,9 @@ point à traiter : pas de temps local sur la bande, et noyau DG dédié.
 - Bande de triangles plus mince à l'intérieur des corps ; pas de temps des triangles (CG + DG : ordre 4
   dans la bande, ou division des côtés en escalier par 2 pour des triangles moins aplatis).
 - Coût des triangles : pas de temps local sur la bande, ordre 4 ; `tri_factor` = 1 par défaut.
-- Bords absorbants et surface libre sur les triangles ; portage FUnTiDES.
+- Bords absorbants et surface libre sur les triangles.
+- Portage FUnTiDES de la variante CG + DG (triangle DG, couplage quadrangles–triangles, composite
+  `semdg2d`) : plan par lots et efforts dans `FUnTiDES-dir/point-2026-11-12.md`.
 
 ## 10. Références
 

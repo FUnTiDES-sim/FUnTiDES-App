@@ -34,3 +34,12 @@ python apps/mesh/seismesh_from_sep.py --vp-file vp.H --f0 8 --order 4 --ppw 5 --
 Element size `order * v / (2.5 f0 * ppw)`; writes `mesh_dir/mesh.msh` (z up, free surface on
 top), `materials.csv` (one class per element) and `report.json`. See
 `makutu/mesh/seismesh/README.md`.
+
+## Non-conforming blocks and hybrid SEM + DG (2-D)
+
+Conforming quadrilateral meshes cannot both follow the velocity locally and stay regular. The 2-D
+alternative is in `makutu.mortar`: regular blocks, each at its own element size, glued by an interior
+penalty, and a hybrid variant with DG triangles along the model interfaces (`plan_blocks`,
+`plan_hybrid`, `plan_cg_hybrid`). Their applications, mesh figures and costs are in `apps/mortar/`
+(`mesh_cost_2d.py`, `reproduce.py`; README there).
+

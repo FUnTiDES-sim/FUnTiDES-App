@@ -109,8 +109,8 @@ make unitTests integratedTests               # about 1 min on a GPU
 
 | Path | Contents |
 |---|---|
-| `python/makutu/` | the library: acquisition, mesh/model, solvers (acoustic/elastic SEM), I/O, imaging, FWI |
-| `python/apps/` | applications (modeling, FWI, display, model processing) and `run_funtides.py` |
+| `python/makutu/` | the library: acquisition, mesh/model (including `mesh/seismesh`, meshes adapted to a SEP model), solvers (acoustic/elastic SEM), `mortar` (2-D non-conforming blocks glued by SIPG, hybrid SEM + DG triangles), I/O, imaging, FWI |
+| `python/apps/` | applications (modeling, mesh, mortar, FWI, display, model processing) and `run_funtides.py`; `apps/mortar/reproduce.py` reruns the 2-D block and hybrid modelling cases and checks their values |
 | `python/tests/` | unit and integrated tests |
 
 The applications import the library, never the reverse. Example data and models

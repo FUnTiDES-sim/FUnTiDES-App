@@ -10,6 +10,7 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
 | `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
 | `mesh/seismesh_from_sep.py` | Mesh adapted to a SEP model and to the source frequency (2-D quadrilaterals, 3-D hexahedra, 2:1 doubling layers), for `GmshMesh` |
+| `mortar/` | 2-D blocks glued by SIPG (mortar) and hybrid SEM + DG triangles: comparisons, meshes and costs, FUnTiDES shots; `reproduce.py` reruns the modelling cases of `cases.py` and checks their values; reference document in `mortar/doc`; see its README |
 | `mesh/gmsh_mesh.py` | Gmsh meshes: conversion to MSH 2.2, Hex8 box and Q4 rectangle generators, description through FUnTiDES; see its README |
 | `acquisition/` | `create_equispaced_segy.py`, `check_acquisition.py`, `decision_create.py`: regular acquisitions, checks and maps, decision files |
 | `display/` | `showVelocityModel.py`, `showSeismicTraces.py`, `showFullGradient.py`: plots of models, traces, gradients and illumination (`--png` to save them) |
