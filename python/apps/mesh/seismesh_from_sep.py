@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--lts", action="store_true", help="rank the meshes by their cost with local time stepping")
     parser.add_argument("--strategies", nargs="+", choices=["tensor", "doubling", "hybrid", "refine3", "refine3tz", "tetsplit", "extrude",
                                                              "quadtree", "bands"],
-                        help="strategies to try (default: all those of the dimension)")
+                        help="strategies to try (default: 2-D tensor doubling quadtree; 3-D tensor doubling hybrid refine3tz extrude)")
     args = parser.parse_args()
 
     from makutu.mesh.seismesh import build_mesh_from_sep

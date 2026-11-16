@@ -44,8 +44,8 @@ def build_mesh_from_sep(vp_file, f0, out_dir, order=4, ppw=5.0, rho_file=None, r
     """
     Maillage d'un modèle SEP adapté à une source de Ricker de fréquence de pic ``f0``.
 
-    Les candidats (2-D : ``tensor``, ``doubling``, ``quadtree``, ``bands`` ; 3-D : ``tensor``, ``doubling``, ``hybrid``,
-    ``extrude``) sont générés et évalués ; le meilleur valide (points par longueur d'onde atteints,
+    Les candidats (2-D : ``tensor``, ``doubling``, ``quadtree`` ; 3-D : ``tensor``, ``doubling``, ``hybrid``,
+    ``refine3tz``, ``extrude`` ; d'autres sur demande par ``strategies``) sont générés et évalués ; le meilleur valide (points par longueur d'onde atteints,
     jacobien > 0,2) de plus faible coût (``cost_index`` ou ``cost_index_lts`` avec ``lts``) est
     exporté dans ``out_dir`` : ``mesh.msh``, ``materials.csv``, ``report.json``. La vitesse d'un
     élément est la moyenne des échantillons de la grille qu'il contient : moyenne des lenteurs
@@ -73,7 +73,7 @@ def build_mesh_from_sep(vp_file, f0, out_dir, order=4, ppw=5.0, rho_file=None, r
     p = SizingParams(fmax=RICKER_FMAX_FACTOR * f0, order=order, ppw=ppw, ppw_min=ppw_min)
     if is_2d(grid):
         best, reports = autopilot_2d(grid, p, t_sim=t_sim, lts=lts, rank=rank, cfl=cfl,
-                                     strategies=strategies or ("tensor", "doubling", "quadtree", "bands"))
+                                     strategies=strategies or ("tensor", "doubling", "quadtree"))
         if best is None:
             raise RuntimeError("aucun maillage 2-D valide (points par longueur d'onde ou jacobien)")
         mesh, rep = best

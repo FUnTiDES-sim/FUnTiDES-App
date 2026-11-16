@@ -429,8 +429,10 @@ def test_bands_regular_layers_with_deformed_transitions(tmp_path, figure_path):
     assert len(m.params["bands"]) >= 2 and all(t["columns"][0] > t["columns"][1] for t in m.params["transitions"])
     tensor = mesh_tensor_2d(grid, h, segments_2d(grid, h, (6, 8)))
     assert evaluate_2d(tensor, grid, p)["ok"] and rep["n_elements"] < len(tensor.quads)
+    (best, brep), _ = autopilot_2d(grid, p, strategies=("tensor", "doubling", "quadtree", "bands"))
+    assert brep["strategy"] == "bands"                         # on demand only
     (best, brep), _ = autopilot_2d(grid, p)
-    assert brep["strategy"] == "bands"
+    assert brep["strategy"] != "bands"
 
 
 def test_cfl_reaches_the_evaluation(tmp_path):

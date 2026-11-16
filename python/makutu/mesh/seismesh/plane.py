@@ -384,7 +384,7 @@ def mesh_score(rep, rank="elements"):
 
 
 def autopilot_2d(grid: VelocityGrid, p: SizingParams, t_sim=4.0, lts=False,
-                 strategies=("tensor", "doubling", "quadtree", "bands"), rank="elements", cfl=0.5):
+                 strategies=("tensor", "doubling", "quadtree"), rank="elements", cfl=0.5):
     """Recherche déterministe parmi les stratégies ``strategies`` ; classement par :func:`mesh_score`
     (``rank``, ``lts=True`` équivaut à ``rank="lts"``). Renvoie (meilleur (maillage, rapport) valide,
     liste des rapports)."""
