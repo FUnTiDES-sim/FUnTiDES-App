@@ -8,8 +8,6 @@ seismic convention: z = 0 at the surface, positive downwards.
 ```
 modeling/
   shot_modeling/     application: acoustic shots on a SEP model
-  examples/          cases built on it (data and their preparation)
-    marmousi_2d/
   tools/             data preparation
 ```
 
@@ -22,9 +20,9 @@ acquisition chain (create, check, model).
 
 ## Examples
 
-| Case | Content |
-|---|---|
-| [`examples/marmousi_2d/`](examples/marmousi_2d/README.md) | 2-D Marmousi: data check and fix, mesh and time-step choice (`prepare_marmousi_2d.py`), then modelling with `shot_modeling` |
+The worked cases moved to the `FUnTiDES-examples` repository (next to FUnTiDES-App) (16 November 2026): `modeling/marmousi_2d` (2-D Marmousi: data
+check and fix, mesh and time-step choice with `prepare_marmousi_2d.py`, then modelling with `shot_modeling`),
+and the mesh cases `mesh/*` (seismesh meshes and shots on them). Run them with `python run.py` there.
 
 Minimal forward shots (acoustic, elastic, MPI) are also in `tests/integratedTests/shots.py`.
 

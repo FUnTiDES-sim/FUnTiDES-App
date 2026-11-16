@@ -122,7 +122,7 @@ solver = AcousticSolver(implem_type=FTSolver.ImplemType.MAKUTU, mesh_type=FTSolv
                         dt=dt, maxTime=tmax, sourceType="ricker2", sourceFreq=f0, **mesh.solver_kwargs())
 ```
 
-See `apps/modeling/examples/marmousi_2d/` (README: data preparation, mesh choice, modelling).
+See `modeling/marmousi_2d` in the FUnTiDES-examples repository (README: data preparation, mesh choice, modelling).
 
 **2-D blocks and hybrid SEM + DG.** `makutu.mortar` tiles a SEP model with regular blocks, each at the
 size N v / (fmax ppw), glued by a symmetric interior penalty (run on the GPU by the FUnTiDES 2-D SEM

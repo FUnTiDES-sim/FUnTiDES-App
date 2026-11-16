@@ -2,14 +2,14 @@ Shot modelling on Marmousi 2-D
 ##############################
 
 Data: :file:`FUnTiDES-data/SEP/marmousi/Vp_xz.H` (500 x 174 samples at 20 m, 10 km x 3.48 km,
-1500-4767 m/s). :file:`apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py` checks (and
+1500-4767 m/s). :file:`modeling/marmousi_2d/prepare_marmousi_2d.py` of the FUnTiDES-examples repository checks (and
 with :code:`--fix` repairs) the SEP files and prints the mesh, the time step and the
 modelling command:
 
 .. code-block:: bash
 
+    python FUnTiDES-examples/modeling/marmousi_2d/prepare_marmousi_2d.py --f0 8 --order 4
     cd FUnTiDES-App/python
-    python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py --f0 8 --order 4
     python apps/modeling/shot_modeling/run_shot_modeling.py \
         --vp-file ../../FUnTiDES-data/SEP/marmousi/Vp_xz.H --rho-file ../../FUnTiDES-data/SEP/marmousi/Rho_xz.H \
         --order 4 --f0 8 --elem-size 50 --cfl 0.3 --tmax 4 --dt-seismo 0.002 --rcv-dx 20 \

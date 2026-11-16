@@ -109,7 +109,7 @@ interface (inclusion) gets the mean slowness of its samples. See
 
    Marmousi, f0 = 8 Hz, order 4, 5 points per wavelength: 6 888 quadrilaterals; the horizontal
    step doubles at 2.26 km and is refined again at 2.84 km above slower layers
-   (:code:`apps/mesh/examples/seismesh_marmousi.py`).
+   (example :code:`mesh/marmousi_shot` of the FUnTiDES-examples repository).
 
 .. figure:: seismesh_marmousi_zoom.png
    :width: 100%
@@ -135,7 +135,9 @@ interface (inclusion) gets the mean slowness of its samples. See
 .. figure:: seismesh_seg2d_mesh.png
    :width: 90%
 
-   SEG/EAGE 2-D salt model, :code:`quadtree` mesh from the fastest velocity (f0 = 5 Hz, order 4,
+   SEG/EAGE 2-D salt model (figure of 10 November 2026; since the rule that sharp horizontal interfaces
+   must be element faces, the search keeps :code:`tensor` on the seg2d model of FUnTiDES-data, see the
+   example :code:`mesh/seg2d` of FUnTiDES-examples), :code:`quadtree` mesh from the fastest velocity (f0 = 5 Hz, order 4,
    8 points per wavelength): 3 663 quadrilaterals, 134 m in the salt, 67 m in the sediments, 34 m in
    the water; element size and size / required size (at most 1 everywhere).
 

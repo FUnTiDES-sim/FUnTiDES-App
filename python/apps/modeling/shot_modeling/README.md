@@ -36,7 +36,7 @@ printed and written in the outputs.
 
 ## Examples
 
-**2-D, one shot** (Marmousi; see `../examples/marmousi_2d/` for the data preparation):
+**2-D, one shot** (Marmousi; see `modeling/marmousi_2d` of the FUnTiDES-examples repository for the data preparation):
 
 ```bash
 python apps/modeling/shot_modeling/run_shot_modeling.py \

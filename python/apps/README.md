@@ -3,12 +3,13 @@
 Scripts built on the `makutu` library (`../makutu`) and the FUnTiDES solvers. Run them
 after `source <FUnTiDES install>/funtides_env.sh` and `pip install -e python/` (see
 `../README.md`); each script prints its options with `--help`. Example data and models
-are in the `FUnTiDES-data` directory next to FUnTiDES-App.
+are in the `FUnTiDES-data` directory next to FUnTiDES-App. Worked cases on these models (meshes, shots,
+Marmousi data preparation, expected results) are in the `FUnTiDES-examples` repository (next to FUnTiDES-App): `python run.py --list` there.
 
 | Path | Content |
 |---|---|
 | `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `../C++/<method>/` |
-| `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
+| `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), and `tools/` (synthetic SEP models); see its README |
 | `mesh/seismesh_from_sep.py` | Mesh adapted to a SEP model and to the source frequency (2-D quadrilaterals, 3-D hexahedra, 2:1 doubling layers), for `GmshMesh` |
 | `mortar/` | 2-D blocks glued by SIPG (mortar) and hybrid SEM + DG triangles: comparisons, meshes and costs, FUnTiDES shots; `reproduce.py` reruns the modelling cases of `cases.py` and checks their values; reference document in `mortar/doc`; see its README |
 | `mesh/gmsh_mesh.py` | Gmsh meshes: conversion to MSH 2.2, Hex8 box and Q4 rectangle generators, description through FUnTiDES; see its README |
@@ -18,7 +19,6 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 
 ```bash
 python apps/run_funtides.py ../C++/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
-python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py --fix
 python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file ../../FUnTiDES-data/SEP/marmousi/Vp_xz.H --f0 8 --order 4 --plot
 ```
 
