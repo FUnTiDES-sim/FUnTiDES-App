@@ -7,7 +7,7 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 
 | Path | Content |
 |---|---|
-| `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `examples/<method>/` |
+| `run_funtides.py` | Runs a C++ driver of FUnTiDES-App (`funtides-<method>`, found in `build*/bin`) from a YAML file of `../C++/<method>/` |
 | `modeling/` | Forward modelling: `shot_modeling` (2-D or 3-D, one or several shots, decision files), `examples/marmousi_2d` (data preparation), and `tools/` (synthetic SEP models); see its README |
 | `mesh/seismesh_from_sep.py` | Mesh adapted to a SEP model and to the source frequency (2-D quadrilaterals, 3-D hexahedra, 2:1 doubling layers), for `GmshMesh` |
 | `mortar/` | 2-D blocks glued by SIPG (mortar) and hybrid SEM + DG triangles: comparisons, meshes and costs, FUnTiDES shots; `reproduce.py` reruns the modelling cases of `cases.py` and checks their values; reference document in `mortar/doc`; see its README |
@@ -17,7 +17,7 @@ are in the `FUnTiDES-data` directory next to FUnTiDES-App.
 | `fullWaveformInversion/fwi.py` | Full-waveform inversion (acoustic; shots dealt out to the MPI ranks with `mpirun`); see its README |
 
 ```bash
-python apps/run_funtides.py ../examples/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
+python apps/run_funtides.py ../C++/sem2d/sem2d_acoustic.yaml   # from FUnTiDES-App/python
 python apps/modeling/examples/marmousi_2d/prepare_marmousi_2d.py --fix
 python apps/modeling/shot_modeling/run_shot_modeling.py --vp-file ../../FUnTiDES-data/SEP/marmousi/Vp_xz.H --f0 8 --order 4 --plot
 ```

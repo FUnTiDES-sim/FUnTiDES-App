@@ -23,8 +23,10 @@ mesh = GmshMesh(r["msh"], 4, r["materials"])            # puis AcousticSolver(..
 ```
 - `f_max = 2,5 f0` pour une ondelette de Ricker de fréquence de pic `f0` (comme
   `makutu.mesh.suggest_mesh`) ; taille requise `h = N·v/(f_max·ppw)`.
-- SEP 2-D (`n3 = 1`) : axe 1 = x, axe 2 = profondeur → quadrangles (`tensor`, `doubling`) ;
-  SEP 3-D : axes x, y, z → hexaèdres (`tensor`, `doubling`, `hybrid`, `extrude`).
+- SEP 2-D (`n3 = 1`) : axe 1 = x, axe 2 = profondeur → quadrangles ; stratégies essayées par défaut
+  `tensor`, `doubling`, `quadtree`, `bands` (`hybrid` et `adaptive` sur demande, par `strategies`) ;
+  SEP 3-D : axes x, y, z → hexaèdres ; par défaut `tensor`, `doubling`, `hybrid`, `refine3tz`,
+  `extrude` (`refine3`, `tetsplit` sur demande). Option `--strategies` de `seismesh_from_sep.py`.
 - Les candidats sont générés et évalués ; le moins coûteux de ceux qui sont valides
   (`ppw` atteint, jacobien > 0,2) est écrit dans `out_dir` :
   - `mesh.msh` : MSH 2.2, **z vers le haut** (hauteur = profondeur max − profondeur), surface
@@ -160,22 +162,31 @@ peu de place (seg2d), `tensor` / `doubling` quand la vitesse croît surtout avec
   quadrangles recombinés, puis en triangles subdivisés comme la validation du pas local de FUnTiDES) :
   sur le bicouche de cette validation (SEP à 10 m), 1 847 éléments dont certains 1,36 fois trop
   grands, contre 1 716 pour le quadtree, valide ; les raccords sont larges et gmsh n'y tient pas la taille.
-- Bandes de profondeur à pas horizontal propre raccordées par des rangées de gabarits 3 -> 1 (`bands`) :
-  pour un rapport de taille inférieur à 2 entre bandes, les cellules du raccord se cisaillent (jusqu'à
-  1,6 fois trop grandes).
+- Zones de taille requise maillées en grilles régulières, raccordées par des transitions gmsh
+  optimisées (`zones2d.py`, `mesh_zones_2d`) : échoue sur le sel mince et les sédiments à gradient ;
+  module gardé, hors de la recherche automatique et de la ligne de commande.
 L'extraction des interfaces (`interfaces.py`) et l'optimisation des nœuds en 2-D (`smoothing.py`)
-sont gardées. Ce qui a été retenu : la recherche balaie aussi des tailles de base du quadtree au-delà
+sont gardées. La stratégie `bands` (bandes de profondeur à pas horizontal propre, raccordées par des
+rangées de gabarits 3 -> 1, `bands2d.py`) reste dans la recherche par défaut ; pour un rapport de
+taille inférieur à 2 entre bandes, les cellules du raccord se cisaillent (jusqu'à 1,6 fois trop
+grandes) et sont alors rejetées par l'évaluation. Ce qui a été retenu : la recherche balaie aussi des tailles de base du quadtree au-delà
 de la plus grande taille requise (1,2 à 1,6) et ``ppw_min`` (option ``--ppw-min``) accepte un
 échantillonnage un peu inférieur à la cible dans quelques éléments. La stratégie 2-D `hybrid`
 (doublement + 3-raffinement local) n'est plus essayée par défaut : jamais retenue (coût 2 à 5 fois celui
 de la meilleure) et lente (140 s sur Marmousi contre 6 s pour les autres) ; elle reste disponible par
 ``strategies`` / ``--strategies``.
 
-## Maillages 2-D (plane.py)
+## Maillages 2-D (plane.py et modules 2-D)
 - `tensor` : grille à pas constant par morceaux en x et en z ;
 - `doubling` : le pas horizontal double en profondeur par une couche de transition conforme
   (gabarit « 4 fines → 2 grossières », 6 quadrangles) dès que `h_req` le permet sur la suite ;
-  `allow_refine` re-raffine sous une couche lente (gabarit retourné, jacobien min ≈ 0,5).
+  `allow_refine` re-raffine sous une couche lente (gabarit retourné, jacobien min ≈ 0,5) ;
+- `quadtree` (`quadtree_2d.py`) : du grossier au fin, voir plus haut ;
+- `bands` (`bands2d.py`) : bandes de profondeur régulières à pas horizontal propre ;
+- `hybrid` : `doubling` + 3-raffinement local (`refine3_2d.py`, `Refine3Mesh2D`), sur demande ;
+- `adaptive` : quadrangles non structurés gmsh (frontal-Delaunay + recombinaison) de taille
+  `size_factor × h_req` (`mesh_adaptive_2d`), sur demande ; c'est l'approche gmsh comparée plus haut ;
+- valeurs du modèle sur la géométrie réelle des éléments, y compris déformés (`elements2d.py`).
 
 ## Résultats (modèle synthétique 5×4×6 km, fmax 10 Hz, ordre 4, 5 ppw)
 | stratégie | éléments | dt CFL | cost_index | jacobien min |
@@ -208,4 +219,6 @@ sinon `doubling` reste le meilleur choix. Avec `--lts`, la recherche classe selo
 - Le pas de temps local de FUnTiDES est à deux niveaux et en 2-D seulement : `cost_index_lts`
   (plusieurs niveaux, 3-D, sans surcoût) est une borne optimiste.
 - Modélisation seulement : la FWI de makutu suppose encore une grille cartésienne.
-- 2-D : pas de stratégie `hybrid` ni `extrude`.
+- 2-D : pas de stratégie `extrude` ; `hybrid` n'est essayée que sur demande (jamais retenue).
+- 2-D : pour suivre la vitesse localement sans éléments déformés, voir `makutu.mortar` (blocs non
+  conformes), en tête de ce document.

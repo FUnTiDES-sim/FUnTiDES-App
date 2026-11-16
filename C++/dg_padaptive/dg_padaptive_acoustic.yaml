@@ -1,5 +1,5 @@
 # funtides-dg-padaptive configuration: acoustic run, order-min below the interface, order above, single process.
-# Run with: python python/apps/run_funtides.py examples/dg_padaptive/dg_padaptive_acoustic.yaml
+# Run with: python python/apps/run_funtides.py C++/dg_padaptive/dg_padaptive_acoustic.yaml
 # All leaf keys except method map to funtides-dg-padaptive CLI flags (see funtides-dg-padaptive --help).
 
 domain:

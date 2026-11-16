@@ -1,5 +1,5 @@
 # funtides-sem2d configuration: acoustic 2-D SEM run in the (x, z) plane, single process.
-# Run with: python python/apps/run_funtides.py examples/sem2d/sem2d_acoustic.yaml
+# Run with: python python/apps/run_funtides.py C++/sem2d/sem2d_acoustic.yaml
 # All leaf keys except method map to funtides-sem2d CLI flags (see funtides-sem2d --help).
 # The y options of the other examples (ey, ly, srcy, rcvy) are ignored in 2-D.
 

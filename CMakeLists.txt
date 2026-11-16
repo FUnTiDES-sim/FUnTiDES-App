@@ -22,7 +22,7 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-add_subdirectory(examples)
+add_subdirectory(C++)
 
 enable_testing()
 # Historical validation of funtides-sem against reference traces (normalized comparison).

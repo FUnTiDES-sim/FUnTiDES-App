@@ -1,5 +1,5 @@
 # funtides-dg-sem configuration: acoustic run, DG below the interface, SEM above, single process.
-# Run with: python python/apps/run_funtides.py examples/dg_sem/dg_sem_acoustic.yaml
+# Run with: python python/apps/run_funtides.py C++/dg_sem/dg_sem_acoustic.yaml
 # All leaf keys except method map to funtides-dg-sem CLI flags (see funtides-dg-sem --help).
 
 domain:

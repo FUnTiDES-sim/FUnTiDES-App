@@ -1,5 +1,5 @@
 # funtides-dg configuration: acoustic DG run, single process.
-# Run with: python python/apps/run_funtides.py examples/dg/dg_acoustic.yaml
+# Run with: python python/apps/run_funtides.py C++/dg/dg_acoustic.yaml
 # All leaf keys except method map to funtides-dg CLI flags (see funtides-dg --help).
 
 domain:

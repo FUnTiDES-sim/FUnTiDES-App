@@ -2,7 +2,7 @@
 
 Applications built on top of the FUnTiDES library:
 
-- **C++ drivers** (`examples/`, below): one example program per numerical method;
+- **C++ drivers** (`C++/`, below): one example program per numerical method;
 - **Python** (`python/`): the `makutu` library (seismic modelling, imaging, FWI on
   `pyfuntides`), its applications (`python/apps/`) and tests. See
   [`python/README.md`](python/README.md).
@@ -16,16 +16,16 @@ point.
 
 | Executable              | Source                                          | Method                                         | Physics                            |
 |-------------------------|-------------------------------------------------|------------------------------------------------|------------------------------------|
-| `funtides-sem`          | `examples/sem/sem_example.cc`                   | spectral elements                              | acoustic, elastic, acousto-elastic |
-| `funtides-dg`           | `examples/dg/dg_example.cc`                     | discontinuous Galerkin                         | acoustic                           |
-| `funtides-dg-sem`       | `examples/dg_sem/dg_sem_example.cc`             | DG below a horizontal plane, SEM above         | acoustic                           |
-| `funtides-dg-padaptive` | `examples/dg_padaptive/dg_padaptive_example.cc` | DG, low order below a plane, high order above  | acoustic                           |
-| `funtides-sem2d`        | `examples/sem2d/sem2d_example.cc`               | spectral elements in 2-D, (x, z) plane         | acoustic                           |
+| `funtides-sem`          | `C++/sem/sem_example.cc`                   | spectral elements                              | acoustic, elastic, acousto-elastic |
+| `funtides-dg`           | `C++/dg/dg_example.cc`                     | discontinuous Galerkin                         | acoustic                           |
+| `funtides-dg-sem`       | `C++/dg_sem/dg_sem_example.cc`             | DG below a horizontal plane, SEM above         | acoustic                           |
+| `funtides-dg-padaptive` | `C++/dg_padaptive/dg_padaptive_example.cc` | DG, low order below a plane, high order above  | acoustic                           |
+| `funtides-sem2d`        | `C++/sem2d/sem2d_example.cc`               | spectral elements in 2-D, (x, z) plane         | acoustic                           |
 
 Only `funtides-sem` supports MPI (`-DUSE_MPI=ON`, domain split along x), except for
 acousto-elastic runs; the other examples are single-process.
 
-`examples/common/` holds what the examples share and is not specific to a method:
+`C++/common/` holds what the examples share and is not specific to a method:
 command-line options, cartesian mesh construction, source and receiver location,
 text outputs and timing.
 
@@ -63,7 +63,7 @@ Each example folder has a YAML file listing its options. `python/apps/run_funtid
 runs the executable named by the `method` key of such a file:
 
 ```bash
-python python/apps/run_funtides.py examples/dg/dg_acoustic.yaml
+python python/apps/run_funtides.py C++/dg/dg_acoustic.yaml
 ```
 
 ### Outputs

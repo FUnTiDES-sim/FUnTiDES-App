@@ -1,5 +1,5 @@
 # funtides-sem configuration: acoustic SEM run, every SEM option listed.
-# Run with: python python/apps/run_funtides.py examples/sem/sem_acoustic.yaml
+# Run with: python python/apps/run_funtides.py C++/sem/sem_acoustic.yaml
 # Section names are for readability only — all leaf keys map directly to
 # funtides-sem CLI flags. Dashes and underscores are interchangeable.
 # Boolean false values can be omitted (binary defaults apply).
