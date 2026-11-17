@@ -1,221 +1,221 @@
-# Applications mortar et hybride SEM + DG (2-D acoustique)
+# Mortar and hybrid SEM + DG applications (2-D acoustics)
 
-Scripts et exemples construits sur la bibliothèque `makutu.mortar` (`../../makutu/mortar`). À lancer depuis
-`FUnTiDES-App/python` après `source <FUnTiDES install>/funtides_env.sh` ; chaque script donne ses options
-avec `--help`. Modèles : `FUnTiDES-data/SEP/<modèle>/Vp_xz.H`.
+Scripts and examples built on the `makutu.mortar` library (`../../makutu/mortar`). Run from
+`FUnTiDES-App/python` after `source <FUnTiDES install>/funtides_env.sh`; each script lists its options
+with `--help`. Models: `FUnTiDES-data/SEP/<model>/Vp_xz.H`.
 
-Document de référence (maths, implémentation, validation, résultats) :
-[doc/mortar-maths-et-implementation.md](doc/mortar-maths-et-implementation.md) (et son PDF).
+Reference document (mathematics, implementation, validation, results):
+[doc/mortar-maths-et-implementation.md](doc/mortar-maths-et-implementation.md) (and its PDF).
 
 ## Scripts
 
-| script | contenu | calcul |
+| script | contents | computation |
 |---|---|---|
-| `reproduce.py` | reproduit les modélisations du registre `cases.py` et contrôle les valeurs obtenues | selon l'étude |
-| `cases.py` | registre : modèle -> études (script, options, valeurs attendues) | |
-| `hybrid_compare_2d.py` | hybride mortar, CG + DG sans mortar, blocs, grille uniforme contre une référence fine ; sismogrammes à échelle commune | CPU |
-| `mesh_cost_2d.py` | maillages des quatre approches (vue entière et zoom) et temps de calcul à leur propre pas | CPU |
-| `hybrid_disk_2d.py` | disque rapide : hybride contre escalier | CPU |
-| `interface_error_study.py` (+ `interface_study.py`) | erreur due aux interfaces non conformes (onde plane, R et T) | CPU |
-| `blocks_shots_2d.py` | tirs FUnTiDES : blocs contre grille uniforme contre référence | GPU |
-| `blocks_convergence_2d.py` | convergence en ppw des blocs et de la grille uniforme (FUnTiDES) | GPU |
+| `hybrid_compare_2d.py` | hybrid mortar, CG + DG without mortar, blocks, uniform grid against a fine reference; seismograms on a common scale | CPU |
+| `mesh_cost_2d.py` | meshes of the four approaches (full view and zoom) and run times at their own time steps | CPU |
+| `hybrid_disk_2d.py` | fast disk: hybrid versus staircase | CPU |
+| `interface_error_study.py` (+ `interface_study.py`) | error due to non-conforming interfaces (plane wave, R and T) | CPU |
+| `blocks_shots_2d.py` | FUnTiDES shots: blocks versus uniform grid versus reference | GPU |
+| `blocks_convergence_2d.py` | ppw convergence of blocks and uniform grid (FUnTiDES) | GPU |
 
-## Reproduire les modélisations
+## Reproducing the simulations
+
+Cases (model, options, expected values) have been in the **FUnTiDES-examples** repository,
+under `mortar/` (13 examples, 134 checks), since 16 November 2026:
 
 ```bash
-python apps/mortar/reproduce.py --list                         # modèles, études, durées
-python apps/mortar/reproduce.py --model seg2d disque           # études CPU, contrôle des valeurs
-python apps/mortar/reproduce.py --model sigsbee2a --study compare cost
-python apps/mortar/reproduce.py --model all --gpu              # avec les tirs FUnTiDES (GPU libre)
-python apps/mortar/reproduce.py --model all --check-only       # recontrôle des sorties existantes
+cd FUnTiDES-examples
+python run.py --list
+python run.py "mortar/*"            # CPU examples (NumPy prototypes)
+python run.py "mortar/*" --gpu      # including FUnTiDES shots
 ```
 
-Sorties dans `runs/mortar/<modèle>/<étude>/` (journal, JSON, figures ; dossier ignoré par git), résumé
-dans `runs/mortar/RESUME.md`. Tolérance : 0,2 point sur les écarts, égalité exacte sur les nombres
-d'éléments. Les études GPU n'ont pas encore de valeurs attendues. Pour ajouter un modèle, ajouter une
-entrée dans `cases.py`.
+The FUnTiDES shot tables below (11 November) predate the latest block partitioning adjustments
+(cuts at sharp jumps); current values are in the `mortar/*_shots` and
+`mortar/marmousi_convergence` examples.
 
-# Résultats
+# Results
 
-## Validation (../../tests/unitTests/test_mortar2d.py, figures dans tests/figures/test_mortar2d)
+## Validation (../../tests/unitTests/test_mortar2d.py, figures in tests/figures/test_mortar2d)
 
-- K symétrique, semi-définie positive avec la pénalité par défaut
-  alpha = 1,25 N / (2 (N + 1)) (alpha minimal mesuré 0,22 / 0,32 / 0,37 aux ordres 2 / 4 / 6) ;
-  coût en pas de temps d'une interface conforme : 8 % à l'ordre 4 (alpha = 1 coûtait 37 %).
-- Énergie discrète conservée à 1e-15 près (6000 pas, 4 blocs de rapports 1,37 à 3,5, contrastes de vitesse
-  et de densité, propriétés aux nœuds).
-- Réflexion parasite d'une interface en milieu homogène (ordre 4, côté grossier à 5 points / longueur
-  d'onde) : 1e-5 (r = 1), 2e-5 (r = 1,37), 3e-4 (r = 2) de l'onde directe.
-- Convergence spectrale (h, 1,5 h) ; écart à une référence fine dominé par le côté grossier.
+- K is symmetric and positive semidefinite with the default penalty
+  alpha = 1.25 N / (2 (N + 1)) (measured minimum alpha 0.22 / 0.32 / 0.37 at orders 2 / 4 / 6);
+  time-step penalty of a conforming interface: 8 % at order 4 (alpha = 1 cost 37 %).
+- Discrete energy conserved to within 1e-15 (6000 steps, 4 blocks with ratios from 1.37 to 3.5,
+  velocity and density contrasts, nodal properties).
+- Spurious reflection at an interface in a homogeneous medium (order 4, coarse side at 5 points /
+  wavelength): 1e-5 (r = 1), 2e-5 (r = 1.37), 3e-4 (r = 2) of the direct wave.
+- Spectral convergence (h, 1.5 h); difference from a fine reference dominated by the coarse side.
 
-## Comptes d'éléments (ordre 4, 5 points GLL / longueur d'onde, f0 = 8 Hz ; bicouche : ordre 2, fmax 5 Hz, 6 ppw)
+## Element counts (order 4, 5 GLL points / wavelength, f0 = 8 Hz; bilayer: order 2, fmax 5 Hz, 6 ppw)
 
-| modèle | idéal | blocs | ratio | meilleur conforme précédent |
+| model | ideal | blocks | ratio | previous best conforming mesh |
 |---|---|---|---|---|
-| seg2d | 1704 | 2345 (50 blocs) | 1,38 | bandes 2808, tensor 4042 |
-| Marmousi | 3513 | 4960 (67) | 1,41 | bandes 6294, doubling 7224 |
-| Sigsbee 2A | 31106 | 36159 (276) | 1,16 | bandes 44314, doubling 49440 |
-| Sigsbee + gaz | 31548 | 36722 (298) | 1,16 | bandes 45474, doubling 51088 |
-| bicouche + inclusion | 1209 | 1356 (27) | 1,12 | quadtree 1716 |
-| 3 couches + inclusion lente | 328 | 492 (24) | 1,50 | bandes 606, doubling 624 |
+| seg2d | 1704 | 2345 (50 blocks) | 1.38 | bands 2808, tensor 4042 |
+| Marmousi | 3513 | 4960 (67) | 1.41 | bands 6294, doubling 7224 |
+| Sigsbee 2A | 31106 | 36159 (276) | 1.16 | bands 44314, doubling 49440 |
+| Sigsbee + gas | 31548 | 36722 (298) | 1.16 | bands 45474, doubling 51088 |
+| bilayer + inclusion | 1209 | 1356 (27) | 1.12 | quadtree 1716 |
+| 3 layers + slow inclusion | 328 | 492 (24) | 1.50 | bands 606, doubling 624 |
 
-Pavage en 0,1 à 9 s (l'autopilote conforme : 7 s à 11 min). Le sel reçoit de grands éléments, la poche
-de gaz un bloc fin ajusté ; seuls les blocs à cheval sur le bord du sel gardent la taille des sédiments.
+Tiling takes 0.1 to 9 s (conforming autopilot: 7 s to 11 min). Salt receives large elements,
+the gas pocket a fitted fine block; only blocks straddling the salt boundary retain the sediment size.
 
-## Tirs contre une référence calée sur les cellules SEP (propriétés aux nœuds GLL)
+## Shots against a reference aligned with SEP cells (properties at GLL nodes)
 
-Le modèle SEP doit être lu comme un **modèle continu** (`grid_sampler`, interpolation bilinéaire des
-échantillons placés aux centres des cellules), le même pour la référence et pour tous les maillages.
-Lu cellule par cellule, il présente un petit saut à chaque bord de cellule ; des nœuds placés n'importe
-où dans les cellules voient alors un modèle localement décalé, et l'erreur ne converge plus
-(Marmousi : 1,6 à 7,2 % selon le maillage, sans ordre).
+The SEP model must be read as a **continuous model** (`grid_sampler`, bilinear interpolation of
+samples at cell centres), identical for the reference and all meshes.
+Read cell by cell, it has a small jump at each cell boundary; nodes placed arbitrarily within
+cells then see a locally shifted model, and the error no longer converges
+(Marmousi: 1.6 to 7.2 % depending on the mesh, with no consistent ordering).
 
-Vérifications : pavage Marmousi en milieu homogène, écart 0,3 % (5 ppw) puis 0,07 % (7 ppw) ; K p = 0 aux
-nœuds intérieurs pour p linéaire (1e-14) ; modèle analytique lisse : blocs 0,75 / 0,20 / 0,12 / 0,04 %
-de 5 à 8 ppw, uniforme 0,74 % à 5 ppw avec deux fois plus d'éléments.
+Checks: Marmousi layout in a homogeneous medium, difference 0.3 % (5 ppw) then 0.07 % (7 ppw);
+K p = 0 at interior nodes for linear p (1e-14); smooth analytical model: blocks 0.75 / 0.20 /
+0.12 / 0.04 % from 5 to 8 ppw, uniform 0.74 % at 5 ppw with twice as many elements.
 
-Écart L2 relatif des traces (récepteurs à 80 m, offsets > 300 m, 2 s), modèle bilinéaire :
+Relative L2 trace difference (receivers at 80 m, offsets > 300 m, 2 s), bilinear model:
 
-| modèle | maillage | éléments | dt stable | écart |
+| model | mesh | elements | stable dt | difference |
 |---|---|---|---|---|
-| Marmousi | uniforme 5 ppw | 9686 | 1,33 ms | 2,31 % |
-| Marmousi | blocs 5 ppw | 4960 | 1,46 ms | 2,39 % |
-| Marmousi | blocs 6 ppw | 6917 | 1,40 ms | 1,42 % |
-| seg2d | uniforme 5 ppw | 3698 | 1,39 ms | 2,30 % |
-| seg2d | blocs 5 ppw | 2345 | 1,14 ms | 2,78 % |
-| seg2d | blocs 7 ppw | 4388 | 0,90 ms | 1,58 % |
+| Marmousi | uniform 5 ppw | 9686 | 1.33 ms | 2.31 % |
+| Marmousi | blocks 5 ppw | 4960 | 1.46 ms | 2.39 % |
+| Marmousi | blocks 6 ppw | 6917 | 1.40 ms | 1.42 % |
+| seg2d | uniform 5 ppw | 3698 | 1.39 ms | 2.30 % |
+| seg2d | blocks 5 ppw | 2345 | 1.14 ms | 2.78 % |
+| seg2d | blocks 7 ppw | 4388 | 0.90 ms | 1.58 % |
 
-À précision égale, les blocs demandent environ 2,2 fois moins de calcul sur Marmousi et 1,3 fois moins
-sur seg2d (pas de temps global ; davantage avec un pas de temps par bloc). Le palier vers 1,5-2 % vient
-des vraies discontinuités (sel, fond de mer) qui traversent les éléments, pour tous les maillages.
-Le pas de temps des blocs peut être plus petit que celui de la grille uniforme : l'arrondi
-ceil(W / h) dans les petits blocs donne des éléments plus minces (prochain point : coût par bloc
-n_e / dt_bloc dans la programmation dynamique, naturel avec le pas de temps local).
+At equal accuracy, blocks require about 2.2 times less computation on Marmousi and 1.3 times less
+on seg2d (global time step; more with per-block time stepping). The plateau around 1.5–2 % comes
+from actual discontinuities (salt, seabed) cutting through elements, for all meshes.
+The block time step can be smaller than that of the uniform grid: rounding
+ceil(W / h) in small blocks produces thinner elements (next step: per-block cost
+n_e / dt_block in dynamic programming, natural with local time stepping).
 
-## Coût en calcul (rank, dt_min)
+## Computational cost (rank, dt_min)
 
-Pas de temps d'un bloc : dt = C min(hx, hz) / vp_max, C = 0,1044 à l'ordre 4 (valeur propre exacte d'une
-grille régulière ; l'estimation est exacte pour un bloc seul et surestime d'environ 8 % avec interfaces,
-à cause de la pénalité). `rank="lts"` minimise la somme des éléments / dt_bloc (pas de temps propre à
-chaque bloc) ; `dt_min` refuse les blocs plus lents qu'un pas global visé.
+Block time step: dt = C min(hx, hz) / vp_max, C = 0.1044 at order 4 (exact eigenvalue of a
+regular grid; the estimate is exact for a single block and overestimates by about 8 % with interfaces,
+due to the penalty). `rank="lts"` minimizes the sum of elements / dt_block (each block's own time
+step); `dt_min` rejects blocks requiring a smaller step than a target global step.
 
-Travail (millions d'éléments-pas par seconde simulée, ordre 4, 5 ppw, f0 = 8 Hz) :
+Work (millions of element-steps per simulated second, order 4, 5 ppw, f0 = 8 Hz):
 
-| modèle | uniforme | blocs, pas global (dt_min = dt uniforme) | blocs, pas par bloc (rank="lts") |
+| model | uniform | blocks, global step (dt_min = uniform dt) | blocks, per-block step (rank="lts") |
 |---|---|---|---|
-| seg2d | 2,66 | 1,61 (x1,65) | 0,88 (x3,0) |
-| Marmousi | 7,38 | 3,12 (x2,4) | 1,73 (x4,3) |
-| Sigsbee 2A | 51,3 | 30,5 (x1,7) | 10,9 (x4,7) |
+| seg2d | 2.66 | 1.61 (x1.65) | 0.88 (x3.0) |
+| Marmousi | 7.38 | 3.12 (x2.4) | 1.73 (x4.3) |
+| Sigsbee 2A | 51.3 | 30.5 (x1.7) | 10.9 (x4.7) |
 
-## FUnTiDES (GPU) : funtides2d.py, apps/mortar/blocks_shots_2d.py
+## FUnTiDES (GPU): funtides2d.py, apps/mortar/blocks_shots_2d.py
 
-FUnTiDES (branche dev-2d, non installé dans FUnTiDES-install) : `Solver::setInterfaceOperator(dofs, P, G,
-gamma, m, n_q)` dans SEMsolver2D, forme SIPG factorisée par point de Gauss (deux noyaux : produits P.u et
-G.u, puis lignes avec ajouts atomiques) ; les arêtes d'un seul élément qui contiennent un nœud intérieur
-(arêtes d'interface) ne sont plus amorties. `FuntidesBlocks2D` construit le ModelUnstruct 2-D à nœuds
-dupliqués avec la numérotation de Mortar2D. FUnTiDES (float32) reproduit le prototype à 1e-6 près
+FUnTiDES (dev-2d branch, not installed in FUnTiDES-install): `Solver::setInterfaceOperator(dofs, P, G,
+gamma, m, n_q)` in SEMsolver2D, SIPG form factorized per Gauss point (two kernels: products P.u and
+G.u, then rows with atomic additions); single-element edges containing an interior node
+(interface edges) are no longer damped. `FuntidesBlocks2D` builds the 2-D ModelUnstruct with
+duplicated nodes using Mortar2D numbering. FUnTiDES (float32) reproduces the prototype to within 1e-6
 (tests/integratedTests/test_mortar_funtides.py).
 
-Tirs FUnTiDES, pas de temps global (plan_blocks_global), propriétés aux nœuds, référence calée sur les
-cellules SEP ; écart L2 des traces (offsets > 300 m) / de l'instantané à 0,6 T :
+FUnTiDES shots, global time step (plan_blocks_global), nodal properties, reference aligned with
+SEP cells; L2 difference of traces (offsets > 300 m) / snapshot at 0.6 T:
 
-| modèle | blocs 5 ppw | blocs 6 ppw | uniforme 5 ppw |
+| model | blocks 5 ppw | blocks 6 ppw | uniform 5 ppw |
 |---|---|---|---|
-| Sigsbee 2A | 37 596 él., 5,5 / 5,4 % | 53 249 él., 4,5 / 4,3 % | 67 840 él., 6,7 / 5,9 % |
-| Marmousi | 5 476 él., 7,0 / 4,8 % | 7 642 él., 1,1 / 3,1 % | 9 686 él., 2,7 / 3,4 % |
-| seg2d | 2 724 él., 3,0 / 8,2 % | 3 707 él., 2,6 / 5,4 % | 3 698 él., 2,3 / 4,9 % |
-| bicouche + inclusion (ordre 2) | 1 398 él. (6 ppw), 8,8 / 9,3 % | 1 939 él. (7 ppw), 7,3 / 7,6 % | 11 250 él., 10,3 / 11,4 % |
-| 3 couches + inclusion lente | 674 él., 4,7 / 12,9 % | 789 él., 4,7 / 11,0 % | 850 él., 4,8 / 12,3 % |
+| Sigsbee 2A | 37 596 el., 5.5 / 5.4 % | 53 249 el., 4.5 / 4.3 % | 67 840 el., 6.7 / 5.9 % |
+| Marmousi | 5 476 el., 7.0 / 4.8 % | 7 642 el., 1.1 / 3.1 % | 9 686 el., 2.7 / 3.4 % |
+| seg2d | 2 724 el., 3.0 / 8.2 % | 3 707 el., 2.6 / 5.4 % | 3 698 el., 2.3 / 4.9 % |
+| bilayer + inclusion (order 2) | 1 398 el. (6 ppw), 8.8 / 9.3 % | 1 939 el. (7 ppw), 7.3 / 7.6 % | 11 250 el., 10.3 / 11.4 % |
+| 3 layers + slow inclusion | 674 el., 4.7 / 12.9 % | 789 el., 4.7 / 11.0 % | 850 el., 4.8 / 12.3 % |
 
-Temps GPU (portable, horloge variable : échauffement puis meilleur de trois) : Sigsbee 0,18 ms par pas
-(blocs 5) contre 0,23 ms (uniforme), soit 1,0 s contre 1,2 s pour 6 s simulées à leurs pas stables, avec
-une meilleure précision. Sous 10 000 éléments, le GPU est limité par la latence des lancements de noyaux
-et les temps ne distinguent pas les maillages. L'opérateur d'interface coûte encore l'équivalent de 1 à 2
-éléments par segment : prochains leviers, un noyau par équipe (un lancement, pas de tableau
-intermédiaire) et surtout le pas de temps propre à chaque bloc (travail estimé divisé par 3 à 4,7).
+GPU times (laptop, variable clock: warm-up then best of three): Sigsbee 0.18 ms per step
+(blocks 5) versus 0.23 ms (uniform), i.e. 1.0 s versus 1.2 s for 6 simulated seconds at their stable
+steps, with better accuracy. Below 10 000 elements, the GPU is limited by kernel launch latency
+and timings do not distinguish the meshes. The interface operator still costs the equivalent of
+1 to 2 elements per segment: next improvements, one kernel per team (one launch, no intermediate
+array) and especially each block's own time step (estimated work reduced by a factor of 3 to 4.7).
 
-## Noyau d'interface et récepteurs (FUnTiDES, 2026-11-11)
+## Interface kernel and receivers (FUnTiDES, 2026-11-11)
 
-- Opérateur d'interface structuré (`Mortar2D.interface_faces`) : traces et dérivées normales aux nœuds de
-  face (dérivée le long de la ligne d'élément normale), interpolées aux points de Gauss ; un fil par
-  segment. Sigsbee (4663 segments) : 0,024 ms par pas, contre 0,106 ms avec les lignes pleines en deux
-  noyaux et 0,187 ms avec une équipe par segment. Blocs 0,128 ms par pas contre 0,258 ms pour la grille
-  uniforme (37 596 contre 67 840 éléments).
-- `pyfuntides.solver.FieldSampler` : sommes pondérées aux récepteurs sur le GPU ; 392 récepteurs coûtent
-  0,019 ms par pas, contre environ 0,9 ms en lisant le champ (mémoire unifiée) depuis Python.
+- Structured interface operator (`Mortar2D.interface_faces`): traces and normal derivatives at face
+  nodes (derivative along the element line normal to the face), interpolated at Gauss points; one
+  thread per segment. Sigsbee (4663 segments): 0.024 ms per step, versus 0.106 ms with full rows in two
+  kernels and 0.187 ms with one team per segment. Blocks 0.128 ms per step versus 0.258 ms for the
+  uniform grid (37 596 versus 67 840 elements).
+- `pyfuntides.solver.FieldSampler`: weighted sums at receivers on the GPU; 392 receivers cost
+  0.019 ms per step, versus about 0.9 ms when reading the field (unified memory) from Python.
 
-## Pas de temps par bloc (lts2d.py, prototype abandonné pour l'instant)
+## Per-block time stepping (lts2d.py, prototype abandoned for now)
 
-LF-LTS de Diaz et Grote appliqué récursivement par niveaux (bloc de niveau l : pas dt / 2^l), version
-stabilisée (Grote, Michel, Sauter), niveaux sur la stabilité exacte (plus grande valeur propre de
-l'opérateur restreint à chaque groupe de nœuds, interfaces comprises : `assign_levels`).
-- Stabilité : il faut promouvoir les éléments des deux côtés d'une interface au niveau le plus fin
-  (pénalité en 1 / h du côté fin) et graduer les niveaux (au plus un niveau d'écart entre nœuds couplés :
-  un saut de deux niveaux diverge, mesuré) ; l'énergie reste alors bornée.
-- Gain : au pas de stabilité, le saute-mouton a déjà une erreur temporelle de l'ordre de 5 à 8 % sur 2 à
-  3 s (comparé à dt / 4) ; agrandir le grand pas dégrade la précision. Au pas que demande la précision
-  (celui de la grille uniforme), le LTS ne gagne rien sur Marmousi et 4 à 14 % sur Sigsbee, avec un cas
-  instable : non porté dans FUnTiDES. Le pavage `plan_blocks_global` (pas de temps global) est retenu.
-- Figure : tests/figures/mortar/lts_diagnostic.png.
+Diaz and Grote LF-LTS applied recursively by level (level l block: step dt / 2^l), stabilized
+version (Grote, Michel, Sauter), levels based on exact stability (largest eigenvalue of the
+operator restricted to each node group, including interfaces: `assign_levels`).
 
-## Dans les solveurs makutu (mesh2d.py)
+- Stability: elements on both sides of an interface must be promoted to the finest level
+  (1 / h penalty on the fine side), and levels must be graded (at most one level difference between
+  coupled nodes: a two-level jump diverges, as measured); energy then remains bounded.
+- Gain: at the stability step, leapfrog already has a temporal error of about 5 to 8 % over 2 to
+  3 s (compared with dt / 4); increasing the large step worsens accuracy. At the step required for
+  accuracy (that of the uniform grid), LTS gains nothing on Marmousi and 4 to 14 % on Sigsbee, with
+  one unstable case: not ported to FUnTiDES. The `plan_blocks_global` layout (global step) is retained.
+- Figure: tests/figures/mortar/lts_diagnostic.png.
 
-`BlocksMesh2D(vp_file, f0=...)` : pavage, maillage, modèle FUnTiDES ; `solver_kwargs()` pour
-`AcousticSolver` (localisateur des sources et récepteurs, crochet `solver_setup` qui pose l'opérateur
-d'interface après chaque `compute_fe_init`, propriétés aux nœuds). Pour la FWI, la variable est la grille
-du modèle SEP : `updateVelocityModel` réinterpole les nœuds (interpolation bilinéaire B), le gradient est
-calculé aux nœuds puis ramené sur la grille par la transposée de B. Tests
-(tests/integratedTests/test_mortar_makutu_solver.py) : tir AcousticSolver = tir direct à 1,4e-5 ; gradient
-= différences finies à 0,2 % (paramétrisations c et 1/c^2).
+## In makutu solvers (mesh2d.py)
 
-## Interfaces nettes et validation de la modélisation
+`BlocksMesh2D(vp_file, f0=...)`: tiling, mesh, FUnTiDES model; `solver_kwargs()` for
+`AcousticSolver` (source and receiver locator, `solver_setup` hook installing the interface
+operator after each `compute_fe_init`, nodal properties). For FWI, the variable is the SEP model
+grid: `updateVelocityModel` reinterpolates the nodes (bilinear interpolation B), the gradient is
+computed at nodes then mapped back to the grid by the transpose of B. Tests
+(tests/integratedTests/test_mortar_makutu_solver.py): AcousticSolver shot = direct shot to 1.4e-5;
+gradient = finite differences to 0.2 % (c and 1/c^2 parameterizations).
 
-- `plan_blocks(z_cuts="auto")` coupe d'abord le modèle en tranches sur les interfaces horizontales nettes
-  (saut > 10 % sur la moitié de la largeur, `sharp_interfaces`, interfaces distantes d'au moins une taille
-  d'élément), puis optimise chaque tranche : aucun élément ne traverse ces interfaces.
-- Bords nets locaux (`edge_cuts`, `force_jump=0.3`) : dans chaque rectangle, la programmation dynamique
-  essaie aussi des coupes sur les bords nets (saut > 10 % sur la moitié du rectangle) et interdit de
-  garder en un seul bloc un rectangle traversé par un saut > 30 % : un corps net aligné sur les axes est
-  bordé par des bords de blocs. Diagnostic (bicouche + inclusion carrée à 600 m/s, ordre 2, 6 ppw) : une
-  grille uniforme dont les éléments tombent par hasard sur les bords de l'inclusion (40 m) fait 1,6 %,
-  une grille non alignée (38,7 m) 7,7 % ; les blocs passent de 8,5 % à 4,1 % (1254 éléments). Une
-  gradation de la taille requise (`grading`, taille lipschitzienne) n'aide qu'à 9 ppw (2,5 %) : non
-  activée par défaut.
-- `Mortar2D(nodal_inset=...)` (BlocksMesh2D : un demi-pas de grille) : les nœuds d'un bord de bloc lisent
-  le modèle à l'intérieur de leur bloc ; une interface sur un bord de bloc est vue d'un seul côté de part
-  et d'autre (saut exact, possible car les blocs ne partagent aucun nœud).
-- tests/integratedTests/test_mortar_modeling_validation.py (makutu AcousticSolver + FUnTiDES, GPU) :
-  solution exacte 2-D à travers 9 blocs de rapports 1,15 à 1,9 (ordres 2 à 4, source sur un coin de
-  blocs) < 3e-3 ; surface libre, modèle en couches, contre grille fine coupée sur l'interface : 2,6 %
-  (18 % avant les coupes sur interfaces, 9,6 % avec les coupes mais une référence qui lissait le saut) ;
-  8 s simulées sans croissance.
+## Sharp interfaces and modelling validation
 
-## Références et lecture du modèle SEP
+- `plan_blocks(z_cuts="auto")` first slices the model at sharp horizontal interfaces
+  (jump > 10 % over half the width, `sharp_interfaces`, interfaces at least one element size apart),
+  then optimizes each slice: no element crosses these interfaces.
+- Local sharp boundaries (`edge_cuts`, `force_jump=0.3`): in each rectangle, dynamic programming
+  also tries cuts at sharp boundaries (jump > 10 % over half the rectangle) and forbids retaining
+  a single block across a jump > 30 %: a sharp axis-aligned body is bounded by block edges.
+  Diagnostic (bilayer + square inclusion at 600 m/s, order 2, 6 ppw): a uniform grid whose elements
+  happen to align with the inclusion edges (40 m) gives 1.6 %, an unaligned grid (38.7 m) 7.7 %;
+  blocks improve from 8.5 % to 4.1 % (1254 elements). Grading the required size (`grading`,
+  Lipschitz size field) only helps at 9 ppw (2.5 %): not enabled by default.
+- `Mortar2D(nodal_inset=...)` (BlocksMesh2D: half a grid spacing): nodes on a block boundary sample
+  the model inside their own block; an interface on a block boundary is sampled from one side on
+  each side (exact jump, possible because blocks share no nodes).
+- tests/integratedTests/test_mortar_modeling_validation.py (makutu AcousticSolver + FUnTiDES, GPU):
+  exact 2-D solution across 9 blocks with ratios from 1.15 to 1.9 (orders 2 to 4, source at a block
+  corner) < 3e-3; free surface, layered model, against a fine grid split at the interface: 2.6 %
+  (18 % before interface cuts, 9.6 % with cuts but a reference smoothing the jump);
+  8 simulated seconds without growth.
 
-Une grille SEP peut se lire « en marches » (constante par cellule : référence exacte = grille uniforme d'un
-élément par cellule, propriétés par élément) ou « lissée » (interpolation bilinéaire : référence = grille
-uniforme fine, propriétés aux nœuds). Les deux lectures diffèrent de 2 % (bicouche) à 8 % (Sigsbee, bords
-du sel courbes) sur les traces : la référence doit lire le modèle comme le maillage testé.
-Écart des traces (offsets > 300 m), tests/figures/mortar/references_*.png :
-- bicouche + inclusion carrée (ordre 2, sauts sur les bords des cellules, que les blocs suivent) : contre
-  la référence en marches, blocs 1,9 / 0,85 / 0,34 / 0,12 % de 6 à 12 ppw ; grille uniforme non alignée
-  14 % / 7 % (6 / 9 ppw). Le « plafond » de 3,8 % était l'écart entre les deux références.
-- Sigsbee : contre la référence lissée à une cellule (3,8 millions d'éléments), blocs 5,1 / 3,9 / 2,7 /
-  2,4 % de 5 à 8 ppw, uniforme 5,6 / 2,4 % (5 / 7 ppw) ; l'ancienne référence (3 cellules) en était à
-  2,8 %. Le reste (~2,4 %, commun aux blocs et à la grille uniforme) vient des bords nets du sel à
-  l'échelle de la cellule, que tout maillage plus grossier que la cellule voit de la même façon.
-- Marmousi : les blocs coupent sur le fond de mer et le voient comme un saut net ; la lecture lissée en
-  fait une rampe d'une cellule : blocs à 0,7 % de la référence lissée à 2 cellules (8 ppw), 1,9 % de
-  celle à une cellule ; la grille uniforme (7 ppw) l'inverse (1,9 / 0,6 %).
-Lecture appliquée par BlocksMesh2D : lissée, sauf sur les bords de blocs qui portent un saut net
-(lecture d'un seul côté, saut exact).
+## References and SEP model sampling
 
-## Portage FUnTiDES (estimation)
+A SEP grid can be read as a “staircase” (constant per cell: exact reference = uniform grid with
+one element per cell, element-wise properties) or “smoothed” (bilinear interpolation: reference =
+fine uniform grid, nodal properties). Trace differences between the two readings range from 2 %
+(bilayer) to 8 % (Sigsbee, curved salt boundaries): the reference must sample the model like the
+tested mesh. Trace differences (offsets > 300 m), tests/figures/mortar/references_*.png:
 
-Le DG 3-D de FUnTiDES apparie les faces par nœuds partagés (FaceConnectivityUnstruct : une face = deux
-éléments) : pas de faces h-non conformes sans réécriture. Le SEM 2-D (sem2d) est la bonne base : boucle
-élément + ajouts atomiques dans un vecteur global. À ajouter : maillage à nœuds dupliqués aux bords de
-blocs (injection depuis Python), table des segments d'interface (élément, arête, paramètres des deux
-côtés), un noyau Kokkos de flux SIPG par segment (traces et dérivées normales interpolées aux points de
-Gauss), le pas de temps par bloc pour le pas de temps local.
+- Bilayer + square inclusion (order 2, jumps at cell edges, followed by blocks): against the
+  staircase reference, blocks 1.9 / 0.85 / 0.34 / 0.12 % from 6 to 12 ppw; unaligned uniform grid
+  14 % / 7 % (6 / 9 ppw). The 3.8 % “ceiling” was the difference between the two references.
+- Sigsbee: against the smoothed one-cell reference (3.8 million elements), blocks 5.1 / 3.9 / 2.7 /
+  2.4 % from 5 to 8 ppw, uniform 5.6 / 2.4 % (5 / 7 ppw); the old reference (3 cells) differed by
+  2.8 %. The remainder (~2.4 %, common to blocks and the uniform grid) comes from sharp salt
+  boundaries at cell scale, which every mesh coarser than a cell sees in the same way.
+- Marmousi: blocks cut at the seabed and see it as a sharp jump; smoothed sampling turns it into
+  a one-cell ramp: blocks differ by 0.7 % from the smoothed 2-cell reference (8 ppw), 1.9 % from
+  the one-cell reference; the uniform grid (7 ppw) shows the reverse (1.9 / 0.6 %).
 
+Sampling used by BlocksMesh2D: smoothed, except at block boundaries carrying a sharp jump
+(one-sided sampling, exact jump).
+
+## FUnTiDES port (estimate)
+
+FUnTiDES 3-D DG pairs faces through shared nodes (FaceConnectivityUnstruct: one face = two
+elements): h-non-conforming faces require a rewrite. The 2-D SEM (sem2d) is the appropriate base:
+element loop + atomic additions into a global vector. To add: mesh with duplicated nodes at block
+boundaries (injected from Python), interface segment table (element, edge, parameters on both sides),
+a Kokkos SIPG flux kernel per segment (traces and normal derivatives interpolated at Gauss points),
+and per-block time steps for local time stepping.
