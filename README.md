@@ -37,6 +37,48 @@ The executable is written to `build/bin/funtides-sem`.
 `examples/example_config.yaml` lists the command line options;
 `python/run_funtides.py` runs `funtides-sem` from such a YAML file.
 
+## Python examples
+
+`examples/python/` holds small scripts calling the FUnTiDES Python bindings
+(`pyfuntides`) directly, without the `funtides-sem` executable:
+
+| Script                           | Content                                         |
+|----------------------------------|-------------------------------------------------|
+| `solver_cartesian.py`            | acoustic SEM, cartesian mesh                    |
+| `solver_cartesian_bilayer.py`    | acoustic SEM, two-layer cartesian model         |
+| `solver_cartesian_dg.py`         | acoustic DG, cartesian mesh                     |
+| `solver_cartesian_mpi.py`        | acoustic SEM split across MPI ranks             |
+| `solver_multigpu.py`             | acoustic SEM, one GPU per MPI rank              |
+| `solver_multigpu_multinode.py`   | same on several nodes, strong/weak scaling      |
+| `qualitative_gradient_test.py`   | one FWI gradient on an unstructured model       |
+
+Requirements:
+
+- FUnTiDES configured with `-DENABLE_PYWRAP=ON` and installed; its `python`
+  directory provides `pyfuntides`.
+- `pykokkos` (the `kokkos` module), built on the same Kokkos as FUnTiDES.
+- The packages of `examples/python/requirements.txt`, and `mpi4py` for the MPI
+  scripts.
+- For now, GPU runs need a Kokkos built with CUDA UVM
+  (`Kokkos_ENABLE_CUDA_UVM=ON`): the scripts allocate their views in
+  `CudaUVMSpace`.
+
+```bash
+export PYTHONPATH=<funtides install>/python:$PYTHONPATH
+python3 examples/python/solver_cartesian.py --ex 100 --ey 100 --ez 100 --order 2
+mpirun -n 4 python3 examples/python/solver_cartesian_mpi.py --ex 200 --snap_interval 20
+```
+
+`scripts/environments/plafrim_{strong,weak}_scaling.sbatch` run the scaling
+studies of `solver_multigpu_multinode.py` on PlaFRIM:
+
+```bash
+FUNTIDES_INSTALL=<funtides install> \
+FUNTIDES_APP_PATH=<this repository> \
+FUNTIDES_VENV=<Python env providing pykokkos> \
+sbatch scripts/environments/plafrim_strong_scaling.sbatch
+```
+
 ## Validation
 
 The validation compares receiver traces with analytical solutions for the
